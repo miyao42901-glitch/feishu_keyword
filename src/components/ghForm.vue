@@ -31,22 +31,41 @@
     },
     setup(props) {
       const ghSearchField = {
-        name: {value: 'name', label: '公众号名称或微信id'},
-        url: {value: 'url', label: '文章链接'},
-        biz: {value: 'biz', label: '公众号标识(base64)'},
+        name: '公众号名称或微信id',
+        url: '文章链接',
+        biz: '公众号标识(base64)',
       }
 
       const ghTableFields = {
-        appmsgid: {value: 'appmsgid', label: '文章ID', fieldType: FieldType.Text},
-        url: {value: 'url', label: '文章链接', fieldType: FieldType.Url},
-        post_time: {value: 'post_time', label: '发文时间', fieldType: FieldType.DateTime},
-        title: {value: 'title', label: '文章标题', fieldType: FieldType.Text},
-        digest: {value: 'digest', label: '文章摘要', fieldType: FieldType.Text},
+        url: { label: '文章链接', fieldType: FieldType.Url, isPrimary: true},
+        post_time: { label: '发文时间', fieldType: FieldType.DateTime, },
+        title: { label: '文章标题', fieldType: FieldType.Text, },
+        digest: { label: '文章摘要', fieldType: FieldType.Text, },
+        original: {
+          label: '原创状态', 
+          fieldType: FieldType.SingleSelect, 
+          options: {
+            0: '未声明原创',
+            1: '原创',
+            2: '转载'
+          },
+        },
+        item_show_type: {
+          label: '内容类型', 
+          fieldType: FieldType.SingleSelect, 
+          options: {
+            0: '图文',
+            5: '纯视频',
+            7: '纯音乐',
+            8: '纯图片',
+            10: '纯文字',
+            11: '其他'
+          },
+        },
       }
-      
 
       const ghData = ref({
-        selectedSearchField: ghSearchField.name.value,
+        selectedSearchField: null,
         searchFieldValue: null,
       })
 
@@ -121,10 +140,10 @@
         placeholder="请选择查询方式"
       >
         <el-option
-          v-for="item in ghSearchField"
-          :key="item.value"
-          :label="item.label"
-          :value="item.value"
+          v-for="[key, value] in Object.entries(ghSearchField)"
+          :key="key"
+          :label="value"
+          :value="key"
         >
         </el-option>
       </el-select>
@@ -144,7 +163,7 @@
       <el-button 
         type="primary" 
         size="large" 
-        :disabled="disabled || !ghData.searchFieldValue"
+        :disabled="disabled || !ghData.selectedSearchField || !ghData.searchFieldValue"
         @click="testClick"
         plain
         style="flex: 1;"
@@ -154,7 +173,7 @@
       <el-button 
         type="primary" 
         size="large" 
-        :disabled="disabled || !ghData.searchFieldValue"
+        :disabled="disabled || !ghData.selectedSearchField || !ghData.searchFieldValue"
         @click="testClick"
         plain
         style="flex: 1;"
@@ -162,6 +181,7 @@
         获取历史发文
       </el-button>
     </el-form-item>
+    <p>{{ ghData }}</p>
   </div>
 </template>
 
