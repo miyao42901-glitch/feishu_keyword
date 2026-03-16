@@ -5,19 +5,18 @@ import { bitable, FieldType, IOpenSegmentType } from '@lark-base-open/js-sdk';
  * @param {string} tableId - 表格ID，如果是新建表格则为null
  * @param {Array} dataList - 数据列表
  * @param {Object} fieldsConfig - 字段配置
- * @param {boolean} isNewTable - 是否为新建表格
  * @param {string} tableName - 新建表格的名称
  * @returns {Promise<{success: boolean, data: {tableId: string, recordIds: Array<string>} | null, error: string | null}>} - 写入结果
  */
-export const writeToTable = async (tableId, dataList, fieldsConfig, isNewTable = false, tableName = null) => {
+export const writeToTable = async (tableId, dataList, fieldsConfig, tableName = null) => {
   try {
     let targetTableId = tableId;
     
     // 如果是新建表格
-    if (isNewTable) {
+    if (tableId === null) {
       // 创建新表格
-      const newTable = await bitable.base.addTable(tableName);
-      targetTableId = newTable.id;
+      const newTable = await bitable.base.addTable({name: tableName});
+      targetTableId = newTable.tableId;
       console.log('新建表格成功，表格ID:', targetTableId);
     }
     
@@ -131,25 +130,44 @@ export const writeToTable = async (tableId, dataList, fieldsConfig, isNewTable =
 };
 
 // 构建字段配置对象
-const buildFieldConfig = (fieldConfigValue) => {
+export const buildFieldConfig = (fieldConfigValue) => {
   const fieldCell = {
-    type: fieldConfigValue.fieldType,
+    type: fieldConfigValue.fieldType ? fieldConfigValue.fieldType : FieldType.Text,
     name: fieldConfigValue.label,
   };
   
-  // 如果是单选字段且有选项配置，添加选项
-  if (fieldConfigValue.fieldType === FieldType.SingleSelect && fieldConfigValue.options && Object.keys(fieldConfigValue.options).length > 0) {
-    fieldCell.property = { options: Object.values(fieldConfigValue.options).map(name => ({ name })) };
+  switch (fieldConfigValue.fieldType) {
+    case FieldType.SingleSelect: {
+      if (fieldConfigValue.options && Object.keys(fieldConfigValue.options).length > 0) {
+        fieldCell.property = { options: Object.values(fieldConfigValue.options).map(name => ({ name })) };
+      }
+      break;
+    }
+    case FieldType.SingleLink: {
+      fieldCell.property = fieldConfigValue.property
+      break;
+    }
+    case FieldType.DateTime: {
+      fieldCell.property = fieldConfigValue.property
+      break;
+    }
+    case FieldType.Number: {
+      fieldCell.property = fieldConfigValue.property
+      break;
+    }
+
   }
-  
+
   return fieldCell;
 };
 
-const getCellValue = async (value, field, fieldConfigValue) => {
+export const getCellValue = async (value, field, fieldConfigValue) => {
   const fieldType = await field.getType();
+
   if (fieldType !== fieldConfigValue.fieldType) {
     return value
   }
+
   switch (fieldType) {
     case FieldType.SingleSelect:{
       const options = await field.getOptions();
@@ -163,11 +181,17 @@ const getCellValue = async (value, field, fieldConfigValue) => {
         type: IOpenSegmentType.Url,
         text: value
       };
+    case FieldType.SingleLink:
+      return {
+        record_ids: value
+      };
     default:
       return value;
   }
 }
 
 export default {
-  writeToTable
+  writeToTable,
+  buildFieldConfig,
+  getCellValue,
 };
