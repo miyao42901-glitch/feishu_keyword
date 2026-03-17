@@ -174,8 +174,6 @@ export const getCellValue = async (value, field, fieldConfigValue) => {
       const option = options.find(opt => opt.name == fieldConfigValue.options[value]);
       return {id: option.id};
     }
-    case FieldType.DateTime:
-      return value * 1000;
     case FieldType.Url:
       return {
         type: IOpenSegmentType.Url,
@@ -190,8 +188,86 @@ export const getCellValue = async (value, field, fieldConfigValue) => {
   }
 }
 
+/**
+ * 更新表格数据
+ * @param {string} tableId - 表格ID
+ * @param {Array} dataList - 数据列表，每个元素应包含 recordId 和要更新的字段数据
+ * @param {Object} fieldsConfig - 字段配置
+ * @returns {Promise<{success: boolean, data: {recordIds: Array<string>} | null, error: string | null}>} - 更新结果
+ */
+export const updateTable = async (tableId, dataList, fieldsConfig) => {
+  try {
+    // 获取表格实例
+    const table = await bitable.base.getTable(tableId);
+    
+    // 获取字段列表
+    const fieldList = await table.getFieldList();
+    const fieldMap = {};
+    
+    for (const field of fieldList) {
+      const fieldName = await field.getName();
+      fieldMap[fieldName] = field;
+    }
+
+    // 筛选出字段配置中和表格字段均包含的字段
+    const commonFields = {};
+    for (const [fieldConfigKey, fieldConfigValue] of Object.entries(fieldsConfig)) {
+      if (fieldMap[fieldConfigValue.label]) {
+        commonFields[fieldConfigKey] = fieldConfigValue;
+      }
+    }
+
+    // 分批处理数据，每次最多200条
+    const batchSize = 200;
+    const allRecordIds = [];
+    
+    for (let i = 0; i < dataList.length; i += batchSize) {
+      const batchData = dataList.slice(i, i + batchSize);
+      
+      // 构建记录数据
+      const records = await Promise.all(batchData.map(async item => {
+        const fields = {};
+        for (const [fieldConfigKey, fieldConfigValue] of Object.entries(commonFields)) {
+          const fieldId = fieldMap[fieldConfigValue.label].id;
+          if (fieldId && item.data[fieldConfigKey] !== undefined) {
+            fields[fieldId] = await getCellValue(item.data[fieldConfigKey], fieldMap[fieldConfigValue.label], fieldConfigValue);
+          }
+        }
+        return {
+          recordId: item.recordId,
+          fields: fields
+        };
+      }));
+      
+      console.log('准备更新的记录:', records);
+      
+      // 更新数据
+      await table.setRecords(records);
+      allRecordIds.push(...records.map(record => record.recordId));
+      console.log(`批次 ${Math.floor(i / batchSize) + 1} 更新成功，更新记录数: ${records.length}`);
+    }
+    
+    console.log('全部数据更新成功，总记录数:', allRecordIds.length);
+    return {
+      success: true,
+      data: {
+        recordIds: allRecordIds
+      },
+      error: null
+    };
+  } catch (error) {
+    console.error('更新表格失败:', error);
+    return {
+      success: false,
+      data: null,
+      error: error.message || '更新失败'
+    };
+  }
+};
+
 export default {
   writeToTable,
+  updateTable,
   buildFieldConfig,
   getCellValue,
 };

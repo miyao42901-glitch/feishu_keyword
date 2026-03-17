@@ -10,7 +10,7 @@
     ElButton,
   } from 'element-plus';
   import pluginAPI from '@/utils/request'
-  import { writeToTable, getCellValue } from '@/utils/tableHelper'
+  import { writeToTable, updateTable, getCellValue } from '@/utils/tableHelper'
   import TableSelect from './TableSelect.vue'
 
   export default {
@@ -187,10 +187,11 @@
               .filter(item => item.post_time * 1000 > ac_last_time)
               .map(item => ({
                 ...item,
+                post_time: item.post_time * 1000, // 转换为毫秒级时间戳
                 gh_link: [ac_recordId],
               }))
 
-              max_post_time = Math.max(...dataList.map(item => item.post_time * 1000), max_post_time)
+              max_post_time = Math.max(...dataList.map(item => item.post_time), max_post_time)
               // console.log(max_post_time)
 
               // 将数据添加到对象中，使用 url 作为 key
@@ -203,8 +204,8 @@
               // 将数据添加到对象中，使用 ac_recordId 作为 key
               totalLastTime[ac_recordId] = {
                 recordId: ac_recordId, 
-                fields: {
-                  [fieldMap[ac_fields.last_update_time.label].id]: max_post_time,
+                data: {
+                  last_update_time: max_post_time,
                 }
               };
             }
@@ -222,10 +223,11 @@
                 .filter(item => item.post_time * 1000 > ac_last_time)
                 .map(item => ({
                   ...item,
+                  post_time: item.post_time * 1000, // 转换为毫秒级时间戳
                   gh_link: [ac_recordId],
                 }))
 
-                max_post_time = Math.max(...dataList.map(item => item.post_time * 1000), max_post_time)
+                max_post_time = Math.max(...dataList.map(item => item.post_time), max_post_time)
               // console.log(max_post_time)
 
               // 将数据添加到对象中，使用 url 作为 key
@@ -238,8 +240,8 @@
                 // 将数据添加到对象中，使用 ac_recordId 作为 key
                 totalLastTime[ac_recordId] = {
                   recordId: ac_recordId, 
-                  fields: {
-                    [fieldMap[ac_fields.last_update_time.label].id]: max_post_time,
+                  data: {
+                    last_update_time: max_post_time,
                   }
                 };
 
@@ -256,7 +258,12 @@
             Object.values(totalData),
             ghArticleFields(ghData.value.selectedGhTableId),
           );
-          await accountTable.setRecords(Object.values(totalLastTime))
+          
+          await updateTable(
+            ghData.value.selectedGhTableId,
+            Object.values(totalLastTime),
+            ghAccountFields()
+          )
 
         } catch (error) {
           console.error('操作失败:', error);
@@ -290,21 +297,25 @@
               url: ar_url.text,
               key: props.formData.key,
             })
-            totalInteract.push({
-              recordId: ar_recordId, 
-              fields: {
-                  [fieldMap[ar_fields.read.label].id]: res.data.data.read,
-                  [fieldMap[ar_fields.zan.label].id]: res.data.data.zan,
-                  [fieldMap[ar_fields.looking.label].id]: res.data.data.looking,
-                  [fieldMap[ar_fields.share_num.label].id]: res.data.data.share_num,
-                  [fieldMap[ar_fields.collect_num.label].id]: res.data.data.collect_num,
-                  [fieldMap[ar_fields.comment_count.label].id]: res.data.data.comment_count,
-                  [fieldMap[ar_fields.last_get_time.label].id]: get_time,
-                }
-              }
-            )
+            
+            // 构建 updateTable 所需的格式
+            const updateItem = { recordId: ar_recordId, data: {} };
+            updateItem.data.read = res.data.data.read;
+            updateItem.data.zan = res.data.data.zan;
+            updateItem.data.looking = res.data.data.looking;
+            updateItem.data.share_num = res.data.data.share_num;
+            updateItem.data.collect_num = res.data.data.collect_num;
+            updateItem.data.comment_count = res.data.data.comment_count;
+            updateItem.data.last_get_time = get_time;
+            
+            totalInteract.push(updateItem);
           }
-          await articleTable.setRecords(totalInteract)
+          
+          await updateTable(
+            ghData.value.selectedArticleTableId,
+            totalInteract,
+            ghArticleFields()
+          )
         } catch (error) {
           console.error('操作失败:', error);
         } finally {
