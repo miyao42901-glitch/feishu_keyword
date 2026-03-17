@@ -153,7 +153,6 @@
         try{
           const searchDays = typeof maxDay === 'number' && !isNaN(maxDay) ? Math.min(30, Math.max(1, Math.floor(maxDay))) : 1
           const date = new Date()
-          const now_time = date.getTime()
           date.setHours(0, 0, 0, 0)
           date.setDate(date.getDate() - (searchDays - 1))
           const min_time = date.getTime()
@@ -177,6 +176,7 @@
             const ac_last_time = Math.max(accountRecord.fields[fieldMap[ac_fields.last_update_time.label].id] || min_time, min_time)
 
             // console.log(ac_name, ac_biz, ac_last_time)
+            let max_post_time = Math.max(ac_last_time, Date.now())
             if (searchDays === 1){
               const res = await pluginAPI.post('/fbmain/monitor/v3/post_condition', {
                 biz: ac_biz.text,
@@ -190,7 +190,7 @@
                 gh_link: [ac_recordId],
               }))
 
-              const max_post_time = Math.max(...dataList.map(item => item.post_time * 1000), ac_last_time, now_time)
+              max_post_time = Math.max(...dataList.map(item => item.post_time * 1000), max_post_time)
               // console.log(max_post_time)
 
               // 将数据添加到对象中，使用 url 作为 key
@@ -210,7 +210,6 @@
             }
             else{
               let i = 0
-              let max_post_time = Math.max(ac_last_time, now_time)
               while(true){
                 i += 1
                 const res = await pluginAPI.post('/fbmain/monitor/v3/post_history', {
@@ -244,7 +243,7 @@
                   }
                 };
 
-                if (dataList.length === 0){
+                if (dataList.length === 0 || res.data.total_page === res.data.now_page){
                   break
                 }
               }
@@ -274,8 +273,6 @@
           const articleTable = await bitable.base.getTable(ghData.value.selectedArticleTableId)
           const recordIdList = await bitable.ui.selectRecordIdList(ghData.value.selectedArticleTableId)
 
-          const now_time = Date.now()
-
           const fieldList = await articleTable.getFieldList()
           const fieldMap = {};
           for (const field of fieldList) {
@@ -288,6 +285,7 @@
           for (const ar_recordId of recordIdList){
             const articleRecord = await articleTable.getRecordById(ar_recordId);
             const ar_url = articleRecord.fields[fieldMap[ar_fields.url.label].id][0]
+            const get_time = Date.now()
             const res = await pluginAPI.post('/fbmain/monitor/v3/read_zan_pro', {
               url: ar_url.text,
               key: props.formData.key,
@@ -301,7 +299,7 @@
                   [fieldMap[ar_fields.share_num.label].id]: res.data.data.share_num,
                   [fieldMap[ar_fields.collect_num.label].id]: res.data.data.collect_num,
                   [fieldMap[ar_fields.comment_count.label].id]: res.data.data.comment_count,
-                  [fieldMap[ar_fields.last_get_time.label].id]: now_time,
+                  [fieldMap[ar_fields.last_get_time.label].id]: get_time,
                 }
               }
             )
