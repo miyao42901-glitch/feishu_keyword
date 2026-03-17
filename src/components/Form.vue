@@ -88,11 +88,11 @@
           <el-tab-pane label="公众号" name="0">
             <GhForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
-          <el-tab-pane label="平台2" name="1">
-            测试
+          <el-tab-pane label="抖音" name="1">
+            <el-form-item label="开发中" />
           </el-tab-pane>
-          <el-tab-pane label="平台3" name="2">
-            测试
+          <el-tab-pane label="小红书" name="2">
+            <el-form-item label="开发中" />
           </el-tab-pane>
         </el-tabs>
       </el-card>

@@ -85,6 +85,7 @@
           share_num: {label: '转发数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           collect_num: {label: '收藏数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           comment_count: {label: '评论数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          last_get_time: { label: '互动信息更新时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
         }
       }
 
@@ -145,11 +146,18 @@
         }
       }
 
-      const getTodayArticles = async() => {
+      const getRecentArticles = async(maxDay = 1) => {
         if (props.isLocked) return;
         emit('update:isLocked', true);
 
         try{
+          const searchDays = typeof maxDay === 'number' && !isNaN(maxDay) ? Math.min(30, Math.max(1, Math.floor(maxDay))) : 1
+          const date = new Date()
+          const now_time = date.getTime()
+          date.setHours(0, 0, 0, 0)
+          date.setDate(date.getDate() - (searchDays - 1))
+          const min_time = date.getTime()
+          
           const recordIdList = await bitable.ui.selectRecordIdList(ghData.value.selectedGhTableId)
           const accountTable = await bitable.base.getTable(ghData.value.selectedGhTableId)
 
@@ -160,41 +168,97 @@
             fieldMap[fieldName] = field;
           }
           const ac_fields = ghAccountFields()
-          for (const recordId of recordIdList){
-            const accountRecord = await accountTable.getRecordById(recordId);
+
+          const totalData = {}
+          const totalLastTime = {}
+          for (const ac_recordId of recordIdList){
+            const accountRecord = await accountTable.getRecordById(ac_recordId);
             const ac_biz = accountRecord.fields[fieldMap[ac_fields.biz.label].id][0]
-            const ac_last_time = (accountRecord.fields[fieldMap[ac_fields.last_update_time.label].id] || 0)
+            const ac_last_time = Math.max(accountRecord.fields[fieldMap[ac_fields.last_update_time.label].id] || min_time, min_time)
 
             // console.log(ac_name, ac_biz, ac_last_time)
-            const res = await pluginAPI.post('/fbmain/monitor/v3/post_condition', {
-              biz: ac_biz.text,
-              key: props.formData.key,
-            })
+            if (searchDays === 1){
+              const res = await pluginAPI.post('/fbmain/monitor/v3/post_condition', {
+                biz: ac_biz.text,
+                key: props.formData.key,
+              })
 
-            const dataList = res.data.data
-            .filter(item => item.post_time * 1000 > ac_last_time)
-            .map(item => ({
-              ...item,
-              gh_link: [recordId],
-            }))
+              const dataList = res.data.data
+              .filter(item => item.post_time * 1000 > ac_last_time)
+              .map(item => ({
+                ...item,
+                gh_link: [ac_recordId],
+              }))
 
-            const max_post_time = Math.max(...dataList.map(item => item.post_time * 1000), ac_last_time, Date.now())
-            // console.log(max_post_time)
+              const max_post_time = Math.max(...dataList.map(item => item.post_time * 1000), ac_last_time, now_time)
+              // console.log(max_post_time)
 
-            await writeToTable(
-              ghData.value.selectedArticleTableId,
-              dataList,
-              ghArticleFields(ghData.value.selectedGhTableId),
-            );
-
-            accountTable.setRecord(recordId, 
-              { 
+              // 将数据添加到对象中，使用 url 作为 key
+              dataList.forEach(item => {
+                if (item.url) {
+                  totalData[item.url] = item;
+                }
+              });
+              
+              // 将数据添加到对象中，使用 ac_recordId 作为 key
+              totalLastTime[ac_recordId] = {
+                recordId: ac_recordId, 
                 fields: {
                   [fieldMap[ac_fields.last_update_time.label].id]: max_post_time,
                 }
+              };
+            }
+            else{
+              let i = 0
+              let max_post_time = Math.max(ac_last_time, now_time)
+              while(true){
+                i += 1
+                const res = await pluginAPI.post('/fbmain/monitor/v3/post_history', {
+                  biz: ac_biz.text,
+                  key: props.formData.key,
+                  page: i
+                })
+
+                const dataList = res.data.data
+                .filter(item => item.post_time * 1000 > ac_last_time)
+                .map(item => ({
+                  ...item,
+                  gh_link: [ac_recordId],
+                }))
+
+                max_post_time = Math.max(...dataList.map(item => item.post_time * 1000), max_post_time)
+              // console.log(max_post_time)
+
+              // 将数据添加到对象中，使用 url 作为 key
+                dataList.forEach(item => {
+                  if (item.url) {
+                    totalData[item.url] = item;
+                  }
+                });
+                
+                // 将数据添加到对象中，使用 ac_recordId 作为 key
+                totalLastTime[ac_recordId] = {
+                  recordId: ac_recordId, 
+                  fields: {
+                    [fieldMap[ac_fields.last_update_time.label].id]: max_post_time,
+                  }
+                };
+
+                if (dataList.length === 0){
+                  break
+                }
               }
-            )
+            }
           }
+
+          
+          await writeToTable(
+            ghData.value.selectedArticleTableId,
+            Object.values(totalData),
+            ghArticleFields(ghData.value.selectedGhTableId),
+          );
+          await accountTable.setRecords(Object.values(totalLastTime))
+
         } catch (error) {
           console.error('操作失败:', error);
         } finally {
@@ -210,6 +274,8 @@
           const articleTable = await bitable.base.getTable(ghData.value.selectedArticleTableId)
           const recordIdList = await bitable.ui.selectRecordIdList(ghData.value.selectedArticleTableId)
 
+          const now_time = Date.now()
+
           const fieldList = await articleTable.getFieldList()
           const fieldMap = {};
           for (const field of fieldList) {
@@ -218,26 +284,29 @@
           }
 
           const ar_fields = ghArticleFields()
-          for (const recordId of recordIdList){
-            const articleRecord = await articleTable.getRecordById(recordId);
+          const totalInteract = []
+          for (const ar_recordId of recordIdList){
+            const articleRecord = await articleTable.getRecordById(ar_recordId);
             const ar_url = articleRecord.fields[fieldMap[ar_fields.url.label].id][0]
             const res = await pluginAPI.post('/fbmain/monitor/v3/read_zan_pro', {
               url: ar_url.text,
               key: props.formData.key,
             })
-            articleTable.setRecord(recordId, 
-              { 
-                fields: {
+            totalInteract.push({
+              recordId: ar_recordId, 
+              fields: {
                   [fieldMap[ar_fields.read.label].id]: res.data.data.read,
                   [fieldMap[ar_fields.zan.label].id]: res.data.data.zan,
                   [fieldMap[ar_fields.looking.label].id]: res.data.data.looking,
                   [fieldMap[ar_fields.share_num.label].id]: res.data.data.share_num,
                   [fieldMap[ar_fields.collect_num.label].id]: res.data.data.collect_num,
                   [fieldMap[ar_fields.comment_count.label].id]: res.data.data.comment_count,
+                  [fieldMap[ar_fields.last_get_time.label].id]: now_time,
                 }
               }
             )
           }
+          await articleTable.setRecords(totalInteract)
         } catch (error) {
           console.error('操作失败:', error);
         } finally {
@@ -249,7 +318,7 @@
         ghData,
         addTableTemplate,
         addGhAccount,
-        getTodayArticles,
+        getRecentArticles,
         getArticleInteract,
       };
     },
@@ -283,19 +352,6 @@
       <el-button 
         type="primary" 
         size="large" 
-        :disabled="isLocked || !formData.key || !ghData.ghSearchValue || !ghData.selectedGhTableId"
-        @click="addGhAccount"
-        plain
-        style="flex: 1;"
-      >
-        添加公众号
-      </el-button>
-    </el-form-item>
-
-    <el-form-item label-width="null">
-      <el-button 
-        type="primary" 
-        size="large" 
         :disabled="isLocked"
         @click="addTableTemplate"
         plain
@@ -309,12 +365,51 @@
       <el-button 
         type="primary" 
         size="large" 
-        :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
-        @click="getTodayArticles"
+        :disabled="isLocked || !formData.key || !ghData.ghSearchValue || !ghData.selectedGhTableId"
+        @click="addGhAccount"
         plain
         style="flex: 1;"
       >
-        获取当日发文
+        添加公众号
+      </el-button>
+    </el-form-item>
+
+    <el-form-item label-width="null">
+      <el-button 
+        type="primary" 
+        size="large" 
+        :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
+        @click="getRecentArticles"
+        plain
+        style="flex: 1;"
+      >
+        获取今日发文
+      </el-button>
+    </el-form-item>
+
+    <el-form-item label-width="null">
+      <el-button 
+        type="primary" 
+        size="large" 
+        :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
+        @click="getRecentArticles(7)"
+        plain
+        style="flex: 1;"
+      >
+        获取近期最多7天发文
+      </el-button>
+    </el-form-item>
+
+    <el-form-item label-width="null">
+      <el-button 
+        type="primary" 
+        size="large" 
+        :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
+        @click="getRecentArticles(30)"
+        plain
+        style="flex: 1;"
+      >
+        获取近期最多30天发文
       </el-button>
     </el-form-item>
 
@@ -332,7 +427,6 @@
     </el-form-item>
 
     <p>{{ ghData }}</p>
-    <p>{{ formData.key }}</p>
   </el-form>
 </template>
 
