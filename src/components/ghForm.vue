@@ -132,7 +132,7 @@
             key: props.formData.key,
           })
 
-          if (res.data.data) {
+          if (res.data.code === 0) {
             const result = await writeToTable(
               ghData.value.selectedGhTableId,
               [res.data.data],
@@ -182,6 +182,8 @@
                 biz: ac_biz.text,
                 key: props.formData.key,
               })
+              
+              if (res.data.code !== 0) continue
 
               const dataList = res.data.data
               .filter(item => item.post_time * 1000 > ac_last_time)
@@ -218,6 +220,8 @@
                   key: props.formData.key,
                   page: i
                 })
+
+                if (res.data.code !== 0) break
 
                 const dataList = res.data.data
                 .filter(item => item.post_time * 1000 > ac_last_time)
@@ -300,14 +304,12 @@
             
             // 构建 updateTable 所需的格式
             const updateItem = { recordId: ar_recordId, data: {} };
-            updateItem.data.read = res.data.data.read;
-            updateItem.data.zan = res.data.data.zan;
-            updateItem.data.looking = res.data.data.looking;
-            updateItem.data.share_num = res.data.data.share_num;
-            updateItem.data.collect_num = res.data.data.collect_num;
-            updateItem.data.comment_count = res.data.data.comment_count;
-            updateItem.data.last_get_time = get_time;
-            
+
+            updateItem.data = {
+              ...res.data.data,
+              last_get_time: get_time,
+            }
+
             totalInteract.push(updateItem);
           }
           

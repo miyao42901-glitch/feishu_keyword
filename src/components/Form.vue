@@ -18,6 +18,7 @@
   } from 'element-plus';
   import pluginAPI from '@/utils/request'
   import GhForm from './ghForm.vue'
+  import DyForm from './dyForm.vue'
 
   export default {
     components: {
@@ -35,6 +36,7 @@
       ElTabs,
       ElTabPane,
       GhForm,
+      DyForm,
     },
     setup() {
       const formRef = ref(null)
@@ -89,7 +91,7 @@
             <GhForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
           <el-tab-pane label="抖音" name="1">
-            <el-form-item label="开发中" />
+            <DyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
           <el-tab-pane label="小红书" name="2">
             <el-form-item label="开发中" />
