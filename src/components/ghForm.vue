@@ -40,7 +40,7 @@
           name: { label: '公众号名称', fieldType: FieldType.Text, isPrimary: true},
           biz: { label: '公众号标识(base64)', fieldType: FieldType.Text, },
           desc: { label: '公众号描述', fieldType: FieldType.Text, },
-          last_update_time: { label: '最后获取发文时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
+          get_time_cut: { label: '获取发文截至时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
         }
       }
 
@@ -117,6 +117,8 @@
           }
         }catch (error) {
           console.error('操作失败:', error);
+          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
         }
@@ -141,6 +143,8 @@
           }
         } catch (error) {
           console.error('操作失败:', error);
+          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
         }
@@ -173,10 +177,11 @@
           for (const ac_recordId of recordIdList){
             const accountRecord = await accountTable.getRecordById(ac_recordId);
             const ac_biz = accountRecord.fields[fieldMap[ac_fields.biz.label].id][0]
-            const ac_last_time = Math.max(accountRecord.fields[fieldMap[ac_fields.last_update_time.label].id] || min_time, min_time)
+            const ac_cut_time = Math.max(accountRecord.fields[fieldMap[ac_fields.get_time_cut.label].id] || min_time, min_time)
 
-            // console.log(ac_name, ac_biz, ac_last_time)
-            let max_post_time = Math.max(ac_last_time, Date.now())
+            // console.log(ac_name, ac_biz, ac_cut_time)
+            // let new_cut_time = Math.max(ac_cut_time, Date.now())
+            let new_cut_time = ac_cut_time
             if (searchDays === 1){
               const res = await pluginAPI.post('/fbmain/monitor/v3/post_condition', {
                 biz: ac_biz.text,
@@ -186,15 +191,15 @@
               if (res.data.code !== 0) continue
 
               const dataList = res.data.data
-              .filter(item => item.post_time * 1000 > ac_last_time)
+              .filter(item => item.post_time * 1000 > ac_cut_time)
               .map(item => ({
                 ...item,
                 post_time: item.post_time * 1000, // 转换为毫秒级时间戳
                 gh_link: [ac_recordId],
               }))
 
-              max_post_time = Math.max(...dataList.map(item => item.post_time), max_post_time)
-              // console.log(max_post_time)
+              new_cut_time = Math.max(...dataList.map(item => item.post_time), new_cut_time)
+              // console.log(new_cut_time)
 
               // 将数据添加到对象中，使用 url 作为 key
               dataList.forEach(item => {
@@ -207,7 +212,7 @@
               totalLastTime[ac_recordId] = {
                 recordId: ac_recordId, 
                 data: {
-                  last_update_time: max_post_time,
+                  get_time_cut: new_cut_time,
                 }
               };
             }
@@ -221,18 +226,21 @@
                   page: i
                 })
 
-                if (res.data.code !== 0) break
+                if (res.data.code !== 0) {
+                  delete totalLastTime[user_record]
+                  break
+                }
 
                 const dataList = res.data.data
-                .filter(item => item.post_time * 1000 > ac_last_time)
+                .filter(item => item.post_time * 1000 > ac_cut_time)
                 .map(item => ({
                   ...item,
                   post_time: item.post_time * 1000, // 转换为毫秒级时间戳
                   gh_link: [ac_recordId],
                 }))
 
-                max_post_time = Math.max(...dataList.map(item => item.post_time), max_post_time)
-              // console.log(max_post_time)
+                new_cut_time = Math.max(...dataList.map(item => item.post_time), new_cut_time)
+              // console.log(new_cut_time)
 
               // 将数据添加到对象中，使用 url 作为 key
                 dataList.forEach(item => {
@@ -245,11 +253,11 @@
                 totalLastTime[ac_recordId] = {
                   recordId: ac_recordId, 
                   data: {
-                    last_update_time: max_post_time,
+                    get_time_cut: new_cut_time,
                   }
                 };
 
-                if (dataList.length === 0 || res.data.total_page === res.data.now_page){
+                if (dataList.length === 0){
                   break
                 }
               }
@@ -271,6 +279,8 @@
 
         } catch (error) {
           console.error('操作失败:', error);
+          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
         }
@@ -302,6 +312,10 @@
               key: props.formData.key,
             })
             
+            if (res.data.code !== 0) {
+              continue
+            }
+            
             // 构建 updateTable 所需的格式
             const updateItem = { recordId: ar_recordId, data: {} };
 
@@ -320,6 +334,8 @@
           )
         } catch (error) {
           console.error('操作失败:', error);
+          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
         }
@@ -390,7 +406,7 @@
         type="primary" 
         size="large" 
         :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
-        @click="getRecentArticles"
+        @click="getRecentArticles(1)"
         plain
         style="flex: 1;"
       >
@@ -403,11 +419,11 @@
         type="primary" 
         size="large" 
         :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
-        @click="getRecentArticles(7)"
+        @click="getRecentArticles(3)"
         plain
         style="flex: 1;"
       >
-        获取近期最多7天发文
+        获取近期最多3天发文
       </el-button>
     </el-form-item>
 
@@ -416,11 +432,11 @@
         type="primary" 
         size="large" 
         :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
-        @click="getRecentArticles(30)"
+        @click="getRecentArticles(10)"
         plain
         style="flex: 1;"
       >
-        获取近期最多30天发文
+        获取近期最多10天发文
       </el-button>
     </el-form-item>
 

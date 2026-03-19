@@ -34,4 +34,59 @@ pluginAPI.interceptors.response.use(
   }
 )
 
-export default pluginAPI
+// 添加重试功能的包装函数
+const withRetry = async (requestFn, maxRetries = 3, retryDelay = 1000) => {
+  let lastResponse = null
+  let lastError = null
+  
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await requestFn()
+      lastResponse = response
+      
+      // 检查是否有 code 字段，并且 code 为 0
+      if (response.data && response.data.code === 0) {
+        return response
+      }
+      
+      // 如果 code 不为 0，继续重试
+      console.log(`请求返回 code 不为 0 (${response.data.code})，正在重试 ${i + 1}/${maxRetries}...`)
+    } catch (error) {
+      lastError = error
+      console.log(`请求失败，正在重试 ${i + 1}/${maxRetries}...`)
+    }
+    
+    // 等待指定时间后重试
+    if (i < maxRetries - 1) {
+      await new Promise(resolve => setTimeout(resolve, retryDelay))
+    }
+  }
+  
+  // 如果所有重试都失败，返回最后一次的响应或抛出最后一次的错误
+  if (lastResponse) {
+    return lastResponse
+  } else if (lastError) {
+    throw lastError
+  } else {
+    throw new Error('请求失败：没有获取到任何响应')
+  }
+}
+
+// 包装 pluginAPI 的方法，添加重试功能
+const enhancedPluginAPI = {
+  ...pluginAPI,
+  get: async (url, config) => {
+    return withRetry(() => pluginAPI.get(url, config))
+  },
+  post: async (url, data, config) => {
+    return withRetry(() => pluginAPI.post(url, data, config))
+  },
+  put: async (url, data, config) => {
+    return withRetry(() => pluginAPI.put(url, data, config))
+  },
+  delete: async (url, config) => {
+    return withRetry(() => pluginAPI.delete(url, config))
+  }
+}
+
+export default enhancedPluginAPI

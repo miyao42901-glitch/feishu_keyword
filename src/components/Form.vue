@@ -15,6 +15,7 @@
     ElCard,
     ElTabs,
     ElTabPane,
+    ElMessageBox,
   } from 'element-plus';
   import pluginAPI from '@/utils/request'
   import GhForm from './ghForm.vue'
@@ -35,6 +36,7 @@
       ElCard,
       ElTabs,
       ElTabPane,
+      ElMessageBox,
       GhForm,
       DyForm,
     },
@@ -42,9 +44,23 @@
       const formRef = ref(null)
       const formData = ref({
         key: null,
+        message: null,
+        messageType: 'success',
       });
 
       const isLocked = ref(false);
+
+      watch(isLocked, (newVal, oldVal) => {
+        if (oldVal === true && newVal === false) {
+          if (formData.value.message) {
+            console.log(formData.value.message);
+            ElMessageBox.confirm(formData.value.message, '提示',{type: formData.value.messageType})
+            // 清空提示信息
+            formData.value.message = null;
+            formData.value.messageType = 'success';
+          }
+        }
+      });
 
       return {
         formRef,

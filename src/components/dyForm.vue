@@ -42,15 +42,15 @@
           max_follower_count: { label: '最大粉丝数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           mplatform_followers_count: { label: '当前粉丝数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           following_count: { label: '关注数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          signature: { label: '简介', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          signature: { label: '简介', fieldType: FieldType.Text, },
           total_favorited: { label: '获赞总数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          last_update_time: { label: '最后获取视频时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
+          get_time_cut: { label: '获取视频截至时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
         }
       }
 
       function dyVedioFields(linkTableId = '') {
         return {
-          preview_title: { label: '视频标题', fieldType: FieldType.Text, isPrimary: true},
+          caption: { label: '视频标题', fieldType: FieldType.Text, isPrimary: true},
           dy_link: {
             label: '视频作者',
             fieldType: FieldType.SingleLink,
@@ -65,11 +65,13 @@
           comment_count: { label: '评论数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           share_count: { label: '分享数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           collect_count: { label: '收藏数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          last_get_time: { label: '互动数据更新时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
         }
       }
 
       const dyData = ref({
         sec_user_id: null,
+        share_text: null,
         userTableId: null,
         vedioTableId: null,
       })
@@ -96,6 +98,8 @@
           }
         }catch (error) {
           console.error('操作失败:', error);
+          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
         }
@@ -108,6 +112,7 @@
         try{
           const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_data?key=${props.formData.key}`, {
             sec_user_id: dyData.value.sec_user_id,
+            share_text: dyData.value.share_text,
           })
 
           if (res.data.code === 0) {
@@ -119,6 +124,8 @@
           }
         } catch (error) {
           console.error('操作失败:', error);
+          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
         }
@@ -135,116 +142,109 @@
           date.setDate(date.getDate() - (searchDays - 1))
           const min_time = date.getTime()
           
-          // const recordIdList = await bitable.ui.selectRecordIdList(ghData.value.selectedGhTableId)
-          // const accountTable = await bitable.base.getTable(ghData.value.selectedGhTableId)
+          const recordIdList = await bitable.ui.selectRecordIdList(dyData.value.userTableId)
+          const userTable = await bitable.base.getTable(dyData.value.userTableId)
 
-          // const fieldList = await accountTable.getFieldList()
-          // const fieldMap = {};
-          // for (const field of fieldList) {
-          //   const fieldName = await field.getName();
-          //   fieldMap[fieldName] = field;
-          // }
-          // const ac_fields = ghAccountFields()
+          const fieldList = await userTable.getFieldList()
+          const fieldMap = {};
+          for (const field of fieldList) {
+            const fieldName = await field.getName();
+            fieldMap[fieldName] = field;
+          }
+          const user_fields = dyUserFields()
 
-          // const totalData = {}
-          // const totalLastTime = {}
-          // for (const ac_recordId of recordIdList){
-          //   const accountRecord = await accountTable.getRecordById(ac_recordId);
-          //   const ac_biz = accountRecord.fields[fieldMap[ac_fields.biz.label].id][0]
-          //   const ac_last_time = Math.max(accountRecord.fields[fieldMap[ac_fields.last_update_time.label].id] || min_time, min_time)
+          const totalData = {}
+          const totalLastTime = {}
+          for (const user_record of recordIdList){
+            const userRecord = await userTable.getRecordById(user_record);
+            const sec_user_id = userRecord.fields[fieldMap[user_fields.sec_user_id.label].id][0]
+            const user_cut_time = Math.max(userRecord.fields[fieldMap[user_fields.get_time_cut.label].id] || min_time, min_time)
 
-          //   // console.log(ac_name, ac_biz, ac_last_time)
-          //   let max_post_time = Math.max(ac_last_time, Date.now())
-          //   if (searchDays === 1){
-          //     const res = await pluginAPI.post('/fbmain/monitor/v3/post_condition', {
-          //       biz: ac_biz.text,
-          //       key: props.formData.key,
-          //     })
-
-          //     const dataList = res.data.data
-          //     .filter(item => item.post_time * 1000 > ac_last_time)
-          //     .map(item => ({
-          //       ...item,
-          //       post_time: item.post_time * 1000, // 转换为毫秒级时间戳
-          //       gh_link: [ac_recordId],
-          //     }))
-
-          //     max_post_time = Math.max(...dataList.map(item => item.post_time), max_post_time)
-          //     // console.log(max_post_time)
-
-          //     // 将数据添加到对象中，使用 url 作为 key
-          //     dataList.forEach(item => {
-          //       if (item.url) {
-          //         totalData[item.url] = item;
-          //       }
-          //     });
+            // let new_cut_time = Math.max(user_cut_time, Date.now())
+            console.log(user_cut_time)
+            let new_cut_time = user_cut_time
+            let max_cursor = null
+            let i = 0
+            while(true){
+              i += 1
+              const get_time = Date.now()
               
-          //     // 将数据添加到对象中，使用 ac_recordId 作为 key
-          //     totalLastTime[ac_recordId] = {
-          //       recordId: ac_recordId, 
-          //       data: {
-          //         last_update_time: max_post_time,
-          //       }
-          //     };
-          //   }
-          //   else{
-          //     let i = 0
-          //     while(true){
-          //       i += 1
-          //       const res = await pluginAPI.post('/fbmain/monitor/v3/post_history', {
-          //         biz: ac_biz.text,
-          //         key: props.formData.key,
-          //         page: i
-          //       })
 
-          //       const dataList = res.data.data
-          //       .filter(item => item.post_time * 1000 > ac_last_time)
-          //       .map(item => ({
-          //         ...item,
-          //         post_time: item.post_time * 1000, // 转换为毫秒级时间戳
-          //         gh_link: [ac_recordId],
-          //       }))
+              res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_post?key=${props.formData.key}`, {
+                sec_user_id: sec_user_id.text,
+                max_cursor: max_cursor,
+              })
 
-          //       max_post_time = Math.max(...dataList.map(item => item.post_time), max_post_time)
-          //     // console.log(max_post_time)
+              if (res.data.code !== 0) {
+                delete totalLastTime[user_record]
+                break
+              }
 
-          //     // 将数据添加到对象中，使用 url 作为 key
-          //       dataList.forEach(item => {
-          //         if (item.url) {
-          //           totalData[item.url] = item;
-          //         }
-          //       });
-                
-          //       // 将数据添加到对象中，使用 ac_recordId 作为 key
-          //       totalLastTime[ac_recordId] = {
-          //         recordId: ac_recordId, 
-          //         data: {
-          //           last_update_time: max_post_time,
-          //         }
-          //       };
+              max_cursor = res.data.data.max_cursor
 
-          //       if (dataList.length === 0 || res.data.total_page === res.data.now_page){
-          //         break
-          //       }
-          //     }
-          //   }
-          // }
+              const dataList = res.data.data.aweme_list
+              .filter(item => item.create_time * 1000 > user_cut_time)
+              .map(item => ({
+                digg_count: item.statistics.digg_count,
+                comment_count: item.statistics.comment_count,
+                share_count: item.statistics.share_count,
+                collect_count: item.statistics.collect_count,
+                caption: item.caption,
+                aweme_id: item.aweme_id,
+                create_time: item.create_time * 1000, // 转换为毫秒级时间戳
+                dy_link: [user_record],
+                last_get_time: get_time,
+              }))
+
+              new_cut_time = Math.max(...dataList.map(item => item.create_time), new_cut_time)
+            // console.log(new_cut_time)
+
+              // 将数据添加到对象中，第一层以 recordId 为键，第二层以 aweme_id 为键
+              dataList.forEach(item => {
+                if (item.aweme_id) {
+                  if (!totalData[user_record]) {
+                    totalData[user_record] = {};
+                  }
+                  totalData[user_record][item.aweme_id] = item;
+                }
+              });
+              
+              // 将数据添加到对象中，使用 ac_recordId 作为 key
+              totalLastTime[user_record] = {
+                recordId: user_record, 
+                data: {
+                  get_time_cut: new_cut_time,
+                }
+              };
+
+              if (dataList.length === 0){
+                break
+              }
+            }
+          }
 
           
-          // await writeToTable(
-          //   ghData.value.selectedArticleTableId,
-          //   Object.values(totalData),
-          //   ghArticleFields(ghData.value.selectedGhTableId),
-          // );
+          // 将嵌套的 totalData 结构展平为数组，只包含 totalLastTime 中存在的 recordId
+          const flatData = Object.entries(totalData)
+            .filter(([recordId]) => totalLastTime[recordId])
+            .flatMap(([_, recordData]) => Object.values(recordData));
           
-          // await updateTable(
-          //   ghData.value.selectedGhTableId,
-          //   Object.values(totalLastTime),
-          //   ghAccountFields()
-          // )
+          await writeToTable(
+            dyData.value.vedioTableId,
+            flatData,
+            dyVedioFields(),
+          );
+          
+          await updateTable(
+            dyData.value.userTableId,
+            Object.values(totalLastTime),
+            dyUserFields()
+          )
 
         } catch (error) {
           console.error('操作失败:', error);
+          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
         }
@@ -255,45 +255,53 @@
         emit('update:isLocked', true);
 
         try{
-          // const articleTable = await bitable.base.getTable(ghData.value.selectedArticleTableId)
-          // const recordIdList = await bitable.ui.selectRecordIdList(ghData.value.selectedArticleTableId)
+          const vedioTable = await bitable.base.getTable(dyData.value.vedioTableId)
+          const recordIdList = await bitable.ui.selectRecordIdList(dyData.value.vedioTableId)
 
-          // const fieldList = await articleTable.getFieldList()
-          // const fieldMap = {};
-          // for (const field of fieldList) {
-          //   const fieldName = await field.getName();
-          //   fieldMap[fieldName] = field;
-          // }
+          const fieldList = await vedioTable.getFieldList()
+          const fieldMap = {};
+          for (const field of fieldList) {
+            const fieldName = await field.getName();
+            fieldMap[fieldName] = field;
+          }
 
-          // const ar_fields = ghArticleFields()
-          // const totalInteract = []
-          // for (const ar_recordId of recordIdList){
-          //   const articleRecord = await articleTable.getRecordById(ar_recordId);
-          //   const ar_url = articleRecord.fields[fieldMap[ar_fields.url.label].id][0]
-          //   const get_time = Date.now()
-          //   const res = await pluginAPI.post('/fbmain/monitor/v3/read_zan_pro', {
-          //     url: ar_url.text,
-          //     key: props.formData.key,
-          //   })
+          const vedio_fields = dyVedioFields()
+          const totalInteract = []
+          for (const vedio_recordId of recordIdList){
+            const articleRecord = await vedioTable.getRecordById(vedio_recordId);
+            const aweme_id = articleRecord.fields[fieldMap[vedio_fields.aweme_id.label].id][0]
+            const get_time = Date.now()
+
+            const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_aweme_detail?key=${props.formData.key}`, {
+              aweme_id: aweme_id.text,
+            })
+
+            if (res.data.code !== 0) {
+              continue
+            }
             
-          //   // 构建 updateTable 所需的格式
-          //   const updateItem = { recordId: ar_recordId, data: {} };
+            // 构建 updateTable 所需的格式
+            const updateItem = { recordId: vedio_recordId, data: {} };
 
-          //   updateItem.data = {
-          //     ...res.data.data,
-          //     last_get_time: get_time,
-          //   }
-            
-          //   totalInteract.push(updateItem);
-          // }
+            updateItem.data = {
+              digg_count: res.data.data.aweme_detail.statistics.digg_count,
+              comment_count: res.data.data.aweme_detail.statistics.comment_count,
+              share_count: res.data.data.aweme_detail.statistics.share_count,
+              collect_count: res.data.data.aweme_detail.statistics.collect_count,
+              last_get_time: get_time,
+            }
+            totalInteract.push(updateItem);
+          }
           
-          // await updateTable(
-          //   ghData.value.selectedArticleTableId,
-          //   totalInteract,
-          //   ghArticleFields()
-          // )
+          await updateTable(
+            dyData.value.vedioTableId,
+            totalInteract,
+            dyVedioFields()
+          )
         } catch (error) {
           console.error('操作失败:', error);
+          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
         }
@@ -333,6 +341,15 @@
       />
     </el-form-item>
 
+    <el-form-item
+      label="名片分享链接"
+    >
+      <el-input 
+        v-model="dyData.share_text"
+        placeholder="请输入名片分享链接"
+      />
+    </el-form-item>
+
     <el-form-item label-width="null">
       <el-button 
         type="primary" 
@@ -350,7 +367,7 @@
       <el-button 
         type="primary" 
         size="large" 
-        :disabled="isLocked || !formData.key || !dyData.sec_user_id || !dyData.userTableId"
+        :disabled="isLocked || !formData.key || !dyData.sec_user_id && !dyData.share_text || !dyData.userTableId"
         @click="addDyUser"
         plain
         style="flex: 1;"
@@ -364,11 +381,11 @@
         type="primary" 
         size="large" 
         :disabled="isLocked || !formData.key || !dyData.userTableId || !dyData.vedioTableId"
-        @click="getRecentVedios"
+        @click="getRecentVedios(1)"
         plain
         style="flex: 1;"
       >
-        获取今日发布视频(开发中)
+        获取今日发布视频
       </el-button>
     </el-form-item>
 
@@ -377,11 +394,11 @@
         type="primary" 
         size="large" 
         :disabled="isLocked || !formData.key || !dyData.userTableId || !dyData.vedioTableId"
-        @click="getRecentVedios(7)"
+        @click="getRecentVedios(3)"
         plain
         style="flex: 1;"
       >
-        获取近期最多7天视频(开发中)
+        获取近期最多3天视频
       </el-button>
     </el-form-item>
 
@@ -390,11 +407,11 @@
         type="primary" 
         size="large" 
         :disabled="isLocked || !formData.key || !dyData.userTableId || !dyData.vedioTableId"
-        @click="getRecentVedios(30)"
+        @click="getRecentVedios(10)"
         plain
         style="flex: 1;"
       >
-        获取近期最多30天视频(开发中)
+        获取近期最多10天视频
       </el-button>
     </el-form-item>
 
@@ -407,7 +424,7 @@
         plain
         style="flex: 1;"
       >
-        更新视频互动信息(开发中)
+        更新视频互动信息
       </el-button>
     </el-form-item>
 
