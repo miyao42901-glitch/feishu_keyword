@@ -8,9 +8,11 @@
     ElOption,
     ElInput,
     ElButton,
+    ElTooltip,
+    ElAlert,
   } from 'element-plus';
   import pluginAPI from '@/utils/request'
-  import { writeToTable, updateTable, getCellValue } from '@/utils/tableHelper'
+  import { writeToTable, updateTable } from '@/utils/tableHelper'
   import TableSelect from './TableSelect.vue'
 
   export default {
@@ -22,6 +24,8 @@
       ElInput,
       ElButton,
       TableSelect,
+      ElTooltip,
+      ElAlert,
     },
     props: {
       formData: {
@@ -156,6 +160,64 @@
               dyUserFields(),
             );
           }
+        } catch (error) {
+          console.error('操作失败:', error);
+          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.messageType = 'error';
+        } finally {
+          emit('update:isLocked', false);
+        }
+      }
+
+      const updateDyUser = async() => {
+        if (props.isLocked) return;
+        emit('update:isLocked', true);
+
+        try{
+          const userTable = await bitable.base.getTable(dyData.value.userTableId)
+          const recordIdList = await bitable.ui.selectRecordIdList(dyData.value.userTableId)
+
+          const fieldList = await userTable.getFieldList()
+          const fieldMap = {};
+          for (const field of fieldList) {
+            const fieldName = await field.getName();
+            fieldMap[fieldName] = field;
+          }
+
+          const user_fields = dyUserFields()
+          const totalInteract = []
+          for (const user_recordId of recordIdList){
+            const userRecord = await userTable.getRecordById(user_recordId);
+            const sec_user_id = userRecord.fields[fieldMap[user_fields.sec_user_id.label].id][0]
+            const get_time = Date.now()
+
+            const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_data?key=${props.formData.key}`, {
+              sec_user_id: sec_user_id.text,
+            })
+
+            // 构建 updateTable 所需的格式
+            const updateItem = { recordId: user_recordId, data: {} };
+            if (res && res.data && res.data.code === 0) {
+                updateItem.data = {
+                ...res.data.data.user, 
+                last_get_time: get_time,
+                get_interaction_flag: 'success',
+              }
+            }
+            else{
+              updateItem.data = {
+                get_interaction_flag: 'fail',
+              }
+            }
+            
+            totalInteract.push(updateItem);
+          }
+          
+          await updateTable(
+            dyData.value.userTableId,
+            totalInteract,
+            dyUserFields()
+          )
         } catch (error) {
           console.error('操作失败:', error);
           props.formData.message = '操作失败: ' + (error.message || '未知错误');
@@ -358,6 +420,7 @@
         dyData,
         addTableTemplate,
         addDyUser,
+        updateDyUser,
         getRecentVedios,
         getVedioInteract,
       };
@@ -396,83 +459,153 @@
         placeholder="请输入名片分享链接"
       />
     </el-form-item>
-
+    
     <el-form-item label-width="null">
-      <el-button 
-        type="primary" 
-        size="large" 
-        :disabled="isLocked"
-        @click="addTableTemplate"
-        plain
-        style="flex: 1;"
-      >
-        生成数据表空模板
-      </el-button>
+      <el-alert
+        title="建议使用模板"
+        type="primary"
+        class="item-section"
+        show-icon
+      />
     </el-form-item>
 
     <el-form-item label-width="null">
-      <el-button 
-        type="primary" 
-        size="large" 
-        :disabled="isLocked || !formData.key || !dyData.sec_user_id && !dyData.share_text || !dyData.userTableId"
-        @click="addDyUser"
-        plain
-        style="flex: 1;"
+      <el-tooltip 
+        :content="'生成一对关联抖音账号数据表空模板、视频数据表空模板，修改视频数据表的抖音账号字段可以设置关联的抖音账号数据表'" 
+        effect="dark"
+        placement="top"
       >
-        添加抖音账号
-      </el-button>
+        <el-button 
+          type="primary" 
+          size="large" 
+          :disabled="isLocked"
+          @click="addTableTemplate"
+          plain
+          style="flex: 1;"
+        >
+          生成数据表空模板
+        </el-button>
+      </el-tooltip>
     </el-form-item>
 
     <el-form-item label-width="null">
-      <el-button 
-        type="primary" 
-        size="large" 
-        :disabled="isLocked || !formData.key || !dyData.userTableId || !dyData.vedioTableId"
-        @click="getRecentVedios(1)"
-        plain
-        style="flex: 1;"
+      <el-tooltip 
+        :content="isLocked || !formData.key || !dyData.sec_user_id && !dyData.share_text || 
+        !dyData.userTableId ? '需要key、抖音账号id或名片分享链接、抖音账号数据表' : '添加抖音账号' " 
+        effect="dark"
+        placement="top"
       >
-        获取今日发布视频
-      </el-button>
+        <el-button 
+          type="primary" 
+          size="large" 
+          :disabled="isLocked || !formData.key || !dyData.sec_user_id && !dyData.share_text || !dyData.userTableId"
+          @click="addDyUser"
+          plain
+          style="flex: 1;"
+        >
+          添加抖音账号
+        </el-button>
+      </el-tooltip>
     </el-form-item>
 
     <el-form-item label-width="null">
-      <el-button 
-        type="primary" 
-        size="large" 
-        :disabled="isLocked || !formData.key || !dyData.userTableId || !dyData.vedioTableId"
-        @click="getRecentVedios(3)"
-        plain
-        style="flex: 1;"
+      
+      <el-tooltip 
+        :content="isLocked || !formData.key || 
+        !dyData.userTableId ? '需要key、抖音账号数据表' : '更新抖音账号数据' " 
+        effect="dark"
+        placement="top"
       >
-        获取近期最多3天视频
-      </el-button>
+        <el-button 
+          type="primary" 
+          size="large" 
+          :disabled="isLocked || !formData.key || !dyData.userTableId"
+          @click="updateDyUser"
+          plain
+          style="flex: 1;"
+        >
+          更新抖音账号数据  
+        </el-button>
+      </el-tooltip>
     </el-form-item>
 
     <el-form-item label-width="null">
-      <el-button 
-        type="primary" 
-        size="large" 
-        :disabled="isLocked || !formData.key || !dyData.userTableId || !dyData.vedioTableId"
-        @click="getRecentVedios(10)"
-        plain
-        style="flex: 1;"
+      <el-tooltip 
+        :content="isLocked || !formData.key || !dyData.userTableId || 
+        !dyData.vedioTableId ? '需要key、抖音账号数据表、抖音视频数据表' : '获取今日发布视频' " 
+        effect="dark"
+        placement="top"
       >
-        获取近期最多10天视频
-      </el-button>
+        <el-button 
+          type="primary" 
+          size="large" 
+          :disabled="isLocked || !formData.key || !dyData.userTableId || !dyData.vedioTableId"
+          @click="getRecentVedios(1)"
+          plain
+          style="flex: 1;"
+        >
+          获取今日发布视频
+        </el-button>
+      </el-tooltip>
     </el-form-item>
 
     <el-form-item label-width="null">
-      <el-button 
-        type="primary" 
-        size="large" 
-        :disabled="isLocked || !formData.key || !dyData.vedioTableId"
-        @click="getVedioInteract"
-        plain
-        style="flex: 1;"
+      <el-tooltip 
+        :content="isLocked || !formData.key || !dyData.userTableId || 
+        !dyData.vedioTableId ? '需要key、抖音账号数据表、抖音视频数据表' : '获取近期最多3天视频' " 
+        effect="dark"
+        placement="top"
       >
-        更新视频互动信息
-      </el-button>
+        <el-button 
+            type="primary" 
+          size="large" 
+          :disabled="isLocked || !formData.key || !dyData.userTableId || !dyData.vedioTableId"
+          @click="getRecentVedios(3)"
+          plain
+          style="flex: 1;"
+        >
+          获取近期最多3天视频
+        </el-button>
+      </el-tooltip>
+    </el-form-item>
+
+    <el-form-item label-width="null">
+      <el-tooltip 
+        :content="isLocked || !formData.key || !dyData.userTableId || 
+        !dyData.vedioTableId ? '需要key、抖音账号数据表、抖音视频数据表' : '获取近期最多10天视频' " 
+        effect="dark"
+        placement="top"
+      >
+        <el-button 
+          type="primary" 
+          size="large" 
+          :disabled="isLocked || !formData.key || !dyData.userTableId || !dyData.vedioTableId"
+          @click="getRecentVedios(10)"
+          plain
+          style="flex: 1;"
+        >
+          获取近期最多10天视频
+        </el-button>
+      </el-tooltip>
+    </el-form-item>
+
+    <el-form-item label-width="null">
+      <el-tooltip 
+        :content="isLocked || !formData.key || !dyData.vedioTableId ? '需要key、抖音视频数据表' : '更新视频互动信息' " 
+        effect="dark"
+        placement="top"
+      >
+        <el-button 
+          type="primary" 
+          size="large" 
+          :disabled="isLocked || !formData.key || !dyData.vedioTableId"
+          @click="getVedioInteract"
+          plain
+          style="flex: 1;"
+        >
+          更新视频互动信息
+        </el-button>
+      </el-tooltip>
     </el-form-item>
 
     <p>{{ dyData }}</p>

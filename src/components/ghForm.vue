@@ -8,9 +8,11 @@
     ElOption,
     ElInput,
     ElButton,
+    ElTooltip,
+    ElAlert,
   } from 'element-plus';
   import pluginAPI from '@/utils/request'
-  import { writeToTable, updateTable, getCellValue } from '@/utils/tableHelper'
+  import { writeToTable, updateTable } from '@/utils/tableHelper'
   import TableSelect from './TableSelect.vue'
 
   export default {
@@ -21,7 +23,9 @@
       ElOption,
       ElInput,
       ElButton,
+      ElTooltip,
       TableSelect,
+      ElAlert,
     },
     props: {
       formData: {
@@ -423,83 +427,133 @@
         placeholder="请输入公众号名称或id"
       />
     </el-form-item>
-
+    
     <el-form-item label-width="null">
-      <el-button 
-        type="primary" 
-        size="large" 
-        :disabled="isLocked"
-        @click="addTableTemplate"
-        plain
-        style="flex: 1;"
-      >
-        生成数据表空模板
-      </el-button>
+      <el-alert
+        title="建议使用模板"
+        type="primary"
+        class="item-section"
+        show-icon
+      />
     </el-form-item>
 
     <el-form-item label-width="null">
-      <el-button 
-        type="primary" 
-        size="large" 
-        :disabled="isLocked || !formData.key || !ghData.ghSearchValue || !ghData.selectedGhTableId"
-        @click="addGhAccount"
-        plain
-        style="flex: 1;"
+      <el-tooltip 
+        :content="'生成一对关联公众号数据表空模板、文章数据表空模板，修改文章数据表的公众号字段可以设置关联的公众号数据表'" 
+        effect="dark"
+        placement="top"
       >
-        添加公众号
-      </el-button>
+        <el-button 
+          type="primary" 
+          size="large" 
+          :disabled="isLocked"
+          @click="addTableTemplate"
+          plain
+          style="flex: 1;"
+        >
+          生成数据表空模板
+        </el-button>
+      </el-tooltip>
     </el-form-item>
 
     <el-form-item label-width="null">
-      <el-button 
-        type="primary" 
-        size="large" 
-        :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
-        @click="getRecentArticles(1)"
-        plain
-        style="flex: 1;"
+      <el-tooltip 
+        :content="isLocked || !formData.key || !ghData.ghSearchValue || 
+        !ghData.selectedGhTableId ? '需要key、公众号名称/id、公众号数据表' : '添加公众号' " 
+        effect="dark"
+        placement="top"
       >
-        获取今日发文
-      </el-button>
+        <el-button 
+          type="primary" 
+          size="large" 
+          :disabled="isLocked || !formData.key || !ghData.ghSearchValue || !ghData.selectedGhTableId"
+          @click="addGhAccount"
+          plain
+          style="flex: 1;"
+        >
+          添加公众号
+        </el-button>
+      </el-tooltip>
     </el-form-item>
 
     <el-form-item label-width="null">
-      <el-button 
-        type="primary" 
-        size="large" 
-        :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
-        @click="getRecentArticles(3)"
-        plain
-        style="flex: 1;"
+      <el-tooltip 
+        :content="isLocked || !formData.key || !ghData.selectedGhTableId || 
+        !ghData.selectedArticleTableId ? '需要key、公众号数据表、文章数据表' : '获取今日发文' " 
+        effect="dark"
+        placement="top"
       >
-        获取近期最多3天发文
-      </el-button>
+        <el-button 
+          type="primary" 
+          size="large" 
+          :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
+          @click="getRecentArticles(1)"
+          plain
+          style="flex: 1;"
+        >
+          获取今日发文
+        </el-button>
+      </el-tooltip>
     </el-form-item>
 
     <el-form-item label-width="null">
-      <el-button 
-        type="primary" 
-        size="large" 
-        :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
-        @click="getRecentArticles(10)"
-        plain
-        style="flex: 1;"
+      <el-tooltip 
+        :content="isLocked || !formData.key || !ghData.selectedGhTableId || 
+        !ghData.selectedArticleTableId ? '需要key、公众号数据表、文章数据表' : '获取近期最多3天发文' " 
+        effect="dark"
+        placement="top"
       >
-        获取近期最多10天发文
-      </el-button>
+        <el-button 
+          type="primary" 
+          size="large" 
+          :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
+          @click="getRecentArticles(3)"
+          plain
+          style="flex: 1;"
+        >
+          获取近期最多3天发文
+        </el-button>
+      </el-tooltip>
     </el-form-item>
 
     <el-form-item label-width="null">
-      <el-button 
-        type="primary" 
-        size="large" 
-        :disabled="isLocked || !formData.key || !ghData.selectedArticleTableId"
-        @click="getArticleInteract"
-        plain
-        style="flex: 1;"
+      <el-tooltip 
+        :content="isLocked || !formData.key || !ghData.selectedGhTableId || 
+        !ghData.selectedArticleTableId ? '需要key、公众号数据表、文章数据表' : '获取近期最多10天发文' " 
+        effect="dark"
+        placement="top"
       >
-        更新文章互动信息
-      </el-button>
+        <el-button 
+          type="primary" 
+          size="large" 
+          :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
+          @click="getRecentArticles(10)"
+          plain
+          style="flex: 1;"
+        >
+          获取近期最多10天发文
+        </el-button>
+      </el-tooltip>
+    </el-form-item>
+
+    <el-form-item label-width="null">
+      <el-tooltip 
+        :content="isLocked || !formData.key || 
+        !ghData.selectedArticleTableId ? '需要key、文章数据表' : '更新文章互动信息' " 
+        effect="dark"
+        placement="top"
+      >
+        <el-button 
+          type="primary" 
+          size="large" 
+          :disabled="isLocked || !formData.key || !ghData.selectedArticleTableId"
+          @click="getArticleInteract"
+          plain
+          style="flex: 1;"
+        >
+          更新文章互动信息
+        </el-button>
+      </el-tooltip>
     </el-form-item>
 
     <p>{{ ghData }}</p>
