@@ -93,7 +93,7 @@ export const writeToTable = async (tableId, dataList, fieldsConfig, tableName = 
         const fields = {};
         for (const [fieldConfigKey, fieldConfigValue] of Object.entries(fieldsConfig)) {
           const fieldId = fieldMap[fieldConfigValue.label].id;
-          if (fieldId) {
+          if (fieldId && item[fieldConfigKey] !== undefined) {
             fields[fieldId] = await getCellValue(item[fieldConfigKey], fieldMap[fieldConfigValue.label], fieldConfigValue);
           }
         }
@@ -172,6 +172,9 @@ export const getCellValue = async (value, field, fieldConfigValue) => {
     case FieldType.SingleSelect:{
       const options = await field.getOptions();
       const option = options.find(opt => opt.name == fieldConfigValue.options[value]);
+      if (!option) {
+        return value;
+      }
       return {id: option.id};
     }
     case FieldType.Url:

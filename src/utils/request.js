@@ -62,14 +62,7 @@ const withRetry = async (requestFn, maxRetries = 3, retryDelay = 1000) => {
     }
   }
   
-  // 如果所有重试都失败，返回最后一次的响应或抛出最后一次的错误
-  if (lastResponse) {
-    return lastResponse
-  } else if (lastError) {
-    throw lastError
-  } else {
-    throw new Error('请求失败：没有获取到任何响应')
-  }
+  return lastResponse
 }
 
 // 包装 pluginAPI 的方法，添加重试功能

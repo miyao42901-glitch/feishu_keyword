@@ -44,7 +44,26 @@
           following_count: { label: '关注数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           signature: { label: '简介', fieldType: FieldType.Text, },
           total_favorited: { label: '获赞总数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          last_get_time: { label: '用户数据更新时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
+          get_interaction_flag: {
+            label: '获取互动数标志', 
+            fieldType: FieldType.SingleSelect, 
+            options: {
+              unknow: '未获取过互动数',
+              fail: '上次获取互动数失败',
+              success: '上次获取互动数成功',
+            },
+          },
           get_time_cut: { label: '获取视频截至时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
+          get_vedio_flag: {
+            label: '获取视频标志', 
+            fieldType: FieldType.SingleSelect, 
+            options: {
+              unknow: '未获取过视频',
+              fail: '上次获取视频失败',
+              success: '上次获取视频成功',
+            },
+          },
         }
       }
 
@@ -66,6 +85,15 @@
           share_count: { label: '分享数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           collect_count: { label: '收藏数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           last_get_time: { label: '互动数据更新时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
+          get_interaction_flag: {
+            label: '获取互动数标志', 
+            fieldType: FieldType.SingleSelect, 
+            options: {
+              unknow: '未获取过互动数',
+              fail: '上次获取互动数失败',
+              success: '上次获取互动数成功',
+            },
+          },
         }
       }
 
@@ -110,15 +138,21 @@
         emit('update:isLocked', true);
 
         try{
+          const get_time = Date.now()
           const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_data?key=${props.formData.key}`, {
             sec_user_id: dyData.value.sec_user_id,
             share_text: dyData.value.share_text,
           })
 
-          if (res.data.code === 0) {
+          if (res && res.data && res.data.code === 0) {
             const result = await writeToTable(
               dyData.value.userTableId,
-              [{...res.data.data.user, sec_user_id: dyData.value.sec_user_id}],
+              [{...res.data.data.user, 
+                sec_user_id: dyData.value.sec_user_id, 
+                get_interaction_flag: 'success',
+                last_get_time: get_time,
+                get_vedio_flag: 'unknow',
+              }],
               dyUserFields(),
             );
           }
@@ -170,13 +204,18 @@
               const get_time = Date.now()
               
 
-              res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_post?key=${props.formData.key}`, {
+              const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_post?key=${props.formData.key}`, {
                 sec_user_id: sec_user_id.text,
                 max_cursor: max_cursor,
               })
 
-              if (res.data.code !== 0) {
-                delete totalLastTime[user_record]
+              if (!(res && res.data && res.data.code === 0)) {
+                totalLastTime[user_record] = {
+                  recordId: user_record, 
+                  data: {
+                    get_vedio_flag: 'fail',
+                  }
+                };
                 break
               }
 
@@ -194,6 +233,7 @@
                 create_time: item.create_time * 1000, // 转换为毫秒级时间戳
                 dy_link: [user_record],
                 last_get_time: get_time,
+                get_interaction_flag: 'success',
               }))
 
               new_cut_time = Math.max(...dataList.map(item => item.create_time), new_cut_time)
@@ -209,11 +249,12 @@
                 }
               });
               
-              // 将数据添加到对象中，使用 ac_recordId 作为 key
+              // 将数据添加到对象中，使用 user_record 作为 key
               totalLastTime[user_record] = {
                 recordId: user_record, 
                 data: {
                   get_time_cut: new_cut_time,
+                  get_vedio_flag: 'success',
                 }
               };
 
@@ -224,9 +265,9 @@
           }
 
           
-          // 将嵌套的 totalData 结构展平为数组，只包含 totalLastTime 中存在的 recordId
+          // 将嵌套的 totalData 结构展平为数组，只包含 totalLastTime 中为 success 的记录 recordId
           const flatData = Object.entries(totalData)
-            .filter(([recordId]) => totalLastTime[recordId])
+            .filter(([recordId]) => totalLastTime[recordId].data.get_vedio_flag === 'success')
             .flatMap(([_, recordData]) => Object.values(recordData));
           
           await writeToTable(
@@ -276,20 +317,26 @@
               aweme_id: aweme_id.text,
             })
 
-            if (res.data.code !== 0) {
-              continue
-            }
+            
             
             // 构建 updateTable 所需的格式
             const updateItem = { recordId: vedio_recordId, data: {} };
-
-            updateItem.data = {
-              digg_count: res.data.data.aweme_detail.statistics.digg_count,
-              comment_count: res.data.data.aweme_detail.statistics.comment_count,
-              share_count: res.data.data.aweme_detail.statistics.share_count,
-              collect_count: res.data.data.aweme_detail.statistics.collect_count,
-              last_get_time: get_time,
+            if (res && res.data && res.data.code === 0) {
+                updateItem.data = {
+                digg_count: res.data.data.aweme_detail.statistics.digg_count,
+                comment_count: res.data.data.aweme_detail.statistics.comment_count,
+                share_count: res.data.data.aweme_detail.statistics.share_count,
+                collect_count: res.data.data.aweme_detail.statistics.collect_count,
+                last_get_time: get_time,
+                get_interaction_flag: 'success',
+              }
             }
+            else{
+              updateItem.data = {
+                get_interaction_flag: 'fail',
+              }
+            }
+            
             totalInteract.push(updateItem);
           }
           

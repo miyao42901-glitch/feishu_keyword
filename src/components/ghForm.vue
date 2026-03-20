@@ -41,6 +41,15 @@
           biz: { label: '公众号标识(base64)', fieldType: FieldType.Text, },
           desc: { label: '公众号描述', fieldType: FieldType.Text, },
           get_time_cut: { label: '获取发文截至时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
+          get_article_flag: {
+            label: '获取文章标志', 
+            fieldType: FieldType.SingleSelect, 
+            options: {
+              unknow: '未获取过文章',
+              fail: '上次获取文章失败',
+              success: '上次获取文章成功',
+            },
+          },
         }
       }
 
@@ -86,6 +95,15 @@
           collect_num: {label: '收藏数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           comment_count: {label: '评论数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           last_get_time: { label: '互动信息更新时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
+          get_interaction_flag: {
+            label: '获取互动数标志', 
+            fieldType: FieldType.SingleSelect, 
+            options: {
+              unknow: '未获取过互动数',
+              fail: '上次获取互动数失败',
+              success: '上次获取互动数成功',
+            },
+          },
         }
       }
 
@@ -134,10 +152,10 @@
             key: props.formData.key,
           })
 
-          if (res.data.code === 0) {
+          if (res && res.data && res.data.code === 0) {
             const result = await writeToTable(
               ghData.value.selectedGhTableId,
-              [res.data.data],
+              [{...res.data.data, get_article_flag: 'unknow'}],
               ghAccountFields(),
             );
           }
@@ -188,7 +206,15 @@
                 key: props.formData.key,
               })
               
-              if (res.data.code !== 0) continue
+              if (!(res && res.data && res.data.code === 0)) {
+                totalLastTime[ac_recordId] = {
+                recordId: ac_recordId, 
+                data: {
+                  get_article_flag: 'fail',
+                }
+              };
+                continue
+              }
 
               const dataList = res.data.data
               .filter(item => item.post_time * 1000 > ac_cut_time)
@@ -201,10 +227,13 @@
               new_cut_time = Math.max(...dataList.map(item => item.post_time), new_cut_time)
               // console.log(new_cut_time)
 
-              // 将数据添加到对象中，使用 url 作为 key
+              // 将数据添加到对象中，使用双层结构 ac_recordId -> url -> item
               dataList.forEach(item => {
                 if (item.url) {
-                  totalData[item.url] = item;
+                  if (!totalData[ac_recordId]) {
+                    totalData[ac_recordId] = {};
+                  }
+                  totalData[ac_recordId][item.url] = {...item, get_interaction_flag: 'unknow'};
                 }
               });
               
@@ -213,6 +242,7 @@
                 recordId: ac_recordId, 
                 data: {
                   get_time_cut: new_cut_time,
+                  get_article_flag: 'success',
                 }
               };
             }
@@ -226,8 +256,13 @@
                   page: i
                 })
 
-                if (res.data.code !== 0) {
-                  delete totalLastTime[user_record]
+                if (!(res && res.data && res.data.code === 0)) {
+                  totalLastTime[ac_recordId] = {
+                    recordId: ac_recordId, 
+                    data: {
+                      get_article_flag: 'fail',
+                    }
+                  };
                   break
                 }
 
@@ -242,10 +277,14 @@
                 new_cut_time = Math.max(...dataList.map(item => item.post_time), new_cut_time)
               // console.log(new_cut_time)
 
-              // 将数据添加到对象中，使用 url 作为 key
+              // 将数据添加到对象中，使用双层结构 ac_recordId -> url -> item
+                
                 dataList.forEach(item => {
                   if (item.url) {
-                    totalData[item.url] = item;
+                    if (!totalData[ac_recordId]) {
+                      totalData[ac_recordId] = {};
+                    }
+                    totalData[ac_recordId][item.url] = {...item, get_interaction_flag: 'unknow'};
                   }
                 });
                 
@@ -254,6 +293,7 @@
                   recordId: ac_recordId, 
                   data: {
                     get_time_cut: new_cut_time,
+                    get_article_flag: 'success',
                   }
                 };
 
@@ -264,10 +304,14 @@
             }
           }
 
-          
+          // 将嵌套的 totalData 结构展平为数组，只包含 totalLastTime 中为 success 的记录 recordId
+          const flatData = Object.entries(totalData)
+            .filter(([recordId]) => totalLastTime[recordId].data.get_article_flag === 'success')
+            .flatMap(([_, recordData]) => Object.values(recordData));
+
           await writeToTable(
             ghData.value.selectedArticleTableId,
-            Object.values(totalData),
+            flatData,
             ghArticleFields(ghData.value.selectedGhTableId),
           );
           
@@ -312,16 +356,21 @@
               key: props.formData.key,
             })
             
-            if (res.data.code !== 0) {
-              continue
-            }
-            
             // 构建 updateTable 所需的格式
             const updateItem = { recordId: ar_recordId, data: {} };
 
-            updateItem.data = {
-              ...res.data.data,
-              last_get_time: get_time,
+            
+            if (res && res.data && res.data.code === 0) {
+              updateItem.data = {
+                ...res.data.data,
+                last_get_time: get_time,
+                get_interaction_flag: 'success',
+              }
+            }
+            else{
+              updateItem.data = {
+                get_interaction_flag: 'fail',
+              }
             }
 
             totalInteract.push(updateItem);
