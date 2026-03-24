@@ -58,6 +58,7 @@
               success: '上次获取互动数成功',
             },
           },
+          interaction_fail_reason: { label: '获取互动数失败原因', fieldType: FieldType.Text, },
           get_time_cut: { label: '获取视频截至时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           get_vedio_flag: {
             label: '获取视频标志', 
@@ -68,6 +69,7 @@
               success: '上次获取视频成功',
             },
           },
+          vedio_fail_reason: { label: '获取视频失败原因', fieldType: FieldType.Text, },
         }
       }
 
@@ -98,6 +100,7 @@
               success: '上次获取互动数成功',
             },
           },
+          interaction_fail_reason: { label: '获取互动数失败原因', fieldType: FieldType.Text, },
         }
       }
 
@@ -202,11 +205,13 @@
                 ...res.data.data.user, 
                 last_get_time: get_time,
                 get_interaction_flag: 'success',
+                interaction_fail_reason: '',
               }
             }
             else{
               updateItem.data = {
                 get_interaction_flag: 'fail',
+                interaction_fail_reason: res.data.msg || '未知错误',
               }
             }
             
@@ -276,6 +281,7 @@
                   recordId: user_record, 
                   data: {
                     get_vedio_flag: 'fail',
+                    vedio_fail_reason: res.data.msg || '未知错误',
                   }
                 };
                 break
@@ -317,6 +323,7 @@
                 data: {
                   get_time_cut: new_cut_time,
                   get_vedio_flag: 'success',
+                  vedio_fail_reason: '',
                 }
               };
 
@@ -391,11 +398,13 @@
                 collect_count: res.data.data.aweme_detail.statistics.collect_count,
                 last_get_time: get_time,
                 get_interaction_flag: 'success',
+                interaction_fail_reason: '',
               }
             }
             else{
               updateItem.data = {
                 get_interaction_flag: 'fail',
+                interaction_fail_reason: res.data.msg || '未知错误',
               }
             }
             

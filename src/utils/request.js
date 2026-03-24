@@ -68,8 +68,10 @@ const withRetry = async (requestFn, maxRetries = 3, retryDelay = 1000) => {
   }
   else{
     return {
-      code: -1,
-      msg: '网络连接错误',
+      data: {
+        code: -1,
+        msg: '网络连接错误',
+      }
     }
   }
   

@@ -55,6 +55,7 @@
               success: '上次获取文章成功',
             },
           },
+          fail_reason: { label: '获取失败原因', fieldType: FieldType.Text, },
         }
       }
 
@@ -109,6 +110,7 @@
               success: '上次获取互动数成功',
             },
           },
+          fail_reason: { label: '获取失败原因', fieldType: FieldType.Text, },
         }
       }
 
@@ -135,7 +137,7 @@
               null,
               [],
               ghArticleFields(res1.data.tableId),
-              '文章数据表模板' + timestamp
+              '公众号文章数据表模板' + timestamp
             );
           }
         }catch (error) {
@@ -216,6 +218,7 @@
                 recordId: ac_recordId, 
                 data: {
                   get_article_flag: 'fail',
+                  fail_reason: res.data.msg || '未知错误',
                 }
               };
                 continue
@@ -248,6 +251,7 @@
                 data: {
                   get_time_cut: new_cut_time,
                   get_article_flag: 'success',
+                  fail_reason: '',
                 }
               };
             }
@@ -266,6 +270,7 @@
                     recordId: ac_recordId, 
                     data: {
                       get_article_flag: 'fail',
+                      fail_reason: res.data.msg || '未知错误',
                     }
                   };
                   break
@@ -300,6 +305,7 @@
                   data: {
                     get_time_cut: new_cut_time,
                     get_article_flag: 'success',
+                    fail_reason: '',
                   }
                 };
 
@@ -371,11 +377,13 @@
                 ...res.data.data,
                 last_get_time: get_time,
                 get_interaction_flag: 'success',
+                fail_reason: '',
               }
             }
             else{
               updateItem.data = {
                 get_interaction_flag: 'fail',
+                fail_reason: res.data.msg || '未知错误',
               }
             }
 
