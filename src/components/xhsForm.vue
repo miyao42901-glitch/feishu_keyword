@@ -39,15 +39,23 @@
     },
     emits: ['update:isLocked'],
     setup(props, { emit }) {
-      function dyUserFields() {
+      function userFields() {
         return {
-          nickname: { label: '用户名', fieldType: FieldType.Text, isPrimary: true},
-          sec_user_id: { label: '用户id', fieldType: FieldType.Text, },
-          max_follower_count: { label: '最大粉丝数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          mplatform_followers_count: { label: '当前粉丝数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          following_count: { label: '关注数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          signature: { label: '简介', fieldType: FieldType.Text, },
-          total_favorited: { label: '获赞总数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          nickname: { label: '小红书用户名', fieldType: FieldType.Text, isPrimary: true},
+          user_id: { label: '用户id', fieldType: FieldType.Text, },
+          gender: { 
+            label: '性别', 
+            fieldType: FieldType.SingleSelect, 
+            options: 
+            { 
+              0: '男', 
+              1: '女' 
+            } 
+          },
+          desc: { label: '简介', fieldType: FieldType.Text, },
+          follows: { label: '关注', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          fans: { label: '粉丝', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          interaction: { label: '获赞与收藏', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           last_get_time: { label: '用户数据更新时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           get_interaction_flag: {
             label: '获取互动数标志', 
@@ -58,36 +66,47 @@
               success: '上次获取互动数成功',
             },
           },
-          get_time_cut: { label: '获取视频截至时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
-          get_vedio_flag: {
-            label: '获取视频标志', 
+          get_time_cut: { label: '获取笔记截至时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
+          get_work_flag: {
+            label: '获取笔记标志', 
             fieldType: FieldType.SingleSelect, 
             options: {
-              unknow: '未获取过视频',
-              fail: '上次获取视频失败',
-              success: '上次获取视频成功',
+              unknow: '未获取过笔记',
+              fail: '上次获取笔记失败',
+              success: '上次获取笔记成功',
             },
           },
         }
       }
 
-      function dyVedioFields(linkTableId = '') {
+      function workFields(linkTableId = '') {
         return {
-          caption: { label: '视频标题', fieldType: FieldType.Text, isPrimary: true},
-          dy_link: {
-            label: '视频作者',
+          display_title: { label: '笔记标题', fieldType: FieldType.Text, isPrimary: true},
+          user_link: {
+            label: '笔记作者',
             fieldType: FieldType.SingleLink,
             property:{
               tableId: linkTableId, 
               multiple: false,
             }
           },
-          aweme_id: { label: '视频id', fieldType: FieldType.Text, },
-          create_time: { label: '视频发布时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
-          digg_count: { label: '点赞数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          comment_count: { label: '评论数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          share_count: { label: '分享数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          collect_count: { label: '收藏数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          note_id: { label: '笔记id', fieldType: FieldType.Text, },
+          xsec_token: { label: '小红书token', fieldType: FieldType.Text, },
+          time: { label: '笔记创建时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
+          desc: { label: '笔记描述', fieldType: FieldType.Text, },
+          liked_count: { label: '点赞数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          collected_count: { label: '收藏数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          comments_count: { label: '评论数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          shared_count: { label: '分享数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          type: { 
+            label: '笔记类型',
+            fieldType: FieldType.SingleSelect,
+            options: 
+             { 
+               normal: '普通笔记',
+               video: '视频',
+             } 
+            },
           last_get_time: { label: '互动数据更新时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           get_interaction_flag: {
             label: '获取互动数标志', 
@@ -101,11 +120,10 @@
         }
       }
 
-      const dyData = ref({
-        sec_user_id: null,
-        share_text: null,
+      const paneData = ref({
+        user_id: null,
         userTableId: null,
-        vedioTableId: null,
+        workTableId: null,
       })
 
       const addTableTemplate = async() => {
@@ -117,15 +135,15 @@
           const res1 = await writeToTable(
             null,
             [],
-            dyUserFields(),
-            '抖音账号数据表模板' + timestamp
+            userFields(),
+            '小红书账号数据表模板' + timestamp
           );
           if (res1.success) {
             const res2 = await writeToTable(
               null,
               [],
-              dyVedioFields(res1.data.tableId),
-              '抖音视频数据表模板' + timestamp
+              workFields(res1.data.tableId),
+              '小红书笔记数据表模板' + timestamp
             );
           }
         }catch (error) {
@@ -137,28 +155,52 @@
         }
       }
 
-      const addDyUser = async() => {
+      const addUser = async() => {
         if (props.isLocked) return;
         emit('update:isLocked', true);
 
         try{
           const get_time = Date.now()
-          const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_data?key=${props.formData.key}`, {
-              sec_user_id: dyData.value.sec_user_id,
-              share_text: dyData.value.share_text,
-          })
+          const res = await pluginAPI.post(`/xhs/user_detail`, {
+              user_id: paneData.value.user_id,
+            },
+            {
+              headers: {
+                'X-API-Key': props.formData.key,
+              },
+            }
+          )
 
-          if (res && res.data && res.data.code === 0) {
-            const result = await writeToTable(
-              dyData.value.userTableId,
-              [{...res.data.data.user, 
-                sec_user_id: dyData.value.sec_user_id, 
-                get_interaction_flag: 'success',
-                last_get_time: get_time,
-                get_vedio_flag: 'unknow',
-              }],
-              dyUserFields(),
-            );
+          if (res && res.data) {
+            if(res.data.code === 0){
+
+              const interactionsObj = {};
+              if (res.data.data.interactions && Array.isArray(res.data.data.interactions)) {
+                res.data.data.interactions.forEach(item => {
+                  if (item.type && item.count !== undefined) {
+                    interactionsObj[item.type] = parseInt(item.count);
+                  }
+                });
+              }
+
+              console.log(interactionsObj)
+              
+              const result = await writeToTable(
+                paneData.value.userTableId,
+                [{...res.data.data.basic_info,
+                  ...interactionsObj,
+                  user_id: paneData.value.user_id,
+                  last_get_time: get_time, 
+                  get_interaction_flag: 'success',
+                  get_work_flag: 'unknow',
+                }],
+                userFields(),
+              );
+            }
+            else{
+              props.formData.message = '操作失败: ' + (res.data.msg || '未知错误');
+              props.formData.messageType = 'error';
+            }
           }
         } catch (error) {
           console.error('操作失败:', error);
@@ -169,13 +211,13 @@
         }
       }
 
-      const updateDyUser = async() => {
+      const updateUser = async() => {
         if (props.isLocked) return;
         emit('update:isLocked', true);
 
         try{
-          const userTable = await bitable.base.getTable(dyData.value.userTableId)
-          const recordIdList = await bitable.ui.selectRecordIdList(dyData.value.userTableId)
+          const userTable = await bitable.base.getTable(paneData.value.userTableId)
+          const recordIdList = await bitable.ui.selectRecordIdList(paneData.value.userTableId)
 
           const fieldList = await userTable.getFieldList()
           const fieldMap = {};
@@ -184,25 +226,43 @@
             fieldMap[fieldName] = field;
           }
 
-          const user_fields = dyUserFields()
+          const user_fields = userFields()
           const totalInteract = []
           for (const user_recordId of recordIdList){
             const userRecord = await userTable.getRecordById(user_recordId);
-            const sec_user_id = userRecord.fields[fieldMap[user_fields.sec_user_id.label].id][0]
+            const user_id = userRecord.fields[fieldMap[user_fields.user_id.label].id][0]
             const get_time = Date.now()
 
-            const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_data?key=${props.formData.key}`, {
-                sec_user_id: sec_user_id.text,
-            })
+            const res = await pluginAPI.post(`/xhs/user_detail`, {
+                user_id: user_id.text,
+              },
+              {
+                headers: {
+                  'X-API-Key': props.formData.key,
+                },
+              }
+            )
 
             // 构建 updateTable 所需的格式
             const updateItem = { recordId: user_recordId, data: {} };
             if (res && res.data && res.data.code === 0) {
-                updateItem.data = {
-                ...res.data.data.user, 
+
+              const interactionsObj = {};
+              if (res.data.interactions && Array.isArray(res.data.interactions)) {
+                res.data.interactions.forEach(item => {
+                  if (item.type && item.count !== undefined) {
+                    interactionsObj[item.type] = item.count;
+                  }
+                });
+              }
+
+              updateItem.data = {
+                ...res.data.basic_info, 
+                ...interactionsObj,
                 last_get_time: get_time,
                 get_interaction_flag: 'success',
               }
+
             }
             else{
               updateItem.data = {
@@ -214,9 +274,9 @@
           }
           
           await updateTable(
-            dyData.value.userTableId,
+            paneData.value.userTableId,
             totalInteract,
-            dyUserFields()
+            userFields()
           )
         } catch (error) {
           console.error('操作失败:', error);
@@ -227,7 +287,7 @@
         }
       }
 
-      const getRecentVedios = async(maxDay = 1) => {
+      const getRecentWorks = async(maxDay = 1) => {
         if (props.isLocked) return;
         emit('update:isLocked', true);
 
@@ -238,22 +298,22 @@
           date.setDate(date.getDate() - (searchDays - 1))
           const min_time = date.getTime()
           
-          const recordIdList = await bitable.ui.selectRecordIdList(dyData.value.userTableId)
-          const userTable = await bitable.base.getTable(dyData.value.userTableId)
+          const recordIdList = await bitable.ui.selectRecordIdList(paneData.value.userTableId)
+          const userTable = await bitable.base.getTable(paneData.value.userTableId)
 
           const fieldList = await userTable.getFieldList()
-          const fieldMap = {};
+          const fieldMap = {};  
           for (const field of fieldList) {
             const fieldName = await field.getName();
             fieldMap[fieldName] = field;
           }
-          const user_fields = dyUserFields()
+          const user_fields = userFields()
 
           const totalData = {}
           const totalLastTime = {}
           for (const user_record of recordIdList){
             const userRecord = await userTable.getRecordById(user_record);
-            const sec_user_id = userRecord.fields[fieldMap[user_fields.sec_user_id.label].id][0]
+            const user_id = userRecord.fields[fieldMap[user_fields.user_id.label].id][0]
             const user_cut_time = Math.max(userRecord.fields[fieldMap[user_fields.get_time_cut.label].id] || min_time, min_time)
 
             // let new_cut_time = Math.max(user_cut_time, Date.now())
@@ -264,50 +324,53 @@
             while(true){
               i += 1
               const get_time = Date.now()
-              
 
-              const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_post?key=${props.formData.key}`, {
-                  sec_user_id: sec_user_id.text,
-                  max_cursor: max_cursor,
-              })
+              const res = await pluginAPI.post(`/xhs/user_post`, {
+                  user_id: user_id.text,
+                  cursor: max_cursor,
+                },
+                {
+                  headers: {
+                    'X-API-Key': props.formData.key,
+                  },
+                }
+              )
 
               if (!(res && res.data && res.data.code === 0)) {
                 totalLastTime[user_record] = {
                   recordId: user_record, 
                   data: {
-                    get_vedio_flag: 'fail',
+                    get_work_flag: 'fail',
                   }
                 };
                 break
               }
 
-              max_cursor = String(res.data.data.max_cursor)
+              max_cursor = res.data.cursor
 
-              const dataList = res.data.data.aweme_list
-              .filter(item => item.create_time * 1000 > user_cut_time)
+              const dataList = res.data.notes
+              .filter(item => getTimeFromNoteId(item.note_id) > user_cut_time)
               .map(item => ({
-                digg_count: item.statistics.digg_count,
-                comment_count: item.statistics.comment_count,
-                share_count: item.statistics.share_count,
-                collect_count: item.statistics.collect_count,
-                caption: item.caption,
-                aweme_id: item.aweme_id,
-                create_time: item.create_time * 1000, // 转换为毫秒级时间戳
-                dy_link: [user_record],
-                last_get_time: get_time,
-                get_interaction_flag: 'success',
+                note_id: item.note_id,
+                type: item.type,
+                display_title: item.display_title,
+                like_count: item.interact_info.like_count,
+                time: getTimeFromNoteId(item.note_id), 
+                xsec_token: item.xsec_token,
+                user_link: [user_record],
+                get_interaction_flag: 'unknow',
               }))
 
-              new_cut_time = Math.max(...dataList.map(item => item.create_time), new_cut_time)
+              new_cut_time = Math.max(...dataList.map(item => item.time), new_cut_time)
             // console.log(new_cut_time)
 
-              // 将数据添加到对象中，第一层以 recordId 为键，第二层以 aweme_id 为键
+              // 将数据添加到对象中，第一层以 recordId 为键，第二层以 note_id 为键
               dataList.forEach(item => {
-                if (item.aweme_id) {
+                if (item.note_id) {
                   if (!totalData[user_record]) {
                     totalData[user_record] = {};
                   }
-                  totalData[user_record][item.aweme_id] = item;
+                  totalData[user_record][item.note_id] = item;
                 }
               });
               
@@ -316,11 +379,11 @@
                 recordId: user_record, 
                 data: {
                   get_time_cut: new_cut_time,
-                  get_vedio_flag: 'success',
+                  get_work_flag: 'success',
                 }
               };
 
-              if (dataList.length === 0){
+              if (dataList.length === 0 || res.data.hasMore === false){
                 break
               }
             }
@@ -329,19 +392,19 @@
           
           // 将嵌套的 totalData 结构展平为数组，只包含 totalLastTime 中为 success 的记录 recordId
           const flatData = Object.entries(totalData)
-            .filter(([recordId]) => totalLastTime[recordId].data.get_vedio_flag === 'success')
+            .filter(([recordId]) => totalLastTime[recordId].data.get_work_flag === 'success')
             .flatMap(([_, recordData]) => Object.values(recordData));
           
           await writeToTable(
-            dyData.value.vedioTableId,
+            paneData.value.workTableId,
             flatData,
-            dyVedioFields(),
+            workFields(), 
           );
           
           await updateTable(
-            dyData.value.userTableId,
+            paneData.value.userTableId,
             Object.values(totalLastTime),
-            dyUserFields()
+            userFields()
           )
 
         } catch (error) {
@@ -353,42 +416,49 @@
         }
       }
 
-      const getVedioInteract = async() => {
+
+      const getWorksInteract = async() => {
         if (props.isLocked) return;
         emit('update:isLocked', true);
 
         try{
-          const vedioTable = await bitable.base.getTable(dyData.value.vedioTableId)
-          const recordIdList = await bitable.ui.selectRecordIdList(dyData.value.vedioTableId)
+          const workTable = await bitable.base.getTable(paneData.value.workTableId)
+          const recordIdList = await bitable.ui.selectRecordIdList(paneData.value.workTableId)
 
-          const fieldList = await vedioTable.getFieldList()
+          const fieldList = await workTable.getFieldList()
           const fieldMap = {};
           for (const field of fieldList) {
             const fieldName = await field.getName();
             fieldMap[fieldName] = field;
           }
 
-          const vedio_fields = dyVedioFields()
+          const work_fields = workFields()
           const totalInteract = []
-          for (const vedio_recordId of recordIdList){
-            const articleRecord = await vedioTable.getRecordById(vedio_recordId);
-            const aweme_id = articleRecord.fields[fieldMap[vedio_fields.aweme_id.label].id][0]
+          for (const work_recordId of recordIdList){
+            const articleRecord = await workTable.getRecordById(work_recordId);
+            const note_id = articleRecord.fields[fieldMap[work_fields.note_id.label].id][0]
+            const xsec_token = articleRecord.fields[fieldMap[work_fields.xsec_token.label].id][0]
             const get_time = Date.now()
 
-            const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_aweme_detail?key=${props.formData.key}`, {
-                aweme_id: aweme_id.text,
-            })
-
-            
+            const res = await pluginAPI.post(`/xhs/note_detail`, {
+                note_id: note_id.text,
+                xsec_token: xsec_token.text,
+              },
+              {
+                headers: {
+                  'X-API-Key': props.formData.key,
+                },
+              }
+            )
             
             // 构建 updateTable 所需的格式
-            const updateItem = { recordId: vedio_recordId, data: {} };
+            const updateItem = { recordId: work_recordId, data: {} };
             if (res && res.data && res.data.code === 0) {
                 updateItem.data = {
-                digg_count: res.data.data.aweme_detail.statistics.digg_count,
-                comment_count: res.data.data.aweme_detail.statistics.comment_count,
-                share_count: res.data.data.aweme_detail.statistics.share_count,
-                collect_count: res.data.data.aweme_detail.statistics.collect_count,
+                liked_count: res.data.note_list.like_count,
+                comments_count: res.data.note_list.comments_count,
+                collected_count: res.data.note_list.collected_count,
+                shared_count: res.data.note_list.shared_count,
                 last_get_time: get_time,
                 get_interaction_flag: 'success',
               }
@@ -403,9 +473,9 @@
           }
           
           await updateTable(
-            dyData.value.vedioTableId,
+            paneData.value.workTableId,
             totalInteract,
-            dyVedioFields()
+            workFields()
           )
         } catch (error) {
           console.error('操作失败:', error);
@@ -416,13 +486,28 @@
         }
       }
 
+      const getTimeFromNoteId = (note_id) => {
+        if (!note_id || typeof note_id !== 'string' || note_id.length < 8) {
+          return 0;
+        }
+        try {
+          // 提取前 8 位 16 进制字符串
+          const hexTimestamp = note_id.substring(0, 8);
+          const seconds = parseInt(hexTimestamp, 16);
+          return seconds * 1000;
+        } catch (error) {
+          console.error('转换 note_id 时间戳失败:', error);
+          return 0;
+        }
+      }
+
       return {
-        dyData,
+        paneData,
         addTableTemplate,
-        addDyUser,
-        updateDyUser,
-        getRecentVedios,
-        getVedioInteract,
+        addUser,
+        updateUser,
+        getRecentWorks,
+        getWorksInteract,
       };
     },
   };
@@ -431,57 +516,29 @@
 <template>
   <el-form class="ghForm" label-position="left" label-width="120px">
     <el-form-item 
-      label="抖音号数据表"
+      label="用户数据表"
     >
-      <TableSelect v-model="dyData.userTableId" />
+      <TableSelect v-model="paneData.userTableId" />
     </el-form-item>
 
     <el-form-item 
-      label="视频数据表"
+      label="笔记数据表"
     >
-      <TableSelect v-model="dyData.vedioTableId" />
+      <TableSelect v-model="paneData.workTableId" />
     </el-form-item>
 
     <el-form-item
-      label="抖音用户id"
+      label="小红书用户id"
     >
       <el-input 
-        v-model="dyData.sec_user_id"
-        placeholder="请输入抖音用户id"  
-      />
-    </el-form-item>
-
-    <el-form-item
-      label="名片分享链接"
-    >
-      <el-input 
-        v-model="dyData.share_text"
-        placeholder="请输入名片分享链接"
+        v-model="paneData.user_id"
+        placeholder="请输入小红书用户id"  
       />
     </el-form-item>
     
     <el-form-item label-width="null">
       <el-alert
-        title="建议使用模板数据表"
-        type="primary"
-        class="item-section"
-        show-icon
-      />
-    </el-form-item>
-
-    <el-form-item label-width="null">
-      <el-alert
-        title="对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据"
-        type="primary"
-        class="item-section"
-        show-icon
-      />
-    </el-form-item>
-    
-    <el-form-item label-width="null">
-      <el-alert
-        title="请注意账号数据表中的【获取视频截至时间】字段，不会获取【获取视频截至时间】之前的用户发布的视频。
-        可以手动修改此字段以获取更早的视频数据，但有可能在视频数据表中写入重复数据。"
+        title="建议使用模板"
         type="primary"
         class="item-section"
         show-icon
@@ -490,7 +547,7 @@
 
     <el-form-item label-width="null">
       <el-tooltip 
-        :content="'生成一对关联的抖音账号数据表空模板、视频数据表空模板，修改视频数据表的【视频作者】字段可以设置关联的抖音账号数据表'" 
+        :content="'生成一对关联的小红书用户数据表空模板、笔记数据表空模板，修改笔记数据表的笔记作者字段可以设置关联的用户数据表'" 
         effect="dark"
         placement="top"
       >
@@ -509,20 +566,20 @@
 
     <el-form-item label-width="null">
       <el-tooltip 
-        :content="isLocked || !formData.key || !dyData.sec_user_id && !dyData.share_text || 
-        !dyData.userTableId ? '需要key、抖音账号id或名片分享链接、抖音账号数据表' : '添加抖音账号' " 
+        :content="isLocked || !formData.key || !paneData.user_id || 
+        !paneData.userTableId ? '需要key、用户id、用户数据表' : '添加用户' " 
         effect="dark"
         placement="top"
       >
         <el-button 
           type="primary" 
           size="large" 
-          :disabled="isLocked || !formData.key || !dyData.sec_user_id && !dyData.share_text || !dyData.userTableId"
-          @click="addDyUser"
+          :disabled="isLocked || !formData.key || !paneData.user_id || !paneData.userTableId"
+          @click="addUser"
           plain
           style="flex: 1;"
         >
-          添加抖音账号
+          添加小红书用户
         </el-button>
       </el-tooltip>
     </el-form-item>
@@ -531,103 +588,103 @@
       
       <el-tooltip 
         :content="isLocked || !formData.key || 
-        !dyData.userTableId ? '需要key、抖音账号数据表' : '更新抖音账号数据' " 
+        !paneData.userTableId ? '需要key、用户数据表' : '更新小红书用户数据' " 
         effect="dark"
         placement="top"
       >
         <el-button 
           type="primary" 
           size="large" 
-          :disabled="isLocked || !formData.key || !dyData.userTableId"
-          @click="updateDyUser"
+          :disabled="isLocked || !formData.key || !paneData.userTableId"
+          @click="updateUser"
           plain
           style="flex: 1;"
         >
-          更新抖音账号数据  
+          更新小红书用户数据  
         </el-button>
       </el-tooltip>
     </el-form-item>
 
     <el-form-item label-width="null">
       <el-tooltip 
-        :content="isLocked || !formData.key || !dyData.userTableId || 
-        !dyData.vedioTableId ? '需要key、抖音账号数据表、抖音视频数据表' : '获取今日发布视频' " 
+        :content="isLocked || !formData.key || !paneData.userTableId || 
+        !paneData.workTableId ? '需要key、用户数据表、笔记数据表' : '获取今日发布笔记' " 
         effect="dark"
         placement="top"
       >
         <el-button 
           type="primary" 
           size="large" 
-          :disabled="isLocked || !formData.key || !dyData.userTableId || !dyData.vedioTableId"
-          @click="getRecentVedios(1)"
+          :disabled="isLocked || !formData.key || !paneData.userTableId || !paneData.workTableId"
+          @click="getRecentWorks(1)"
           plain
           style="flex: 1;"
         >
-          获取今日发布视频
+          获取今日发布笔记
         </el-button>
       </el-tooltip>
     </el-form-item>
 
     <el-form-item label-width="null">
       <el-tooltip 
-        :content="isLocked || !formData.key || !dyData.userTableId || 
-        !dyData.vedioTableId ? '需要key、抖音账号数据表、抖音视频数据表' : '获取近期最多3天视频' " 
+        :content="isLocked || !formData.key || !paneData.userTableId || 
+        !paneData.workTableId ? '需要key、用户数据表、笔记数据表' : '获取近期最多3天笔记' " 
         effect="dark"
         placement="top"
       >
         <el-button 
             type="primary" 
           size="large" 
-          :disabled="isLocked || !formData.key || !dyData.userTableId || !dyData.vedioTableId"
-          @click="getRecentVedios(3)"
+          :disabled="isLocked || !formData.key || !paneData.userTableId || !paneData.workTableId"
+          @click="getRecentWorks(3)"
           plain
           style="flex: 1;"
         >
-          获取近期最多3天视频
+          获取近期最多3天笔记
         </el-button>
       </el-tooltip>
     </el-form-item>
 
     <el-form-item label-width="null">
       <el-tooltip 
-        :content="isLocked || !formData.key || !dyData.userTableId || 
-        !dyData.vedioTableId ? '需要key、抖音账号数据表、抖音视频数据表' : '获取近期最多10天视频' " 
-        effect="dark"
-        placement="top"
-      >
-        <el-button
-          type="primary" 
-          size="large" 
-          :disabled="isLocked || !formData.key || !dyData.userTableId || !dyData.vedioTableId"
-          @click="getRecentVedios(10)"
-          plain
-          style="flex: 1;"
-        >
-          获取近期最多10天视频
-        </el-button>
-      </el-tooltip>
-    </el-form-item>
-
-    <el-form-item label-width="null">
-      <el-tooltip 
-        :content="isLocked || !formData.key || !dyData.vedioTableId ? '需要key、抖音视频数据表' : '更新视频互动信息' " 
+        :content="isLocked || !formData.key || !paneData.userTableId || 
+        !paneData.workTableId ? '需要key、用户数据表、笔记数据表' : '获取近期最多10天笔记' " 
         effect="dark"
         placement="top"
       >
         <el-button 
           type="primary" 
           size="large" 
-          :disabled="isLocked || !formData.key || !dyData.vedioTableId"
-          @click="getVedioInteract"
+          :disabled="isLocked || !formData.key || !paneData.userTableId || !paneData.workTableId"
+          @click="getRecentWorks(10)"
           plain
           style="flex: 1;"
         >
-          更新视频互动信息
+          获取近期最多10天笔记
         </el-button>
       </el-tooltip>
     </el-form-item>
 
-    <!-- <p>{{ dyData }}</p> -->
+    <el-form-item label-width="null">
+      <el-tooltip 
+        :content="isLocked || !formData.key || !paneData.workTableId ? '需要key、用户数据表、笔记数据表' : '更新笔记互动信息' " 
+        effect="dark"
+        placement="top"
+      >
+        <el-button 
+          type="primary" 
+          size="large" 
+          :disabled="isLocked || !formData.key || !paneData.workTableId"
+          @click="getWorksInteract"
+          plain
+          style="flex: 1;"
+        >
+          更新笔记互动信息
+        </el-button>
+      </el-tooltip>
+    </el-form-item>
+
+    <!-- <p>{{ paneData }}</p> -->
   </el-form>
 </template>
 

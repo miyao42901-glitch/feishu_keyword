@@ -43,6 +43,7 @@
         return {
           name: { label: '公众号名称', fieldType: FieldType.Text, isPrimary: true},
           biz: { label: '公众号标识(base64)', fieldType: FieldType.Text, },
+          gh_id: { label: '公众号ID', fieldType: FieldType.Text, },
           desc: { label: '公众号描述', fieldType: FieldType.Text, },
           get_time_cut: { label: '获取发文截至时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           get_article_flag: {
@@ -276,6 +277,7 @@
                   ...item,
                   post_time: item.post_time * 1000, // 转换为毫秒级时间戳
                   gh_link: [ac_recordId],
+                  get_interaction_flag: 'unknow'
                 }))
 
                 new_cut_time = Math.max(...dataList.map(item => item.post_time), new_cut_time)
@@ -288,7 +290,7 @@
                     if (!totalData[ac_recordId]) {
                       totalData[ac_recordId] = {};
                     }
-                    totalData[ac_recordId][item.url] = {...item, get_interaction_flag: 'unknow'};
+                    totalData[ac_recordId][item.url] = item;
                   }
                 });
                 
@@ -430,7 +432,26 @@
     
     <el-form-item label-width="null">
       <el-alert
-        title="建议使用模板"
+        title="建议使用模板数据表"
+        type="primary"
+        class="item-section"
+        show-icon
+      />
+    </el-form-item>
+
+    <el-form-item label-width="null">
+      <el-alert
+        title="对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据"
+        type="primary"
+        class="item-section"
+        show-icon
+      />
+    </el-form-item>
+    
+    <el-form-item label-width="null">
+      <el-alert
+        title="请注意账号数据表中的【获取发文截至时间】字段，不会获取【获取发文截至时间】之前的用户发文。
+        可以手动修改此字段以获取更早的发文数据，但有可能在文章数据表中写入重复数据。"
         type="primary"
         class="item-section"
         show-icon
@@ -439,7 +460,7 @@
 
     <el-form-item label-width="null">
       <el-tooltip 
-        :content="'生成一对关联公众号数据表空模板、文章数据表空模板，修改文章数据表的公众号字段可以设置关联的公众号数据表'" 
+        :content="'生成一对关联的公众号数据表空模板、文章数据表空模板，修改文章数据表的公众号字段可以设置关联的公众号数据表'" 
         effect="dark"
         placement="top"
       >
@@ -527,11 +548,11 @@
           type="primary" 
           size="large" 
           :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
-          @click="getRecentArticles(10)"
+          @click="getRecentArticles(30)"
           plain
           style="flex: 1;"
         >
-          获取近期最多10天发文
+          获取近期最多30天发文
         </el-button>
       </el-tooltip>
     </el-form-item>
@@ -556,7 +577,7 @@
       </el-tooltip>
     </el-form-item>
 
-    <p>{{ ghData }}</p>
+    <!-- <p>{{ ghData }}</p> -->
   </el-form>
 </template>
 

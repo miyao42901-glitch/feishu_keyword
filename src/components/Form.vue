@@ -20,6 +20,9 @@
   import pluginAPI from '@/utils/request'
   import GhForm from './ghForm.vue'
   import DyForm from './dyForm.vue'
+  import XhsForm from './xhsForm.vue'
+
+
 
   export default {
     components: {
@@ -39,6 +42,7 @@
       ElMessageBox,
       GhForm,
       DyForm,
+      XhsForm,
     },
     setup() {
       const formRef = ref(null)
@@ -90,7 +94,7 @@
             :disabled="isLocked"
           />
           <el-link 
-            href="https://www.dajiala.com/main/interface" 
+            href="https://www.dajiala.com" 
             target="_blank"
             :underline="false" 
             type="primary"
@@ -109,14 +113,14 @@
           <el-tab-pane label="抖音" name="1">
             <DyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
-          <el-tab-pane label="小红书" name="2">
-            <el-form-item label="开发中" />
+          <el-tab-pane label="小红书" name="2" :disabled="true">
+            <XhsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
         </el-tabs>
       </el-card>
       
-      <p>{{ formData }}</p>
-      <p>{{ isLocked }}</p>
+      <!-- <p>{{ formData }}</p>
+      <p>{{ isLocked }}</p> -->
     </el-form>
     
     <!-- 加载遮罩 -->

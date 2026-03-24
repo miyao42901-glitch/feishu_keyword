@@ -2,7 +2,9 @@ import axios from 'axios'
 
 // 创建axios实例
 const pluginAPI = axios.create({
-  baseURL: 'https://www.dajiala.com', // 设置baseURL
+  // baseURL: 'api',
+  // baseURL: 'https://api.yddm.com', // 设置baseURL
+  baseURL: 'https://www.dajiala.com',
   timeout: 10000 // 请求超时时间
 })
 
@@ -61,8 +63,16 @@ const withRetry = async (requestFn, maxRetries = 3, retryDelay = 1000) => {
       await new Promise(resolve => setTimeout(resolve, retryDelay))
     }
   }
+  if (lastResponse) {
+    return lastResponse
+  }
+  else{
+    return {
+      code: -1,
+      msg: '网络连接错误',
+    }
+  }
   
-  return lastResponse
 }
 
 // 包装 pluginAPI 的方法，添加重试功能
