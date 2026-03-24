@@ -139,21 +139,20 @@
             key: props.formData.key,
           })
 
-          if (res && res.data) {
-            if(res.data.code === 0){
-              
-              const result = await writeToTable(
-                paneData.value.userTableId,
-                [{...res.data.v2_info_list.contact,
-                  get_work_flag: 'unknow',
-                }],
-                userFields(),
-              );
-            }
-            else{
-              props.formData.message = '操作失败: ' + (res.data.msg || '未知错误');
-              props.formData.messageType = 'error';
-            }
+          if (res && res.data && res.data.code === 0) {
+            const result = await writeToTable(
+              paneData.value.userTableId,
+              [{...res.data.v2_info_list.contact,
+                get_work_flag: 'unknow',
+              }],
+              userFields(),
+            );
+            props.formData.message = '新增账户数据完成，消耗：' + res.data.cost + '，剩余：' + res.data.remain_money;
+            props.formData.messageType = 'success';
+          }
+          else{
+            props.formData.message = '操作失败: ' + (res.data.msg || '未知错误');
+            props.formData.messageType = 'error';
           }
         } catch (error) {
           console.error('操作失败:', error);
@@ -170,6 +169,10 @@
         emit('update:isLocked', true);
 
         try{
+          let totalCost = 0
+          let lastRemainMoney = 0
+          let successCount = 0
+
           const searchDays = typeof maxDay === 'number' && !isNaN(maxDay) ? Math.min(30, Math.max(1, Math.floor(maxDay))) : 1
           const date = new Date()
           date.setHours(0, 0, 0, 0)
@@ -222,6 +225,9 @@
               }
 
               last_buffer = res.data.last_buffer
+              totalCost += res.data.cost
+              lastRemainMoney = res.data.remain_money
+              successCount += 1
 
               const dataList = res.data.object
               .filter(item => getTimeFromStr(item.publish_time) > user_cut_time)
@@ -267,7 +273,6 @@
               }
             }
           }
-
           
           // 将嵌套的 totalData 结构展平为数组，只包含 totalLastTime 中为 success 的记录 recordId
           const flatData = Object.entries(totalData)
@@ -285,7 +290,12 @@
             Object.values(totalLastTime),
             userFields()
           )
-
+          
+          if(recordIdList.length > 0){
+            props.formData.message = '获取视频数据完成，共操作' + recordIdList.length + '条账户数据，成功操作' +
+              successCount + '条账户数据，新增' + flatData.length + '条视频数据，消耗：' + totalCost + '，剩余：' + lastRemainMoney;
+            props.formData.messageType = 'success';
+          }
         } catch (error) {
           console.error('操作失败:', error);
           props.formData.message = '操作失败: ' + (error.message || '未知错误');
@@ -295,12 +305,15 @@
         }
       }
 
-
       const getWorksInteract = async() => {
         if (props.isLocked) return;
         emit('update:isLocked', true);
 
         try{
+          let successCount = 0
+          let totalCost = 0
+          let lastRemainMoney = 0
+
           const workTable = await bitable.base.getTable(paneData.value.workTableId)
           const recordIdList = await bitable.ui.selectRecordIdList(paneData.value.workTableId)
 
@@ -327,7 +340,10 @@
             // 构建 updateTable 所需的格式
             const updateItem = { recordId: work_recordId, data: {} };
             if (res && res.data && res.data.code === 0) {
-                updateItem.data = {
+              successCount += 1
+              totalCost += res.data.cost
+              lastRemainMoney = res.data.remain_money
+              updateItem.data = {
                 fav_count: res.data.fav_count,
                 like_count: res.data.like_count,
                 forward_count: res.data.forward_count,
@@ -353,6 +369,11 @@
             totalInteract,
             workFields()
           )
+          if(recordIdList.length > 0){
+            props.formData.message = '获取互动数据完成，共操作' + recordIdList.length + 
+              '条视频数据，成功操作' + successCount + '条视频数据，消耗：' + totalCost + '，剩余：' + lastRemainMoney;
+            props.formData.messageType = 'success';
+          }
         } catch (error) {
           console.error('操作失败:', error);
           props.formData.message = '操作失败: ' + (error.message || '未知错误');
@@ -382,7 +403,7 @@
 <template>
   <el-form class="ghForm" label-position="left" label-width="120px">
     <el-form-item 
-      label="账号数据表"
+      label="视频号数据表"
     >
       <TableSelect v-model="paneData.userTableId" />
     </el-form-item>

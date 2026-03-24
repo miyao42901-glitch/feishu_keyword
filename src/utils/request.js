@@ -44,8 +44,10 @@ const withRetry = async (requestFn, maxRetries = 3, retryDelay = 1000) => {
   for (let i = 0; i < maxRetries; i++) {
     try {
       const response = await requestFn()
-      lastResponse = response
       
+      if (response.data && response.data.code){
+        lastResponse = response
+      }
       // 检查是否有 code 字段，并且 code 为 0
       if (response.data && response.data.code === 0) {
         return response

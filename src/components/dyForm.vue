@@ -162,6 +162,12 @@
               }],
               dyUserFields(),
             );
+            props.formData.message = '新增账户数据完成，消耗：' + res.data.cost + '，剩余：' + res.data.remain_money;
+            props.formData.messageType = 'success';
+          }
+          else{
+            props.formData.message = '操作失败: ' + (res.data.msg || '未知错误');
+            props.formData.messageType = 'error';
           }
         } catch (error) {
           console.error('操作失败:', error);
@@ -177,6 +183,10 @@
         emit('update:isLocked', true);
 
         try{
+          let successCount = 0
+          let totalCost = 0
+          let lastRemainMoney = 0
+
           const userTable = await bitable.base.getTable(dyData.value.userTableId)
           const recordIdList = await bitable.ui.selectRecordIdList(dyData.value.userTableId)
 
@@ -201,12 +211,15 @@
             // 构建 updateTable 所需的格式
             const updateItem = { recordId: user_recordId, data: {} };
             if (res && res.data && res.data.code === 0) {
-                updateItem.data = {
+              updateItem.data = {
                 ...res.data.data.user, 
                 last_get_time: get_time,
                 get_interaction_flag: 'success',
                 interaction_fail_reason: '',
               }
+              successCount++
+              totalCost += res.data.cost
+              lastRemainMoney = res.data.remain_money
             }
             else{
               updateItem.data = {
@@ -223,6 +236,12 @@
             totalInteract,
             dyUserFields()
           )
+
+          if(recordIdList.length > 0){
+            props.formData.message = '获取账户互动数据完成，共操作' + recordIdList.length + '条账户数据，成功操作' +
+              successCount + '条账户数据，消耗：' + totalCost + '，剩余：' + lastRemainMoney;
+            props.formData.messageType = 'success';
+          }
         } catch (error) {
           console.error('操作失败:', error);
           props.formData.message = '操作失败: ' + (error.message || '未知错误');
@@ -237,6 +256,10 @@
         emit('update:isLocked', true);
 
         try{
+          let successCount = 0
+          let totalCost = 0
+          let lastRemainMoney = 0
+
           const searchDays = typeof maxDay === 'number' && !isNaN(maxDay) ? Math.min(30, Math.max(1, Math.floor(maxDay))) : 1
           const date = new Date()
           date.setHours(0, 0, 0, 0)
@@ -269,8 +292,6 @@
             while(true){
               i += 1
               const get_time = Date.now()
-              
-
               const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_post?key=${props.formData.key}`, {
                   sec_user_id: sec_user_id.text,
                   max_cursor: max_cursor,
@@ -288,6 +309,9 @@
               }
 
               max_cursor = String(res.data.data.max_cursor)
+              successCount++
+              totalCost += res.data.cost
+              lastRemainMoney = res.data.remain_money
 
               const dataList = res.data.data.aweme_list
               .filter(item => item.create_time * 1000 > user_cut_time)
@@ -351,6 +375,12 @@
             dyUserFields()
           )
 
+          if(recordIdList.length > 0){
+            props.formData.message = '获取账户视频数据完成，共操作' + recordIdList.length + '条账户数据，成功操作' +
+              successCount + '条账户数据，新增' + flatData.length + '条视频数据，消耗：' + totalCost + '，剩余：' + lastRemainMoney;
+            props.formData.messageType = 'success';
+          }
+
         } catch (error) {
           console.error('操作失败:', error);
           props.formData.message = '操作失败: ' + (error.message || '未知错误');
@@ -365,6 +395,10 @@
         emit('update:isLocked', true);
 
         try{
+          let successCount = 0
+          let totalCost = 0
+          let lastRemainMoney = 0
+
           const vedioTable = await bitable.base.getTable(dyData.value.vedioTableId)
           const recordIdList = await bitable.ui.selectRecordIdList(dyData.value.vedioTableId)
 
@@ -386,12 +420,13 @@
                 aweme_id: aweme_id.text,
             })
 
-            
-            
             // 构建 updateTable 所需的格式
             const updateItem = { recordId: vedio_recordId, data: {} };
             if (res && res.data && res.data.code === 0) {
-                updateItem.data = {
+              successCount++
+              totalCost += res.data.cost
+              lastRemainMoney = res.data.remain_money
+              updateItem.data = {
                 digg_count: res.data.data.aweme_detail.statistics.digg_count,
                 comment_count: res.data.data.aweme_detail.statistics.comment_count,
                 share_count: res.data.data.aweme_detail.statistics.share_count,
@@ -416,6 +451,12 @@
             totalInteract,
             dyVedioFields()
           )
+          
+          if(recordIdList.length > 0){
+            props.formData.message = '获取视频互动数据完成，共操作' + recordIdList.length + '条视频数据，成功操作' +
+              successCount + '条视频数据，消耗：' + totalCost + '，剩余：' + lastRemainMoney;
+            props.formData.messageType = 'success';
+          }
         } catch (error) {
           console.error('操作失败:', error);
           props.formData.message = '操作失败: ' + (error.message || '未知错误');

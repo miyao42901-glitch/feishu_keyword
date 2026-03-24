@@ -20,7 +20,7 @@
   import pluginAPI from '@/utils/request'
   import GhForm from './ghForm.vue'
   import DyForm from './dyForm.vue'
-  import XhsForm from './xhsForm.vue'
+  // import XhsForm from './xhsForm.vue'
   import V2Form from './v2Form.vue'
 
 
@@ -42,7 +42,7 @@
       ElMessageBox,
       GhForm,
       DyForm,
-      XhsForm,
+      // XhsForm,
       V2Form,
     },
     setup() {
@@ -116,9 +116,6 @@
           </el-tab-pane>
           <el-tab-pane label="视频号" name="2">
             <V2Form :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-          </el-tab-pane>
-          <el-tab-pane label="小红书" name="3" :disabled="true">
-            <XhsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
         </el-tabs>
       </el-card>
