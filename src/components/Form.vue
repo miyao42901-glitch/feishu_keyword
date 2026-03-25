@@ -46,6 +46,7 @@
       V2Form,
     },
     setup() {
+      const app_id = 'cli_a9f6a88460f85bc6';
       const formRef = ref(null)
       const formData = ref({
         isLogin: false,
@@ -86,10 +87,8 @@
             formData.value.isLogin = true;
             formData.value.username = localStorage.getItem('username');
             formData.value.key = localStorage.getItem('key');
-            const res = await pluginAPI.get('/fbmain/monitor/v3/get_remain_money', {
-              params: {
-                key: formData.value.key,
-              }
+            const res = await pluginAPI.post('/fbmain/monitor/v3/get_remain_money', {
+              key: formData.value.key,
             });
             if (res && res.data && res.data.code === 0) {
               formData.value.remainMoney = res.data.remain_money;
@@ -124,6 +123,7 @@
           }
           
           if (code && state) {
+            console.log(code);
             await handleAuthorization(code);
           }
         }
@@ -134,30 +134,28 @@
 
       async function tenantAuth() {
         isLocked.value = true;
-        const app_id = 'cli_a9ad0d32f1b89bdf';
         const redirect_uri = encodeURIComponent(window.location.href);
         const state = randomString(16);
         sessionStorage.setItem('state', state);
         const authUrl = `https://accounts.feishu.cn/open-apis/authen/v1/authorize?client_id=${app_id}&response_type=code&redirect_uri=${redirect_uri}&state=${state}`;
-        console.log(authUrl);
         window.location.href = authUrl;
       }
 
       async function handleAuthorization(code) {
         isLocked.value = true;
         try {
-          const res = await axios.post('https://feishu.jzl.com/api/feishu/plugin/login', {
+          const res = await axios.post('https://feishu.jzl.com/api/v1/auth/feishu/plugin/login', {
             code: code,
-            appID: 'cli_a9ad0d32f1b89bdf',
+            appID: app_id,
             redirect_uri: encodeURIComponent(window.location.href),
           })
-          formData.value.username = res.data.username;
-          formData.value.remainMoney = res.data.remain_money;
-          formData.value.key = res.data.key;
+          formData.value.username = res.data.data.username;
+          formData.value.remainMoney = res.data.data.remain_money;
+          formData.value.key = res.data.data.key;
           formData.value.isLogin = true;
           localStorage.setItem('isLogin', 'true');
-          localStorage.setItem('username', res.data.username);
-          localStorage.setItem('key', res.data.key);
+          localStorage.setItem('username', res.data.data.username);
+          localStorage.setItem('key', res.data.data.key);
         } catch (error) {
           console.error('授权失败:', error);
           formData.value.message = '授权失败，请联系管理员';
@@ -183,7 +181,7 @@
     <el-form ref="formRef" class="form" :model="formData" label-position="left">
       <div class="title-section">多平台数据采集插件</div>
 
-      <el-card class="card-item" shadow="hover">
+      <!-- <el-card class="card-item" shadow="hover">
         <el-form-item 
           label="API Key"
         >
@@ -206,9 +204,34 @@
           >获取key
           </el-link>
         </el-form-item>
-      </el-card>
+      </el-card> -->
 
-      <el-button type="primary" @click="tenantAuth">获取授权</el-button>
+
+      <el-card class="card-item" shadow="hover" label-width="120px">
+        <el-form-item 
+          label="用户名称"
+          v-if="formData.isLogin"
+        >
+          <p>{{ formData.username }}</p>
+        </el-form-item>
+        <el-form-item 
+          label="余额"
+          v-if="formData.isLogin"
+        >
+          <p>{{ formData.remainMoney }}</p>
+        </el-form-item>
+        <el-form-item 
+          label="尚未授权"
+          v-if="!formData.isLogin"
+        >
+          <el-button 
+            type="primary" 
+            @click="tenantAuth"
+            plain
+            style="flex: 1;"
+          >飞书授权</el-button>
+        </el-form-item>
+      </el-card>
       
       <el-card class="card-item" shadow="hover">
         <el-tabs :disabled="isLocked">
