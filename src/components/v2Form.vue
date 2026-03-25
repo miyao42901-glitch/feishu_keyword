@@ -171,7 +171,6 @@
         try{
           let totalCost = 0
           let lastRemainMoney = 0
-          let successCount = 0
 
           const searchDays = typeof maxDay === 'number' && !isNaN(maxDay) ? Math.min(30, Math.max(1, Math.floor(maxDay))) : 1
           const date = new Date()
@@ -227,7 +226,6 @@
               last_buffer = res.data.last_buffer
               totalCost += res.data.cost
               lastRemainMoney = res.data.remain_money
-              successCount += 1
 
               const dataList = res.data.object
               .filter(item => getTimeFromStr(item.publish_time) > user_cut_time)
@@ -292,6 +290,7 @@
           )
           
           if(recordIdList.length > 0){
+            const successCount = Object.values(totalLastTime).filter(item => item.data.get_work_flag === 'success').length;
             props.formData.message = '获取视频数据完成，共操作' + recordIdList.length + '条账户数据，成功操作' +
               successCount + '条账户数据，新增' + flatData.length + '条视频数据，消耗：' + totalCost + '，剩余：' + lastRemainMoney;
             props.formData.messageType = 'success';

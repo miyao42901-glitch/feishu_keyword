@@ -256,7 +256,6 @@
         emit('update:isLocked', true);
 
         try{
-          let successCount = 0
           let totalCost = 0
           let lastRemainMoney = 0
 
@@ -309,7 +308,6 @@
               }
 
               max_cursor = String(res.data.data.max_cursor)
-              successCount++
               totalCost += res.data.cost
               lastRemainMoney = res.data.remain_money
 
@@ -376,6 +374,7 @@
           )
 
           if(recordIdList.length > 0){
+            const successCount = Object.values(totalLastTime).filter(item => item.data.get_vedio_flag === 'success').length;
             props.formData.message = '获取账户视频数据完成，共操作' + recordIdList.length + '条账户数据，成功操作' +
               successCount + '条账户数据，新增' + flatData.length + '条视频数据，消耗：' + totalCost + '，剩余：' + lastRemainMoney;
             props.formData.messageType = 'success';

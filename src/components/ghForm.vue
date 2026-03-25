@@ -186,7 +186,6 @@
         emit('update:isLocked', true);
 
         try{
-          let successCount = 0
           let totalCost = 0
           let lastRemainMoney = 0
 
@@ -234,7 +233,6 @@
                 continue
               }
 
-              successCount++
               totalCost += res.data.cost
               lastRemainMoney = res.data.remain_money
 
@@ -290,7 +288,6 @@
                   break
                 }
                 
-                successCount++
                 totalCost += res.data.cost
                 lastRemainMoney = res.data.remain_money
                 
@@ -352,6 +349,7 @@
           )
           
           if(recordIdList.length > 0){
+            const successCount = Object.values(totalLastTime).filter(item => item.data.get_article_flag === 'success').length;
             props.formData.message = '获取公众号文章数据完成，共操作' + recordIdList.length + '条公众号数据，成功操作' +
               successCount + '条公众号数据，新增' + flatData.length + '条文章数据，消耗：' + totalCost + '，剩余：' + lastRemainMoney;
             props.formData.messageType = 'success';
