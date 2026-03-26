@@ -104,6 +104,12 @@
         }
       }
 
+      const alertList = ref([
+        { title: '建议使用模板数据表' },
+        { title: '对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据' },
+        { title: '请注意账号数据表中的【获取视频截至时间】字段，不会获取【获取视频截至时间】之前的用户发布的视频。可以手动修改此字段以获取更早的视频数据，但有可能在视频数据表中写入重复数据。' }
+      ])
+
       const dyData = ref({
         sec_user_id: null,
         share_text: null,
@@ -162,7 +168,7 @@
               }],
               dyUserFields(),
             );
-            props.formData.message = '新增账户数据完成，消耗：' + res.data.cost + '，剩余：' + res.data.remain_money;
+            props.formData.message = '新增账户数据完成，消耗：' + res.data.price;
             props.formData.messageType = 'success';
           }
           else{
@@ -218,7 +224,7 @@
                 interaction_fail_reason: '',
               }
               successCount++
-              totalCost += res.data.cost
+              totalCost += res.data.price
               lastRemainMoney = res.data.remain_money
             }
             else{
@@ -239,7 +245,7 @@
 
           if(recordIdList.length > 0){
             props.formData.message = '获取账户互动数据完成，共操作' + recordIdList.length + '条账户数据，成功操作' +
-              successCount + '条账户数据，消耗：' + totalCost + '，剩余：' + lastRemainMoney;
+              successCount + '条账户数据，消耗：' + totalCost;
             props.formData.messageType = 'success';
           }
         } catch (error) {
@@ -308,7 +314,7 @@
               }
 
               max_cursor = String(res.data.data.max_cursor)
-              totalCost += res.data.cost
+              totalCost += res.data.price
               lastRemainMoney = res.data.remain_money
 
               const dataList = res.data.data.aweme_list
@@ -376,7 +382,7 @@
           if(recordIdList.length > 0){
             const successCount = Object.values(totalLastTime).filter(item => item.data.get_vedio_flag === 'success').length;
             props.formData.message = '获取账户视频数据完成，共操作' + recordIdList.length + '条账户数据，成功操作' +
-              successCount + '条账户数据，新增' + flatData.length + '条视频数据，消耗：' + totalCost + '，剩余：' + lastRemainMoney;
+              successCount + '条账户数据，新增' + flatData.length + '条视频数据，消耗：' + totalCost;
             props.formData.messageType = 'success';
           }
 
@@ -423,7 +429,7 @@
             const updateItem = { recordId: vedio_recordId, data: {} };
             if (res && res.data && res.data.code === 0) {
               successCount++
-              totalCost += res.data.cost
+              totalCost += res.data.price
               lastRemainMoney = res.data.remain_money
               updateItem.data = {
                 digg_count: res.data.data.aweme_detail.statistics.digg_count,
@@ -453,7 +459,7 @@
           
           if(recordIdList.length > 0){
             props.formData.message = '获取视频互动数据完成，共操作' + recordIdList.length + '条视频数据，成功操作' +
-              successCount + '条视频数据，消耗：' + totalCost + '，剩余：' + lastRemainMoney;
+              successCount + '条视频数据，消耗：' + totalCost;
             props.formData.messageType = 'success';
           }
         } catch (error) {
@@ -467,6 +473,7 @@
 
       return {
         dyData,
+        alertList,
         addTableTemplate,
         addDyUser,
         updateDyUser,
@@ -508,32 +515,13 @@
         placeholder="请输入名片分享链接"
       />
     </el-form-item>
-    
-    <el-form-item label-width="null">
-      <el-alert
-        title="建议使用模板数据表"
-        type="primary"
-        class="item-section"
-        show-icon
-      />
-    </el-form-item>
 
-    <el-form-item label-width="null">
+    <el-form-item v-for="(item, idx) in alertList" :key="item.title" label-width="null">
       <el-alert
-        title="对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据"
+        :title="item.title"
         type="primary"
-        class="item-section"
         show-icon
-      />
-    </el-form-item>
-    
-    <el-form-item label-width="null">
-      <el-alert
-        title="请注意账号数据表中的【获取视频截至时间】字段，不会获取【获取视频截至时间】之前的用户发布的视频。
-        可以手动修改此字段以获取更早的视频数据，但有可能在视频数据表中写入重复数据。"
-        type="primary"
-        class="item-section"
-        show-icon
+        @close="() => alertList.splice(idx, 1)"
       />
     </el-form-item>
 

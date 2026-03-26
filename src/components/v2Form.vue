@@ -91,6 +91,12 @@
           fail_reason: { label: '获取失败原因', fieldType: FieldType.Text, },
         }
       }
+      
+      const alertList = ref([
+        { title: '建议使用模板数据表' },
+        { title: '对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据' },
+        { title: '请注意账号数据表中的【获取视频截至时间】字段，不会获取【获取视频截至时间】之前的用户发布的视频。可以手动修改此字段以获取更早的视频数据，但有可能在视频数据表中写入重复数据。' }
+      ])
 
       const paneData = ref({
         v2_name: null,
@@ -147,7 +153,7 @@
               }],
               userFields(),
             );
-            props.formData.message = '新增账户数据完成，消耗：' + res.data.cost + '，剩余：' + res.data.remain_money;
+            props.formData.message = '新增账户数据完成，消耗：' + res.data.cost;
             props.formData.messageType = 'success';
           }
           else{
@@ -292,7 +298,7 @@
           if(recordIdList.length > 0){
             const successCount = Object.values(totalLastTime).filter(item => item.data.get_work_flag === 'success').length;
             props.formData.message = '获取视频数据完成，共操作' + recordIdList.length + '条账户数据，成功操作' +
-              successCount + '条账户数据，新增' + flatData.length + '条视频数据，消耗：' + totalCost + '，剩余：' + lastRemainMoney;
+              successCount + '条账户数据，新增' + flatData.length + '条视频数据，消耗：' + totalCost;
             props.formData.messageType = 'success';
           }
         } catch (error) {
@@ -370,7 +376,7 @@
           )
           if(recordIdList.length > 0){
             props.formData.message = '获取互动数据完成，共操作' + recordIdList.length + 
-              '条视频数据，成功操作' + successCount + '条视频数据，消耗：' + totalCost + '，剩余：' + lastRemainMoney;
+              '条视频数据，成功操作' + successCount + '条视频数据，消耗：' + totalCost;
             props.formData.messageType = 'success';
           }
         } catch (error) {
@@ -390,6 +396,7 @@
 
       return {
         paneData,
+        alertList,
         addTableTemplate,
         addUser,
         getRecentWorks,
@@ -421,32 +428,13 @@
         placeholder="请输入视频号名称"  
       />
     </el-form-item>
-    
-    <el-form-item label-width="null">
-      <el-alert
-        title="建议使用模板数据表"
-        type="primary"
-        class="item-section"
-        show-icon
-      />
-    </el-form-item>
 
-    <el-form-item label-width="null">
+    <el-form-item v-for="(item, idx) in alertList" :key="item.title" label-width="null">
       <el-alert
-        title="对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据"
+        :title="item.title"
         type="primary"
-        class="item-section"
         show-icon
-      />
-    </el-form-item>
-    
-    <el-form-item label-width="null">
-      <el-alert
-        title="请注意账号数据表中的【获取视频截至时间】字段，不会获取【获取视频截至时间】之前的用户发布的视频。
-        可以手动修改此字段以获取更早的视频数据，但有可能在视频数据表中写入重复数据。"
-        type="primary"
-        class="item-section"
-        show-icon
+        @close="() => alertList.splice(idx, 1)"
       />
     </el-form-item>
 

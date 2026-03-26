@@ -114,6 +114,12 @@
         }
       }
 
+      const alertList = ref([
+        { title: '建议使用模板数据表' },
+        { title: '对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据' },
+        { title: '请注意账号数据表中的【获取发文截至时间】字段，不会获取【获取发文截至时间】之前的用户发文。可以手动修改此字段以获取更早的发文数据，但有可能在文章数据表中写入重复数据。' }
+      ])
+
       const ghData = ref({
         ghSearchValue: null,
         selectedGhTableId: null,
@@ -165,7 +171,7 @@
               [{...res.data.data, get_article_flag: 'unknow'}],
               ghAccountFields(),
             );
-            props.formData.message = '新增公众号数据完成，消耗：' + res.data.cost + '，剩余：' + res.data.remain_money;
+            props.formData.message = '新增公众号数据完成，消耗：0.5';
             props.formData.messageType = 'success';
           }
           else{
@@ -233,7 +239,7 @@
                 continue
               }
 
-              totalCost += res.data.cost
+              totalCost += res.data.cost_money
               lastRemainMoney = res.data.remain_money
 
               const dataList = res.data.data
@@ -288,7 +294,7 @@
                   break
                 }
                 
-                totalCost += res.data.cost
+                totalCost += res.data.cost_money
                 lastRemainMoney = res.data.remain_money
                 
                 const dataList = res.data.data
@@ -351,7 +357,7 @@
           if(recordIdList.length > 0){
             const successCount = Object.values(totalLastTime).filter(item => item.data.get_article_flag === 'success').length;
             props.formData.message = '获取公众号文章数据完成，共操作' + recordIdList.length + '条公众号数据，成功操作' +
-              successCount + '条公众号数据，新增' + flatData.length + '条文章数据，消耗：' + totalCost + '，剩余：' + lastRemainMoney;
+              successCount + '条公众号数据，新增' + flatData.length + '条文章数据，消耗：' + totalCost;
             props.formData.messageType = 'success';
           }
         } catch (error) {
@@ -399,7 +405,7 @@
             
             if (res && res.data && res.data.code === 0) {
               successCount++
-              totalCost += res.data.cost
+              totalCost += res.data.cost_money
               lastRemainMoney = res.data.remain_money
               updateItem.data = {
                 ...res.data.data,
@@ -426,7 +432,7 @@
           
           if(recordIdList.length > 0){
             props.formData.message = '获取文章互动数据完成，共操作' + recordIdList.length + '条文章数据，成功操作' +
-              successCount + '条文章数据，消耗：' + totalCost + '，剩余：' + lastRemainMoney;
+              successCount + '条文章数据，消耗：' + totalCost;
             props.formData.messageType = 'success';
           }
           
@@ -440,6 +446,7 @@
       }
 
       return {
+        alertList,
         ghData,
         addTableTemplate,
         addGhAccount,
@@ -472,32 +479,13 @@
         placeholder="请输入公众号名称或id"
       />
     </el-form-item>
-    
-    <el-form-item label-width="null">
-      <el-alert
-        title="建议使用模板数据表"
-        type="primary"
-        class="item-section"
-        show-icon
-      />
-    </el-form-item>
 
-    <el-form-item label-width="null">
+    <el-form-item v-for="(item, idx) in alertList" :key="item.title" label-width="null">
       <el-alert
-        title="对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据"
+        :title="item.title"
         type="primary"
-        class="item-section"
         show-icon
-      />
-    </el-form-item>
-    
-    <el-form-item label-width="null">
-      <el-alert
-        title="请注意账号数据表中的【获取发文截至时间】字段，不会获取【获取发文截至时间】之前的用户发文。
-        可以手动修改此字段以获取更早的发文数据，但有可能在文章数据表中写入重复数据。"
-        type="primary"
-        class="item-section"
-        show-icon
+        @close="() => alertList.splice(idx, 1)"
       />
     </el-form-item>
 

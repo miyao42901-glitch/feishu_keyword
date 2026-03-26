@@ -22,6 +22,7 @@
   import DyForm from './dyForm.vue'
   // import XhsForm from './xhsForm.vue'
   import V2Form from './v2Form.vue'
+  import SensitiveText from './sensitiveText.vue'
   import axios from 'axios'
 
   export default {
@@ -44,6 +45,7 @@
       DyForm,
       // XhsForm,
       V2Form,
+      SensitiveText,
     },
     setup() {
       const app_id = 'cli_a9f6a88460f85bc6';
@@ -54,25 +56,30 @@
         message: null,
         messageType: 'success',
         remainMoney: null,
-        username: null,
       });
 
       const isLocked = ref(false);
 
-      watch(isLocked, (newVal, oldVal) => {
-        if (oldVal === true && newVal === false) {
+      const isShow = ref(false);
+
+      watch(isLocked, async (newVal, oldVal) => {
+        if (newVal === false) {
+          await keyAuth(formData.value.key);
+          isShow.value = false;
           if (formData.value.message) {
-            console.log(formData.value.message);
-            ElMessageBox.confirm(formData.value.message, '提示',{type: formData.value.messageType})
+            await ElMessageBox.confirm(formData.value.message, '提示',{type: formData.value.messageType})
             // 清空提示信息
             formData.value.message = null;
             formData.value.messageType = 'success';
           }
         }
+        else if (newVal === true) {
+          isShow.value = true;
+        }
       });
 
-      // 生成指定长度的随机字符串（使用 crypto API，更安全）
       function randomString(length) {
+      // 生成指定长度的随机字符串（使用 crypto API，更安全）
         const array = new Uint8Array(Math.ceil(length / 2));
         window.crypto.getRandomValues(array);
         return Array.from(array, byte => 
@@ -83,21 +90,6 @@
       onMounted(async () => {
         isLocked.value = true;
         try{
-          if (localStorage.getItem('isLogin') === 'true') {
-            formData.value.isLogin = true;
-            formData.value.username = localStorage.getItem('username');
-            formData.value.key = localStorage.getItem('key');
-            const res = await pluginAPI.post('/fbmain/monitor/v3/get_remain_money', {
-              key: formData.value.key,
-            });
-            if (res && res.data && res.data.code === 0) {
-              formData.value.remainMoney = res.data.remain_money;
-            }
-            else {
-              formData.value.message = '获取余额失败，请联系管理员';
-              formData.value.messageType = 'error';
-            }
-          }
           // 提取 URL 中的 code 参数
           const urlParams = new URLSearchParams(window.location.search);
           const code = urlParams.get('code');
@@ -110,21 +102,18 @@
             newUrl.searchParams.delete('state');
             window.history.replaceState({}, '', newUrl.toString());
           }
-          
+
           const storedState = sessionStorage.getItem('state');
-          // 清空状态参数
           sessionStorage.removeItem('state');
 
-          // console.log(state, storedState, code);
-
-          if (storedState && storedState !== state) {
-            ElMessageBox.confirm('授权失败', '提示',{type: 'error'})
-            return;
+          if (state && storedState !== state) {
+            ElMessageBox.confirm('飞书授权失败', '提示',{type: 'error'})
           }
-          
-          if (code && state) {
-            console.log(code);
+          else if (code && state) {
             await handleAuthorization(code);
+          }
+          else if (sessionStorage.getItem('jzl_key')) {
+            await keyAuth(sessionStorage.getItem('jzl_key'));
           }
         }
         finally {
@@ -149,13 +138,10 @@
             appID: app_id,
             redirect_uri: encodeURIComponent(window.location.href),
           })
-          formData.value.username = res.data.data.username;
           formData.value.remainMoney = res.data.data.remain_money;
           formData.value.key = res.data.data.key;
           formData.value.isLogin = true;
-          localStorage.setItem('isLogin', 'true');
-          localStorage.setItem('username', res.data.data.username);
-          localStorage.setItem('key', res.data.data.key);
+          sessionStorage.setItem('jzl_key', res.data.data.key);
         } catch (error) {
           console.error('授权失败:', error);
           formData.value.message = '授权失败，请联系管理员';
@@ -166,11 +152,76 @@
         }
       }
 
+      async function keyAuth(jzl_key) {
+        let result = false;
+        try {
+          const res = await pluginAPI.post('/fbmain/monitor/v3/get_remain_money', {
+            key: jzl_key,
+          });
+          if (res && res.data && res.data.code === 0) {
+            formData.value.isLogin = true;
+            formData.value.key = jzl_key; 
+            formData.value.remainMoney = res.data.remain_money;
+            sessionStorage.setItem('jzl_key', jzl_key);
+            result = true
+          }
+        }
+        catch (error) {
+          console.error(error);
+        }
+        return result;
+      }
+
+      function logout() {
+        sessionStorage.removeItem('jzl_key');
+        formData.value.isLogin = false;
+        formData.value.key = null;
+        formData.value.remainMoney = null;
+      }
+
+      async function inputKey() {
+        const typeKey = await ElMessageBox.prompt('', '请输入key', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          inputType: 'password',
+          inputPattern: /^[a-zA-Z0-9_]+$/,
+          inputErrorMessage: '请输入正确的key格式',
+        });
+        if (typeKey) {
+          isLocked.value = true;
+          try {
+            const result = await keyAuth(typeKey.value);
+            if (!result) {
+              formData.value.message = '无效的key';
+              formData.value.messageType = 'error';
+            }
+          }
+          finally {
+            isLocked.value = false;
+          }
+        }
+      }
+      
+      async function refreshBalance() {
+        isLocked.value = true;
+        try {
+          const result = await keyAuth(formData.value.key);
+        }
+        finally {
+          isLocked.value = false;
+        } 
+      }
+
       return {
         formRef,
         formData,
         isLocked,
+        isShow,
+        refreshBalance,
         tenantAuth,
+        keyAuth,
+        logout,
+        inputKey,
       };
     },
   };
@@ -181,57 +232,103 @@
     <el-form ref="formRef" class="form" :model="formData" label-position="left">
       <div class="title-section">多平台数据采集插件</div>
 
-      <!-- <el-card class="card-item" shadow="hover">
-        <el-form-item 
-          label="API Key"
-        >
-          <el-input
-            v-model="formData.key"
-            type="password"
-            placeholder="请输入API Key"
-            show-password
-            clearable
-            style="flex: 1;"
-            :disabled="isLocked"
-          />
-          <el-link 
-            href="https://www.dajiala.com" 
-            target="_blank"
-            :underline="false" 
-            type="primary"
-            style="padding-left: 16px;"
-            :disabled="isLocked"
-          >获取key
-          </el-link>
-        </el-form-item>
-      </el-card> -->
+      <el-card class="card-item" shadow="hover">
+        <el-form>
+          <el-form-item 
+            label="余额 :"
+            v-if="formData.isLogin"
+          >
+            <el-text style="flex: 1;">{{ formData.remainMoney }}</el-text>
+          </el-form-item>
 
+          <el-form-item 
+            label="key :"
+            v-if="formData.isLogin"
+          >
+            <SensitiveText
+              :value="formData.key"
+              style="flex: 1;"
+            />
+          </el-form-item>
 
-      <el-card class="card-item" shadow="hover" label-width="120px">
-        <el-form-item 
-          label="用户名称"
-          v-if="formData.isLogin"
-        >
-          <p>{{ formData.username }}</p>
-        </el-form-item>
-        <el-form-item 
-          label="余额"
-          v-if="formData.isLogin"
-        >
-          <p>{{ formData.remainMoney }}</p>
-        </el-form-item>
-        <el-form-item 
-          label="尚未授权"
-          v-if="!formData.isLogin"
-        >
-          <el-button 
-            type="primary" 
-            @click="tenantAuth"
-            plain
-            style="flex: 1;"
-          >飞书授权</el-button>
-        </el-form-item>
+          <el-form-item 
+            label-width="null"
+            v-if="formData.isLogin"
+          >
+            <el-button 
+              type="primary" 
+              @click="refreshBalance"
+              plain
+              style="flex: 1;"
+            >
+              刷新余额
+            </el-button>
+
+            <el-button 
+              type="danger" 
+              @click="logout"
+              plain
+              style="flex: 1;"
+            >
+              退出登录
+            </el-button>
+          </el-form-item>
+
+          <el-form-item 
+            label-width="null"
+            v-if="!formData.isLogin"
+          >
+            <el-alert
+              title="尚未登录,请选择登录方式"
+              type="primary"
+              show-icon
+              closeable = "false"
+            />
+          </el-form-item>
+
+          <el-form-item 
+            label-width="null"
+            v-if="!formData.isLogin"
+          >
+            <el-button 
+              type="primary" 
+              @click="tenantAuth"
+              plain
+              style="flex: 1;"
+            >飞书账号授权</el-button>
+          </el-form-item>
+
+          <el-form-item 
+            label-width="null"
+            v-if="!formData.isLogin"
+          >
+            <el-button 
+              type="primary" 
+              @click="inputKey"
+              plain
+              style="flex: 1;"
+            >已有账号，使用key</el-button>
+          </el-form-item>
+
+          <el-form-item 
+            label-width="null"
+            v-if="!formData.isLogin"
+          >
+            <el-button
+              tag="a"
+              href="https://www.dajiala.com"
+              target="_blank"
+              type="primary"
+              plain
+              style="flex: 1;text-decoration: none;"
+            >
+              前往注册账号
+            </el-button>
+          </el-form-item>
+
+        </el-form>
       </el-card>
+      
       
       <el-card class="card-item" shadow="hover">
         <el-tabs :disabled="isLocked">
@@ -252,7 +349,7 @@
     </el-form>
     
     <!-- 加载遮罩 -->
-    <div class="loading-overlay" v-if="isLocked">
+    <div class="loading-overlay" v-if="isShow">
       <div class="loading-content">
         <div class="loading-spinner"></div>
         <p>操作进行中，请稍候...</p>
