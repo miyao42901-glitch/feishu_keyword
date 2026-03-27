@@ -78,39 +78,14 @@
         }
       });
 
-      function randomString(length) {
-      // 生成指定长度的随机字符串（使用 crypto API，更安全）
-        const array = new Uint8Array(Math.ceil(length / 2));
-        window.crypto.getRandomValues(array);
-        return Array.from(array, byte => 
-          ('0' + (byte & 0xFF).toString(16)).slice(-2)
-        ).join('').substring(0, length);
-      }
-
       onMounted(async () => {
         isLocked.value = true;
         try{
-          // 提取 URL 中的 code 参数
-          const urlParams = new URLSearchParams(window.location.search);
-          const code = urlParams.get('code');
-          const state = urlParams.get('state');
-          
-          // 提前清理 URL 中的参数
-          if (code || state) {
-            const newUrl = new URL(window.location.href);
-            newUrl.searchParams.delete('code');
-            newUrl.searchParams.delete('state');
-            window.history.replaceState({}, '', newUrl.toString());
-          }
-
           const storedState = sessionStorage.getItem('state');
           sessionStorage.removeItem('state');
 
-          if (state && storedState !== state) {
-            ElMessageBox.confirm('飞书授权失败', '提示',{type: 'error'})
-          }
-          else if (code && state) {
-            await handleAuthorization(code);
+          if (storedState) {
+            await handleAuthorization(storedState);
           }
           else if (sessionStorage.getItem('jzl_key')) {
             await keyAuth(sessionStorage.getItem('jzl_key'));
@@ -123,33 +98,40 @@
 
       async function tenantAuth() {
         isLocked.value = true;
-        const redirect_uri = encodeURIComponent(window.location.href);
-        const state = randomString(16);
+        const redirect_uri = encodeURIComponent("https://feishu.jzl.com/api/v1/auth/feishu/plugin/callback");
+        const state = crypto.randomUUID();
         sessionStorage.setItem('state', state);
-        const authUrl = `https://accounts.feishu.cn/open-apis/authen/v1/authorize?client_id=${app_id}&response_type=code&redirect_uri=${redirect_uri}&state=${state}`;
-        window.location.href = authUrl;
-      }
-
-      async function handleAuthorization(code) {
-        isLocked.value = true;
         try {
-          const res = await axios.post('https://feishu.jzl.com/api/v1/auth/feishu/plugin/login', {
-            code: code,
-            appID: app_id,
-            redirect_uri: encodeURIComponent(window.location.href),
+          const res = await axios.post('https://feishu.jzl.com/api/v1/auth/feishu/plugin/save_url', {
+            state: state,
+            frontend_url: window.location.href,
           })
-          formData.value.remainMoney = res.data.data.remain_money;
-          formData.value.key = res.data.data.key;
-          formData.value.isLogin = true;
-          sessionStorage.setItem('jzl_key', res.data.data.key);
+          const authUrl = `https://accounts.feishu.cn/open-apis/authen/v1/authorize?client_id=${app_id}&response_type=code&redirect_uri=${redirect_uri}&state=${state}`;
+          window.location.href = authUrl;
         } catch (error) {
           console.error('授权失败:', error);
-          formData.value.message = '授权失败，请联系管理员';
+          formData.value.message = '授权失败，请重试或联系管理员';
           formData.value.messageType = 'error';
         }
         finally {
           isLocked.value = false;
         }
+      }
+
+      async function handleAuthorization(state) {
+        let result = false;
+        try {
+          const res = await axios.post('https://feishu.jzl.com/api/v1/auth/feishu/plugin/get_key', {
+            state: state,
+          })
+          formData.value.key = res.data.data.key;
+          formData.value.isLogin = true;
+          sessionStorage.setItem('jzl_key', res.data.data.key);
+          result = true;
+        } catch (error) {
+          console.error('授权失败:', error);
+        }
+        return result;
       }
 
       async function keyAuth(jzl_key) {
@@ -202,6 +184,7 @@
         }
       }
       
+      
       async function refreshBalance() {
         isLocked.value = true;
         try {
@@ -230,7 +213,7 @@
 <template>
   <div class="form-container">
     <el-form ref="formRef" class="form" :model="formData" label-position="left">
-      <div class="title-section">多平台数据采集插件</div>
+      <div class="title-section">极致了数据采集插件</div>
 
       <el-card class="card-item" shadow="hover">
         <el-form>

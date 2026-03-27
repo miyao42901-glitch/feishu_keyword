@@ -245,7 +245,7 @@
 
           if(recordIdList.length > 0){
             props.formData.message = '获取账户互动数据完成，共操作' + recordIdList.length + '条账户数据，成功操作' +
-              successCount + '条账户数据，消耗：' + totalCost;
+              successCount + '条账户数据，消耗：' + totalCost.toFixed(2);
             props.formData.messageType = 'success';
           }
         } catch (error) {
@@ -382,7 +382,7 @@
           if(recordIdList.length > 0){
             const successCount = Object.values(totalLastTime).filter(item => item.data.get_vedio_flag === 'success').length;
             props.formData.message = '获取账户视频数据完成，共操作' + recordIdList.length + '条账户数据，成功操作' +
-              successCount + '条账户数据，新增' + flatData.length + '条视频数据，消耗：' + totalCost;
+              successCount + '条账户数据，新增' + flatData.length + '条视频数据，消耗：' + totalCost.toFixed(2);
             props.formData.messageType = 'success';
           }
 
@@ -459,7 +459,7 @@
           
           if(recordIdList.length > 0){
             props.formData.message = '获取视频互动数据完成，共操作' + recordIdList.length + '条视频数据，成功操作' +
-              successCount + '条视频数据，消耗：' + totalCost;
+              successCount + '条视频数据，消耗：' + totalCost.toFixed(2);
             props.formData.messageType = 'success';
           }
         } catch (error) {

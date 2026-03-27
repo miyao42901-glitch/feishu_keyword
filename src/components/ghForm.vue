@@ -357,7 +357,7 @@
           if(recordIdList.length > 0){
             const successCount = Object.values(totalLastTime).filter(item => item.data.get_article_flag === 'success').length;
             props.formData.message = '获取公众号文章数据完成，共操作' + recordIdList.length + '条公众号数据，成功操作' +
-              successCount + '条公众号数据，新增' + flatData.length + '条文章数据，消耗：' + totalCost;
+              successCount + '条公众号数据，新增' + flatData.length + '条文章数据，消耗：' + totalCost.toFixed(2);
             props.formData.messageType = 'success';
           }
         } catch (error) {
@@ -432,7 +432,7 @@
           
           if(recordIdList.length > 0){
             props.formData.message = '获取文章互动数据完成，共操作' + recordIdList.length + '条文章数据，成功操作' +
-              successCount + '条文章数据，消耗：' + totalCost;
+              successCount + '条文章数据，消耗：' + totalCost.toFixed(2);
             props.formData.messageType = 'success';
           }
           
