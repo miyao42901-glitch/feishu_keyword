@@ -81,14 +81,31 @@
       onMounted(async () => {
         isLocked.value = true;
         try{
+          // 从URL中获取state
+          const urlParams = new URLSearchParams(window.location.search);
+          const callback = urlParams.get('callback');
+          
+          // 从地址中去除callback
+          if (callback) {
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.delete('callback');
+            window.history.replaceState({}, '', newUrl.toString());
+          }
+
           const storedState = sessionStorage.getItem('state');
           sessionStorage.removeItem('state');
 
-          if (storedState) {
-            await handleAuthorization(storedState);
+          if (storedState && callback) {
+            if (!(await handleAuthorization(storedState))) {
+              formData.value.message = '授权失败，请重试或联系管理员';
+              formData.value.messageType = 'error';
+            }
           }
           else if (sessionStorage.getItem('jzl_key')) {
-            await keyAuth(sessionStorage.getItem('jzl_key'));
+            if (!(await keyAuth(sessionStorage.getItem('jzl_key')))) {
+              formData.value.message = '授权失败，请重试或联系管理员';
+              formData.value.messageType = 'error';
+            }
           }
         }
         finally {
@@ -102,9 +119,11 @@
         const state = crypto.randomUUID();
         sessionStorage.setItem('state', state);
         try {
+          const frontendUrl = new URL(window.location.href);
+          frontendUrl.searchParams.append('callback', 1);
           const res = await axios.post('https://feishu.jzl.com/api/v1/auth/feishu/plugin/save_url', {
             state: state,
-            frontend_url: window.location.href,
+            frontend_url: frontendUrl.toString(),
           })
           const authUrl = `https://accounts.feishu.cn/open-apis/authen/v1/authorize?client_id=${app_id}&response_type=code&redirect_uri=${redirect_uri}&state=${state}`;
           window.location.href = authUrl;
