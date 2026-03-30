@@ -10,6 +10,8 @@
     ElButton,
     ElTooltip,
     ElAlert,
+    ElTabs,
+    ElTabPane,
   } from 'element-plus';
   import pluginAPI from '@/utils/request'
   import { writeToTable, updateTable } from '@/utils/tableHelper'
@@ -26,6 +28,8 @@
       TableSelect,
       ElTooltip,
       ElAlert,
+      ElTabs,
+      ElTabPane,
     },
     props: {
       formData: {
@@ -42,7 +46,7 @@
       function dyUserFields() {
         return {
           nickname: { label: '用户名', fieldType: FieldType.Text, isPrimary: true},
-          sec_user_id: { label: '用户id', fieldType: FieldType.Text, },
+          sec_uid: { label: '用户id', fieldType: FieldType.Text, },
           max_follower_count: { label: '最大粉丝数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           mplatform_followers_count: { label: '当前粉丝数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           following_count: { label: '关注数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
@@ -161,7 +165,6 @@
             const result = await writeToTable(
               dyData.value.userTableId,
               [{...res.data.data.user, 
-                sec_user_id: dyData.value.sec_user_id, 
                 get_interaction_flag: 'success',
                 last_get_time: get_time,
                 get_vedio_flag: 'unknow',
@@ -524,7 +527,7 @@
         @close="() => alertList.splice(idx, 1)"
       />
     </el-form-item>
-
+    
     <el-form-item label-width="null">
       <el-tooltip 
         :content="'生成一对关联的抖音账号数据表空模板、视频数据表空模板，修改视频数据表的【视频作者】字段可以设置关联的抖音账号数据表'" 

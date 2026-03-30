@@ -23,6 +23,8 @@
   // import XhsForm from './xhsForm.vue'
   import V2Form from './v2Form.vue'
   import SensitiveText from './sensitiveText.vue'
+  import LoginDialog from './LoginDialog.vue'
+  import RechargeDialog from './RechargeDialog.vue'
   import axios from 'axios'
 
   export default {
@@ -46,11 +48,14 @@
       // XhsForm,
       V2Form,
       SensitiveText,
+      LoginDialog,
+      RechargeDialog,
     },
     setup() {
       const app_id = 'cli_a9f6a88460f85bc6';
       const formRef = ref(null)
       const formData = ref({
+        username: null,
         isLogin: false,
         key: null,
         message: null,
@@ -59,12 +64,16 @@
       });
 
       const isLocked = ref(false);
+      const loginDialogVisible = ref(false);
+      const rechargeDialogVisible = ref(false);
 
       const isShow = ref(false);
 
       watch(isLocked, async (newVal, oldVal) => {
         if (newVal === false) {
-          await keyAuth(formData.value.key);
+          if (formData.value.key) {
+            await getRemainMoney();
+          }
           isShow.value = false;
           if (formData.value.message) {
             await ElMessageBox.confirm(formData.value.message, '提示',{type: formData.value.messageType})
@@ -101,9 +110,10 @@
               formData.value.messageType = 'error';
             }
           }
-          else if (sessionStorage.getItem('jzl_key')) {
-            if (!(await keyAuth(sessionStorage.getItem('jzl_key')))) {
-              formData.value.message = '授权失败，请重试或联系管理员';
+          else if (sessionStorage.getItem('user_access_token')) {
+            if (!(await getUserDetail(sessionStorage.getItem('user_access_token')))) {
+              sessionStorage.removeItem('user_access_token');
+              formData.value.message = '自动登录失败，请重新登录';
               formData.value.messageType = 'error';
             }
           }
@@ -144,8 +154,9 @@
             state: state,
           })
           formData.value.key = res.data.data.key;
+          formData.value.username = res.data.data.username;
           formData.value.isLogin = true;
-          sessionStorage.setItem('jzl_key', res.data.data.key);
+          sessionStorage.setItem('user_access_token', res.data.data.user_access_token);
           result = true;
         } catch (error) {
           console.error('授权失败:', error);
@@ -153,17 +164,36 @@
         return result;
       }
 
-      async function keyAuth(jzl_key) {
+      async function getUserDetail(user_access_token) {
         let result = false;
         try {
-          const res = await pluginAPI.post('/fbmain/monitor/v3/get_remain_money', {
-            key: jzl_key,
+          const res = await pluginAPI.get('/fbmain/monitor/v3/api_user_detail', {
+            headers: {
+              accesstoken: user_access_token,
+            }
           });
           if (res && res.data && res.data.code === 0) {
             formData.value.isLogin = true;
-            formData.value.key = jzl_key; 
+            formData.value.key = res.data.data.key;
+            formData.value.username = res.data.data.user_name;
+            formData.value.remainMoney = res.data.data.remain_money;
+            result = true
+          }
+        }
+        catch (error) {
+          console.error(error);
+        }
+        return result;
+      }
+
+      async function getRemainMoney() {
+        let result = false;
+        try {
+          const res = await pluginAPI.post('/fbmain/monitor/v3/get_remain_money', {
+            key: formData.value.key,
+          });
+          if (res && res.data && res.data.code === 0) {
             formData.value.remainMoney = res.data.remain_money;
-            sessionStorage.setItem('jzl_key', jzl_key);
             result = true
           }
         }
@@ -174,56 +204,83 @@
       }
 
       function logout() {
-        sessionStorage.removeItem('jzl_key');
+        sessionStorage.removeItem('user_access_token');
         formData.value.isLogin = false;
         formData.value.key = null;
         formData.value.remainMoney = null;
       }
 
-      async function inputKey() {
-        const typeKey = await ElMessageBox.prompt('', '请输入key', {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
-          inputType: 'password',
-          inputPattern: /^[a-zA-Z0-9_]+$/,
-          inputErrorMessage: '请输入正确的key格式',
-        });
-        if (typeKey) {
-          isLocked.value = true;
-          try {
-            const result = await keyAuth(typeKey.value);
+      function openLoginDialog() {
+        loginDialogVisible.value = true;
+      }
+
+      function openRechargeDialog() {
+        rechargeDialogVisible.value = true;
+      }
+
+      async function handleRecharge(data) {
+        isLocked.value = true;
+        formData.value.message = `充值${data.amount}元成功，赠送${data.gift}元`;
+        formData.value.messageType = 'success';
+        await delay(1000)
+        isLocked.value = false;
+      }
+
+      async function handleLoginSuccess(data) {
+        isLocked.value = true;
+        try {
+          if (!data.data.accessToken) {
+            formData.value.message = '登录失败，请重试或联系管理员';
+            formData.value.messageType = 'error';
+          }
+          else {
+            sessionStorage.setItem('user_access_token', data.data.accessToken);
+            const result = await getUserDetail(data.data.accessToken);
             if (!result) {
-              formData.value.message = '无效的key';
+              formData.value.message = '登录失败，请重试或联系管理员';
               formData.value.messageType = 'error';
             }
           }
-          finally {
-            isLocked.value = false;
-          }
+        }
+        finally {
+          isLocked.value = false;
         }
       }
-      
       
       async function refreshBalance() {
         isLocked.value = true;
         try {
-          const result = await keyAuth(formData.value.key);
+          if (formData.value.key) {
+            const result = await getRemainMoney();
+            await delay(1000)
+          }
+          else {
+            formData.value.message = '请先登录';
+            formData.value.messageType = 'error';
+          }
         }
         finally {
           isLocked.value = false;
         } 
       }
 
+      const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
       return {
         formRef,
         formData,
         isLocked,
         isShow,
+        rechargeDialogVisible,
+        loginDialogVisible,
         refreshBalance,
         tenantAuth,
-        keyAuth,
+        getRemainMoney,
         logout,
-        inputKey,
+        openLoginDialog,
+        handleLoginSuccess,
+        openRechargeDialog,
+        handleRecharge,
       };
     },
   };
@@ -232,10 +289,17 @@
 <template>
   <div class="form-container">
     <el-form ref="formRef" class="form" :model="formData" label-position="left">
-      <div class="title-section">极致了数据采集插件</div>
+      <div class="title-section">极致了数据助手</div>
 
       <el-card class="card-item" shadow="hover">
-        <el-form>
+        <el-form label-width="70px">
+          <el-form-item 
+            label="用户名 :"
+            v-if="formData.isLogin"
+          >
+            <el-text style="flex: 1;">{{ formData.username }}</el-text>
+          </el-form-item>
+
           <el-form-item 
             label="余额 :"
             v-if="formData.isLogin"
@@ -278,6 +342,21 @@
 
           <el-form-item 
             label-width="null"
+            v-if="formData.isLogin"
+          >
+            <el-button
+              type="primary"
+              plain
+              style="flex: 1;"
+              @click="openRechargeDialog"
+            >
+              余额充值
+            </el-button>
+          </el-form-item>
+
+          
+          <el-form-item 
+            label-width="null"
             v-if="!formData.isLogin"
           >
             <el-alert
@@ -306,10 +385,10 @@
           >
             <el-button 
               type="primary" 
-              @click="inputKey"
+              @click="openLoginDialog"
               plain
               style="flex: 1;"
-            >已有账号，使用key</el-button>
+            >已有账号，手动登录</el-button>
           </el-form-item>
 
           <el-form-item 
@@ -318,7 +397,7 @@
           >
             <el-button
               tag="a"
-              href="https://www.dajiala.com"
+              href="https://www.dajiala.com/main/interface"
               target="_blank"
               type="primary"
               plain
@@ -357,6 +436,18 @@
         <p>操作进行中，请稍候...</p>
       </div>
     </div>
+
+    <!-- 登录对话框 -->
+    <LoginDialog
+      v-model:visible="loginDialogVisible"
+      @login-success="handleLoginSuccess"
+    />
+
+    <!-- 充值对话框 -->
+    <RechargeDialog
+      v-model:visible="rechargeDialogVisible"
+      @recharge="handleRecharge"
+    />
   </div>
 </template>
 
