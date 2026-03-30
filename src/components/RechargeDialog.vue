@@ -124,12 +124,8 @@ const calculateGift = (amount) => {
   return 0
 }
 
-const checkPaymentStatus = async(order_no) => {
+const checkPaymentStatus = async(order_no, accessToken) => {
   let count = 0
-  const accessToken = sessionStorage.getItem('user_access_token');
-  if(!accessToken){
-    return false
-  }
   while(count < 100 && dialogVisible.value){
     count++
     await new Promise(resolve => setTimeout(resolve, 3000)) // 每3秒检测一次
@@ -188,7 +184,7 @@ const handleRecharge = async () => {
             if (res_info.data && res_info.data.error_code === 0){
               const pay_url = res_info.data.data.pay_url
               window.open(pay_url, '_blank')
-              const isPaid = await checkPaymentStatus(order_no)
+              const isPaid = await checkPaymentStatus(order_no, accessToken)
               if(isPaid){
                 emit('recharge', { amount: rechargeForm.value.amount, gift: calculateGift(rechargeForm.value.amount) })
                 dialogVisible.value = false
