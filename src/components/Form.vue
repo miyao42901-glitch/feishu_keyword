@@ -117,9 +117,9 @@
           //   }
           // }
           // else 
-          if (sessionStorage.getItem('user_access_token')) {
-            if (!(await getUserDetail(sessionStorage.getItem('user_access_token')))) {
-              sessionStorage.removeItem('user_access_token');
+          if (localStorage.getItem('user_access_token')) {
+            if (!(await getUserDetail(localStorage.getItem('user_access_token')))) {
+              localStorage.removeItem('user_access_token');
               formData.value.message = '自动登录失败，请重新登录';
               formData.value.messageType = 'error';
             }
@@ -168,7 +168,7 @@
       //     formData.value.key = res.data.data.key;
       //     formData.value.username = res.data.data.username;
       //     formData.value.isLogin = true;
-      //     sessionStorage.setItem('user_access_token', res.data.data.user_access_token);
+      //     localStorage.setItem('user_access_token', res.data.data.user_access_token);
       //     result = true;
       //   } catch (error) {
       //     console.error('授权失败:', error);
@@ -216,7 +216,7 @@
       }
 
       function logout() {
-        sessionStorage.removeItem('user_access_token');
+        localStorage.removeItem('user_access_token');
         formData.value.isLogin = false;
         formData.value.key = null;
         formData.value.remainMoney = null;
@@ -229,7 +229,7 @@
       async function openRechargeDialog() {
         isLocked.value = true;
         try {
-          if (!sessionStorage.getItem('user_access_token')) {
+          if (!localStorage.getItem('user_access_token')) {
             formData.value.message = '请先登录';
             formData.value.messageType = 'error';
           }
@@ -262,7 +262,7 @@
             formData.value.messageType = 'error';
           }
           else {
-            sessionStorage.setItem('user_access_token', data.data.accessToken);
+            localStorage.setItem('user_access_token', data.data.accessToken);
             const result = await getUserDetail(data.data.accessToken);
             if (!result) {
               formData.value.message = '登录失败，请重试或联系管理员';

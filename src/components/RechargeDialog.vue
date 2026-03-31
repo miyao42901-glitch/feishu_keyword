@@ -181,7 +181,7 @@ const handleRecharge = async () => {
         )
         
         loading.value = true
-        const accessToken = sessionStorage.getItem('user_access_token');
+        const accessToken = localStorage.getItem('user_access_token');
         if (accessToken) {
           const formData = new FormData();
           formData.append('money', rechargeForm.value.amount);
