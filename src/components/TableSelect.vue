@@ -30,12 +30,12 @@
 
       // 监听本地数据变化
       watch(selectedTableId, async (newValue) => {
-        await loadTableList();
         syncData();
       });
 
       // 监听父组件数据变化
-      watch(() => props.modelValue, (newValue) => {
+      watch(() => props.modelValue, async (newValue) => {
+        await loadTableList();
         selectedTableId.value = newValue;
       });
 

@@ -54,6 +54,9 @@
     setup() {
       const app_id = 'cli_a9f6a88460f85bc6';
       const formRef = ref(null)
+      const alertList = ref({
+        0: {title: '尚未登录,请选择登录方式' },
+      })
       const formData = ref({
         username: null,
         isLogin: false,
@@ -285,6 +288,7 @@
 
       return {
         formRef,
+        alertList,
         formData,
         isLocked,
         isShow,
@@ -370,17 +374,13 @@
               余额充值
             </el-button>
           </el-form-item>
-
           
-          <el-form-item 
-            label-width="null"
-            v-if="!formData.isLogin"
-          >
+          <el-form-item v-if="alertList[0] && !formData.isLogin" label-width="null">
             <el-alert
-              title="尚未登录,请选择登录方式"
+              :title="alertList[0].title"
               type="primary"
               show-icon
-              closeable = "false"
+              @close="() => alertList[0] = null"
             />
           </el-form-item>
 
@@ -481,12 +481,13 @@
   }
   .title-section {
     font-size: 20px;
-    width: 100%;
-    padding-left: 10px;
-    border-left: 5px solid rgb(37, 152, 248);
+    padding-left: 45px;
     padding-bottom: 10px;
     margin-bottom: 10px;
     padding-top: 10px;
+    background-image: url('/jzl_icon.png');
+    background-repeat: no-repeat;
+    background-size: 40px;
   }
   .card-item {
     margin: 10px 0px 10px 0px;
