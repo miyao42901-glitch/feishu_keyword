@@ -25,6 +25,7 @@
   import SensitiveText from './sensitiveText.vue'
   import LoginDialog from './LoginDialog.vue'
   import RechargeDialog from './RechargeDialog.vue'
+  import WechatLoginDialog from './WechatLoginDialog.vue'
   import axios from 'axios'
 
   export default {
@@ -50,6 +51,7 @@
       SensitiveText,
       LoginDialog,
       RechargeDialog,
+      WechatLoginDialog,
     },
     setup() {
       const app_id = 'cli_a9f6a88460f85bc6';
@@ -68,7 +70,8 @@
 
       const isLocked = ref(false);
       const loginDialogVisible = ref(false);
-      const rechargeDialogVisible = ref(false);
+      const rechargeDialogVisible = ref(false)
+      const wechatLoginDialogVisible = ref(false);
 
       const isShow = ref(false);
 
@@ -93,27 +96,28 @@
       onMounted(async () => {
         isLocked.value = true;
         try{
-          // 从URL中获取state
-          const urlParams = new URLSearchParams(window.location.search);
-          const callback = urlParams.get('callback');
+          // // 从URL中获取state
+          // const urlParams = new URLSearchParams(window.location.search);
+          // const callback = urlParams.get('callback');
           
-          // 从地址中去除callback
-          if (callback) {
-            const newUrl = new URL(window.location.href);
-            newUrl.searchParams.delete('callback');
-            window.history.replaceState({}, '', newUrl.toString());
-          }
+          // // 从地址中去除callback
+          // if (callback) {
+          //   const newUrl = new URL(window.location.href);
+          //   newUrl.searchParams.delete('callback');
+          //   window.history.replaceState({}, '', newUrl.toString());
+          // }
 
-          const storedState = sessionStorage.getItem('state');
-          sessionStorage.removeItem('state');
+          // const storedState = sessionStorage.getItem('state');
+          // sessionStorage.removeItem('state');
 
-          if (storedState && callback) {
-            if (!(await handleAuthorization(storedState))) {
-              formData.value.message = '授权失败，请重试或联系管理员';
-              formData.value.messageType = 'error';
-            }
-          }
-          else if (sessionStorage.getItem('user_access_token')) {
+          // if (storedState && callback) {
+          //   if (!(await handleAuthorization(storedState))) {
+          //     formData.value.message = '授权失败，请重试或联系管理员';
+          //     formData.value.messageType = 'error';
+          //   }
+          // }
+          // else 
+          if (sessionStorage.getItem('user_access_token')) {
             if (!(await getUserDetail(sessionStorage.getItem('user_access_token')))) {
               sessionStorage.removeItem('user_access_token');
               formData.value.message = '自动登录失败，请重新登录';
@@ -126,51 +130,51 @@
         }
       });
 
-      async function tenantAuth() {
-        isLocked.value = true;
-        const redirect_uri = encodeURIComponent("https://feishu.jzl.com/api/v1/auth/feishu/plugin/callback");
-        const state = crypto.randomUUID();
-        sessionStorage.setItem('state', state);
-        let authUrl = '';
-        try {
-          const frontendUrl = new URL(window.location.href);
-          frontendUrl.searchParams.append('callback', 1);
-          const res = await axios.post('https://feishu.jzl.com/api/v1/auth/feishu/plugin/save_url', {
-            state: state,
-            frontend_url: frontendUrl.toString(),
-          })
-          authUrl = `https://accounts.feishu.cn/open-apis/authen/v1/authorize?client_id=${app_id}&response_type=code&redirect_uri=${redirect_uri}&state=${state}`;
-        } catch (error) {
-          console.error('授权失败:', error);
-          formData.value.message = '授权失败，请重试或联系管理员';
-          formData.value.messageType = 'error';
-        }
-        finally {
-          if (authUrl) {
-            window.location.href = authUrl;
-          }
-          else{
-            isLocked.value = false;
-          }
-        }
-      }
+      // async function tenantAuth() {
+      //   isLocked.value = true;
+      //   const redirect_uri = encodeURIComponent("https://feishu.jzl.com/api/v1/auth/feishu/plugin/callback");
+      //   const state = crypto.randomUUID();
+      //   sessionStorage.setItem('state', state);
+      //   let authUrl = '';
+      //   try {
+      //     const frontendUrl = new URL(window.location.href);
+      //     frontendUrl.searchParams.append('callback', 1);
+      //     const res = await axios.post('https://feishu.jzl.com/api/v1/auth/feishu/plugin/save_url', {
+      //       state: state,
+      //       frontend_url: frontendUrl.toString(),
+      //     })
+      //     authUrl = `https://accounts.feishu.cn/open-apis/authen/v1/authorize?client_id=${app_id}&response_type=code&redirect_uri=${redirect_uri}&state=${state}`;
+      //   } catch (error) {
+      //     console.error('授权失败:', error);
+      //     formData.value.message = '授权失败，请重试或联系管理员';
+      //     formData.value.messageType = 'error';
+      //   }
+      //   finally {
+      //     if (authUrl) {
+      //       window.location.href = authUrl;
+      //     }
+      //     else{
+      //       isLocked.value = false;
+      //     }
+      //   }
+      // }
 
-      async function handleAuthorization(state) {
-        let result = false;
-        try {
-          const res = await axios.post('https://feishu.jzl.com/api/v1/auth/feishu/plugin/get_key', {
-            state: state,
-          })
-          formData.value.key = res.data.data.key;
-          formData.value.username = res.data.data.username;
-          formData.value.isLogin = true;
-          sessionStorage.setItem('user_access_token', res.data.data.user_access_token);
-          result = true;
-        } catch (error) {
-          console.error('授权失败:', error);
-        }
-        return result;
-      }
+      // async function handleAuthorization(state) {
+      //   let result = false;
+      //   try {
+      //     const res = await axios.post('https://feishu.jzl.com/api/v1/auth/feishu/plugin/get_key', {
+      //       state: state,
+      //     })
+      //     formData.value.key = res.data.data.key;
+      //     formData.value.username = res.data.data.username;
+      //     formData.value.isLogin = true;
+      //     sessionStorage.setItem('user_access_token', res.data.data.user_access_token);
+      //     result = true;
+      //   } catch (error) {
+      //     console.error('授权失败:', error);
+      //   }
+      //   return result;
+      // }
 
       async function getUserDetail(user_access_token) {
         let result = false;
@@ -238,6 +242,10 @@
         }
       }
 
+      function openWechatLoginDialog() {
+        wechatLoginDialogVisible.value = true;
+      }
+
       async function handleRecharge(data) {
         isLocked.value = true;
         formData.value.message = `充值${data.amount}元成功，赠送${data.gift}元`;
@@ -294,14 +302,16 @@
         isShow,
         rechargeDialogVisible,
         loginDialogVisible,
+        wechatLoginDialogVisible,
         refreshBalance,
-        tenantAuth,
+        // tenantAuth,
         getRemainMoney,
         logout,
         openLoginDialog,
         handleLoginSuccess,
         openRechargeDialog,
         handleRecharge,
+        openWechatLoginDialog,
       };
     },
   };
@@ -373,6 +383,17 @@
             >
               余额充值
             </el-button>
+
+            <el-button
+              tag="a"
+              href="https://www.dajiala.com/main/interface"
+              target="_blank"
+              type="primary"
+              plain
+              style="flex: 1;text-decoration: none;"
+            >
+              了解更多
+            </el-button>
           </el-form-item>
           
           <el-form-item v-if="alertList[0] && !formData.isLogin" label-width="null">
@@ -384,7 +405,7 @@
             />
           </el-form-item>
 
-          <el-form-item 
+          <!-- <el-form-item 
             label-width="null"
             v-if="!formData.isLogin"
           >
@@ -394,6 +415,18 @@
               plain
               style="flex: 1;"
             >飞书账号授权</el-button>
+          </el-form-item> -->
+
+          <el-form-item 
+            label-width="null"
+            v-if="!formData.isLogin"
+          >
+            <el-button 
+              type="primary"
+              @click="openWechatLoginDialog"
+              plain
+              style="flex: 1;"
+            >微信扫码注册/登录</el-button>
           </el-form-item>
 
           <el-form-item 
@@ -405,7 +438,7 @@
               @click="openLoginDialog"
               plain
               style="flex: 1;"
-            >已有账号，手动登录</el-button>
+            >账号密码登录</el-button>
           </el-form-item>
 
           <el-form-item 
@@ -420,7 +453,7 @@
               plain
               style="flex: 1;text-decoration: none;"
             >
-              前往注册账号
+              了解更多
             </el-button>
           </el-form-item>
 
@@ -464,6 +497,12 @@
     <RechargeDialog
       v-model:visible="rechargeDialogVisible"
       @recharge="handleRecharge"
+    />
+
+    <!-- 微信登录对话框 -->
+    <WechatLoginDialog
+      v-model:visible="wechatLoginDialogVisible"
+      @login-success="handleLoginSuccess"
     />
   </div>
 </template>

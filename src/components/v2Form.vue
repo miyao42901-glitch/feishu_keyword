@@ -77,7 +77,7 @@
           fav_count: { label: '喜欢数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           forward_count: { label: '转发数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           comment_count: { label: '评论数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          // download_url: { label: '视频下载地址', fieldType: FieldType.Url, },
+          download_url: { label: '视频下载地址', fieldType: FieldType.Url, },
           last_get_time: { label: '互动数据更新时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           get_interaction_flag: {
             label: '获取互动数标志', 
@@ -318,7 +318,7 @@
         }
       }
 
-      const getWorksInteract = async() => {
+      const getWorksInteract = async(type = 9) => {
         if (props.isLocked) return;
         emit('update:isLocked', true);
 
@@ -347,7 +347,7 @@
             const res = await pluginAPI.post(`/fbmain/monitor/v3/wxvideo`, {
               object_id: object_id.text,
               key: props.formData.key,
-              type: 9,
+              type: type,
             })
             
             // 构建 updateTable 所需的格式
@@ -356,16 +356,31 @@
               successCount += 1
               totalCost += res.data.cost
               lastRemainMoney = res.data.remain_money
-              updateItem.data = {
-                fav_count: res.data.count_info.fav_count,
-                like_count: res.data.count_info.like_count,
-                forward_count: res.data.count_info.forward_count,
-                comment_count: res.data.count_info.comment_count,
-                // download_url: res.data.download_url,
-                last_get_time: get_time,
-                get_interaction_flag: 'success',
-                fail_reason: '',
+              switch(type){
+                case 9:
+                  updateItem.data = {
+                    fav_count: res.data.count_info.fav_count,
+                    like_count: res.data.count_info.like_count,
+                    forward_count: res.data.count_info.forward_count,
+                    comment_count: res.data.count_info.comment_count,
+                    last_get_time: get_time,
+                    get_interaction_flag: 'success',
+                    fail_reason: '',
+                  }
+                case 3:
+                  updateItem.data = {
+                    fav_count: res.data.fav_count,
+                    like_count: res.data.like_count,
+                    forward_count: res.data.forward_count,
+                    comment_count: res.data.comment_count,
+                    download_url: res.data.download_url,
+                    last_get_time: get_time,
+                    get_interaction_flag: 'success',
+                    fail_reason: '',
+                  }
+                break;
               }
+
             }
             else{
               updateItem.data = {
@@ -520,11 +535,29 @@
         <el-button 
           type="primary" 
           :disabled="isLocked || !formData.key || !paneData.workTableId"
-          @click="getWorksInteract"
+          @click="getWorksInteract(9)"
           plain
           style="flex: 1;"
         >
           更新视频互动信息
+        </el-button>
+      </el-tooltip>
+    </el-form-item>
+    
+    <el-form-item label-width="null">
+      <el-tooltip 
+        :content="isLocked || !formData.key || !paneData.workTableId ? '需要登录、视频数据表' : '更新视频互动信息' " 
+        effect="dark"
+        placement="top"
+      >
+        <el-button 
+          type="primary" 
+          :disabled="isLocked || !formData.key || !paneData.workTableId"
+          @click="getWorksInteract(3)"
+          plain
+          style="flex: 1;"
+        >
+          更新视频互动信息(含下载链接)
         </el-button>
       </el-tooltip>
     </el-form-item>
