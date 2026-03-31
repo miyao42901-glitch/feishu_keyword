@@ -309,20 +309,20 @@
 
 <template>
   <div class="form-container">
-    <el-form ref="formRef" class="form" :model="formData" label-position="left">
+    <el-form ref="formRef" class="form" :model="formData">
       <div class="title-section">极致了数据助手</div>
 
       <el-card class="card-item" shadow="hover">
-        <el-form label-width="70px">
+        <el-form label-width="60px" label-position="left">
           <el-form-item 
-            label="用户名 :"
+            label="用户名"
             v-if="formData.isLogin"
           >
             <el-text style="flex: 1;">{{ formData.username }}</el-text>
           </el-form-item>
 
           <el-form-item 
-            label="余额 :"
+            label="余额"
             v-if="formData.isLogin"
           >
             <el-text style="flex: 1;">{{ formData.remainMoney }}</el-text>

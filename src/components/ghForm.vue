@@ -484,7 +484,6 @@
       >
         <el-button 
           type="primary" 
-          size="large" 
           :disabled="isLocked"
           @click="addTableTemplate"
           plain
@@ -518,7 +517,6 @@
       >
         <el-button 
           type="primary" 
-          size="large" 
           :disabled="isLocked || !formData.key || !ghData.ghSearchValue || !ghData.selectedGhTableId"
           @click="addGhAccount"
           plain
@@ -550,7 +548,6 @@
       >
         <el-button 
           type="primary" 
-          size="large" 
           :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
           @click="getRecentArticles(ghData.searchDate)"
           plain
@@ -570,7 +567,6 @@
       >
         <el-button 
           type="primary" 
-          size="large" 
           :disabled="isLocked || !formData.key || !ghData.selectedArticleTableId"
           @click="getArticleInteract"
           plain

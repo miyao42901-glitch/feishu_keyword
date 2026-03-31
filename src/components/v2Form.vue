@@ -435,7 +435,6 @@
       >
         <el-button 
           type="primary" 
-          size="large" 
           :disabled="isLocked"
           @click="addTableTemplate"
           plain
@@ -470,7 +469,6 @@
       >
         <el-button 
           type="primary" 
-          size="large" 
           :disabled="isLocked || !formData.key || !paneData.v2_name || !paneData.userTableId"
           @click="addUser"
           plain
@@ -502,7 +500,6 @@
       >
         <el-button 
           type="primary" 
-          size="large" 
           :disabled="isLocked || !formData.key || !paneData.userTableId || !paneData.workTableId"
           @click="getRecentWorks(paneData.searchDate)"
           plain
@@ -522,7 +519,6 @@
       >
         <el-button 
           type="primary" 
-          size="large" 
           :disabled="isLocked || !formData.key || !paneData.workTableId"
           @click="getWorksInteract"
           plain

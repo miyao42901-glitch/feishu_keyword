@@ -515,7 +515,6 @@
       >
         <el-button 
           type="primary" 
-          size="large" 
           :disabled="isLocked"
           @click="addTableTemplate"
           plain
@@ -560,7 +559,6 @@
       >
         <el-button 
           type="primary" 
-          size="large" 
           :disabled="isLocked || !formData.key || !dyData.sec_user_id && !dyData.share_text || !dyData.userTableId"
           @click="addDyUser"
           plain
@@ -580,7 +578,6 @@
       >
         <el-button 
           type="primary" 
-          size="large" 
           :disabled="isLocked || !formData.key || !dyData.userTableId"
           @click="updateDyUser"
           plain
@@ -612,7 +609,6 @@
       >
         <el-button 
           type="primary" 
-          size="large" 
           :disabled="isLocked || !formData.key || !dyData.userTableId || !dyData.vedioTableId"
           @click="getRecentVedios(dyData.searchDate)"
           plain
@@ -631,7 +627,6 @@
       >
         <el-button 
           type="primary" 
-          size="large" 
           :disabled="isLocked || !formData.key || !dyData.vedioTableId"
           @click="getVedioInteract"
           plain
