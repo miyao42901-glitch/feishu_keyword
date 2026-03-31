@@ -116,13 +116,16 @@
       const alertList = ref({
         0: { title: '建议使用模板数据表' },
         1: { title: '对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据' },
-        2: { title: '请注意账号数据表中的【获取发文截至时间】字段，不会获取【获取发文截至时间】之前的用户发文。可以手动修改此字段以获取更早的发文数据，但有可能在文章数据表中写入重复数据。' }
+        2: { title: '请注意账号数据表中的【获取发文截至时间】字段，不会获取【获取发文截至时间】之前的用户发文，每次获取文章都会自动将【获取发文截至时间】设置为最新文章的发布时间，以避免获取重复文章。可以手动修改此字段以获取更早的发文数据，但有可能在文章数据表中写入重复数据。' }
       })
+
+      const dateRange = ref([1,3,7,15,30])
 
       const ghData = ref({
         ghSearchValue: null,
         selectedGhTableId: null,
         selectedArticleTableId: null,
+        searchDate: 3,
       })
 
       const addTableTemplate = async() => {
@@ -135,14 +138,14 @@
             null,
             [],
             ghAccountFields(),
-            '公众号数据表模板' + timestamp
+            timestamp + '公众号数据表模板'
           );
           if (res1.success) {
             const res2 = await writeToTable(
               null,
               [],
               ghArticleFields(res1.data.tableId),
-              '公众号文章数据表模板' + timestamp
+              timestamp + '公众号文章数据表模板'
             );
             if (res2.success) {
               ghData.value.selectedGhTableId = res1.data.tableId
@@ -451,6 +454,7 @@
       return {
         alertList,
         ghData,
+        dateRange,
         addTableTemplate,
         addGhAccount,
         getRecentArticles,
@@ -508,7 +512,7 @@
     <el-form-item label-width="null">
       <el-tooltip 
         :content="isLocked || !formData.key || !ghData.ghSearchValue || 
-        !ghData.selectedGhTableId ? '需要key、公众号名称/id、公众号数据表' : '添加公众号' " 
+        !ghData.selectedGhTableId ? '需要登录、公众号名称/id、公众号数据表' : '添加公众号' " 
         effect="dark"
         placement="top"
       >
@@ -530,31 +534,17 @@
     >
       <TableSelect v-model="ghData.selectedArticleTableId" />
     </el-form-item>
-
-    <el-form-item label-width="null">
-      <el-tooltip 
-        :content="isLocked || !formData.key || !ghData.selectedGhTableId || 
-        !ghData.selectedArticleTableId ? '需要key、公众号数据表、文章数据表' : '获取今日发文' " 
-        effect="dark"
-        placement="top"
-      >
-        <el-button 
-          type="primary" 
-          size="large" 
-          :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
-          @click="getRecentArticles(1)"
-          plain
-          style="flex: 1;"
-        >
-          获取今日发文
-        </el-button>
-      </el-tooltip>
+    
+    <el-form-item label="日期限制">
+      <el-select v-model="ghData.searchDate" placeholder="请选择日期限制">
+        <el-option v-for="item in dateRange" :key="item" :label="item + '天内'" :value="item" />
+      </el-select>
     </el-form-item>
 
     <el-form-item label-width="null">
       <el-tooltip 
         :content="isLocked || !formData.key || !ghData.selectedGhTableId || 
-        !ghData.selectedArticleTableId ? '需要key、公众号数据表、文章数据表' : '获取近期最多3天发文' " 
+        !ghData.selectedArticleTableId ? '需要登录、公众号数据表、文章数据表' : '获取发文' " 
         effect="dark"
         placement="top"
       >
@@ -562,31 +552,11 @@
           type="primary" 
           size="large" 
           :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
-          @click="getRecentArticles(3)"
+          @click="getRecentArticles(ghData.searchDate)"
           plain
           style="flex: 1;"
         >
-          获取近期最多3天发文
-        </el-button>
-      </el-tooltip>
-    </el-form-item>
-
-    <el-form-item label-width="null">
-      <el-tooltip 
-        :content="isLocked || !formData.key || !ghData.selectedGhTableId || 
-        !ghData.selectedArticleTableId ? '需要key、公众号数据表、文章数据表' : '获取近期最多10天发文' " 
-        effect="dark"
-        placement="top"
-      >
-        <el-button 
-          type="primary" 
-          size="large" 
-          :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
-          @click="getRecentArticles(30)"
-          plain
-          style="flex: 1;"
-        >
-          获取近期最多30天发文
+          获取近期最多{{ ghData.searchDate }}天发文
         </el-button>
       </el-tooltip>
     </el-form-item>
@@ -594,7 +564,7 @@
     <el-form-item label-width="null">
       <el-tooltip 
         :content="isLocked || !formData.key || 
-        !ghData.selectedArticleTableId ? '需要key、文章数据表' : '更新文章互动信息' " 
+        !ghData.selectedArticleTableId ? '需要登录、文章数据表' : '更新文章互动信息' " 
         effect="dark"
         placement="top"
       >

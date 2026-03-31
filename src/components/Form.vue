@@ -324,7 +324,7 @@
             <el-text style="flex: 1;">{{ formData.remainMoney }}</el-text>
           </el-form-item>
 
-          <el-form-item 
+          <!-- <el-form-item 
             label="key :"
             v-if="formData.isLogin"
           >
@@ -332,7 +332,7 @@
               :value="formData.key"
               style="flex: 1;"
             />
-          </el-form-item>
+          </el-form-item> -->
 
           <el-form-item 
             label-width="null"
