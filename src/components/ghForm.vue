@@ -43,7 +43,6 @@
         return {
           name: { label: '公众号名称', fieldType: FieldType.Text, isPrimary: true},
           biz: { label: '公众号标识(base64)', fieldType: FieldType.Text, },
-          gh_id: { label: '公众号ID', fieldType: FieldType.Text, },
           desc: { label: '公众号描述', fieldType: FieldType.Text, },
           get_time_cut: { label: '获取发文截至时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           get_article_flag: {
@@ -114,11 +113,11 @@
         }
       }
 
-      const alertList = ref([
-        { title: '建议使用模板数据表' },
-        { title: '对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据' },
-        { title: '请注意账号数据表中的【获取发文截至时间】字段，不会获取【获取发文截至时间】之前的用户发文。可以手动修改此字段以获取更早的发文数据，但有可能在文章数据表中写入重复数据。' }
-      ])
+      const alertList = ref({
+        0: { title: '建议使用模板数据表' },
+        1: { title: '对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据' },
+        2: { title: '请注意账号数据表中的【获取发文截至时间】字段，不会获取【获取发文截至时间】之前的用户发文。可以手动修改此字段以获取更早的发文数据，但有可能在文章数据表中写入重复数据。' }
+      })
 
       const ghData = ref({
         ghSearchValue: null,
@@ -145,6 +144,10 @@
               ghArticleFields(res1.data.tableId),
               '公众号文章数据表模板' + timestamp
             );
+            if (res2.success) {
+              ghData.value.selectedGhTableId = res1.data.tableId
+              ghData.value.selectedArticleTableId = res2.data.tableId
+            }
           }
         }catch (error) {
           console.error('操作失败:', error);
@@ -459,33 +462,13 @@
 
 <template>
   <el-form class="ghForm" label-position="left" label-width="120px">
-    <el-form-item 
-      label="公众号数据表"
-    >
-      <TableSelect v-model="ghData.selectedGhTableId" />
-    </el-form-item>
 
-    <el-form-item 
-      label="文章数据表"
-    >
-      <TableSelect v-model="ghData.selectedArticleTableId" />
-    </el-form-item>
-
-    <el-form-item
-      label="公众号名称/id"
-    >
-      <el-input 
-        v-model="ghData.ghSearchValue"
-        placeholder="请输入公众号名称或id"
-      />
-    </el-form-item>
-
-    <el-form-item v-for="(item, idx) in alertList" :key="item.title" label-width="null">
+    <el-form-item v-if="alertList[0]" label-width="null">
       <el-alert
-        :title="item.title"
+        :title="alertList[0].title"
         type="primary"
         show-icon
-        @close="() => alertList.splice(idx, 1)"
+        @close="() => alertList[0] = null"
       />
     </el-form-item>
 
@@ -508,6 +491,20 @@
       </el-tooltip>
     </el-form-item>
 
+    <el-form-item 
+      label="公众号数据表"
+    >
+      <TableSelect v-model="ghData.selectedGhTableId" />
+    </el-form-item>
+
+    <el-form-item
+      label="公众号名称/id"
+    >
+      <el-input 
+        v-model="ghData.ghSearchValue"
+        placeholder="请输入公众号名称或id"
+      />
+    </el-form-item>
     <el-form-item label-width="null">
       <el-tooltip 
         :content="isLocked || !formData.key || !ghData.ghSearchValue || 
@@ -526,6 +523,12 @@
           添加公众号
         </el-button>
       </el-tooltip>
+    </el-form-item>
+
+    <el-form-item 
+      label="文章数据表"
+    >
+      <TableSelect v-model="ghData.selectedArticleTableId" />
     </el-form-item>
 
     <el-form-item label-width="null">
@@ -606,6 +609,25 @@
           更新文章互动信息
         </el-button>
       </el-tooltip>
+    </el-form-item>
+    
+    <el-form-item v-if="alertList[2]" label-width="null">
+      <el-alert
+        :title="alertList[2].title"
+        type="primary"
+        show-icon
+        @close="() => alertList[2] = null"
+      />
+    </el-form-item>
+
+        
+    <el-form-item v-if="alertList[1]" label-width="null">
+      <el-alert
+        :title="alertList[1].title"
+        type="primary"
+        show-icon
+        @close="() => alertList[1] = null"
+      />
     </el-form-item>
 
     <!-- <p>{{ ghData }}</p> -->

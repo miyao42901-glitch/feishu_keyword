@@ -128,6 +128,7 @@
         const redirect_uri = encodeURIComponent("https://feishu.jzl.com/api/v1/auth/feishu/plugin/callback");
         const state = crypto.randomUUID();
         sessionStorage.setItem('state', state);
+        let authUrl = '';
         try {
           const frontendUrl = new URL(window.location.href);
           frontendUrl.searchParams.append('callback', 1);
@@ -135,15 +136,19 @@
             state: state,
             frontend_url: frontendUrl.toString(),
           })
-          const authUrl = `https://accounts.feishu.cn/open-apis/authen/v1/authorize?client_id=${app_id}&response_type=code&redirect_uri=${redirect_uri}&state=${state}`;
-          window.location.href = authUrl;
+          authUrl = `https://accounts.feishu.cn/open-apis/authen/v1/authorize?client_id=${app_id}&response_type=code&redirect_uri=${redirect_uri}&state=${state}`;
         } catch (error) {
           console.error('授权失败:', error);
           formData.value.message = '授权失败，请重试或联系管理员';
           formData.value.messageType = 'error';
         }
         finally {
-          isLocked.value = false;
+          if (authUrl) {
+            window.location.href = authUrl;
+          }
+          else{
+            isLocked.value = false;
+          }
         }
       }
 
@@ -214,15 +219,27 @@
         loginDialogVisible.value = true;
       }
 
-      function openRechargeDialog() {
-        rechargeDialogVisible.value = true;
+      async function openRechargeDialog() {
+        isLocked.value = true;
+        try {
+          if (!sessionStorage.getItem('user_access_token')) {
+            formData.value.message = '请先登录';
+            formData.value.messageType = 'error';
+          }
+          else {
+            rechargeDialogVisible.value = true;
+          }
+        }
+        finally {
+          isLocked.value = false;
+        }
       }
 
       async function handleRecharge(data) {
         isLocked.value = true;
         formData.value.message = `充值${data.amount}元成功，赠送${data.gift}元`;
         formData.value.messageType = 'success';
-        await delay(1000)
+        await delay(500)
         isLocked.value = false;
       }
 
@@ -252,7 +269,7 @@
         try {
           if (formData.value.key) {
             const result = await getRemainMoney();
-            await delay(1000)
+            await delay(500)
           }
           else {
             formData.value.message = '请先登录';
@@ -413,13 +430,13 @@
       
       <el-card class="card-item" shadow="hover">
         <el-tabs :disabled="isLocked">
-          <el-tab-pane label="公众号" name="0">
-            <GhForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-          </el-tab-pane>
-          <el-tab-pane label="抖音" name="1">
+          <el-tab-pane label="抖音">
             <DyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
-          <el-tab-pane label="视频号" name="2">
+          <el-tab-pane label="公众号">
+            <GhForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+          </el-tab-pane>
+          <el-tab-pane label="视频号">
             <V2Form :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
         </el-tabs>

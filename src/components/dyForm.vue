@@ -108,11 +108,11 @@
         }
       }
 
-      const alertList = ref([
-        { title: '建议使用模板数据表' },
-        { title: '对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据' },
-        { title: '请注意账号数据表中的【获取视频截至时间】字段，不会获取【获取视频截至时间】之前的用户发布的视频。可以手动修改此字段以获取更早的视频数据，但有可能在视频数据表中写入重复数据。' }
-      ])
+      const alertList = ref({
+        0: {title: '建议使用模板数据表' },
+        1: {title: '对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据' },
+        2: {title: '请注意账号数据表中的【获取视频截至时间】字段，不会获取【获取视频截至时间】之前的用户发布的视频。可以手动修改此字段以获取更早的视频数据，但有可能在视频数据表中写入重复数据。' }
+      })
 
       const dyData = ref({
         sec_user_id: null,
@@ -140,6 +140,10 @@
               dyVedioFields(res1.data.tableId),
               '抖音视频数据表模板' + timestamp
             );
+            if (res2.success) {
+              dyData.value.userTableId = res1.data.tableId
+              dyData.value.vedioTableId = res2.data.tableId
+            }
           }
         }catch (error) {
           console.error('操作失败:', error);
@@ -210,7 +214,7 @@
           const totalInteract = []
           for (const user_recordId of recordIdList){
             const userRecord = await userTable.getRecordById(user_recordId);
-            const sec_user_id = userRecord.fields[fieldMap[user_fields.sec_user_id.label].id][0]
+            const sec_user_id = userRecord.fields[fieldMap[user_fields.sec_uid.label].id][0]
             const get_time = Date.now()
 
             const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_data?key=${props.formData.key}`, {
@@ -289,7 +293,7 @@
           const totalLastTime = {}
           for (const user_record of recordIdList){
             const userRecord = await userTable.getRecordById(user_record);
-            const sec_user_id = userRecord.fields[fieldMap[user_fields.sec_user_id.label].id][0]
+            const sec_user_id = userRecord.fields[fieldMap[user_fields.sec_uid.label].id][0]
             const user_cut_time = Math.max(userRecord.fields[fieldMap[user_fields.get_time_cut.label].id] || min_time, min_time)
 
             // let new_cut_time = Math.max(user_cut_time, Date.now())
@@ -488,46 +492,17 @@
 </script>
 
 <template>
-  <el-form class="ghForm" label-position="left" label-width="120px">
-    <el-form-item 
-      label="抖音号数据表"
-    >
-      <TableSelect v-model="dyData.userTableId" />
-    </el-form-item>
+  <el-form class="ghForm" label-position="left" label-width="120px">   
 
-    <el-form-item 
-      label="视频数据表"
-    >
-      <TableSelect v-model="dyData.vedioTableId" />
-    </el-form-item>
-
-    <el-form-item
-      label="抖音用户id"
-    >
-      <el-input 
-        v-model="dyData.sec_user_id"
-        placeholder="请输入抖音用户id"  
-      />
-    </el-form-item>
-
-    <el-form-item
-      label="名片分享链接"
-    >
-      <el-input 
-        v-model="dyData.share_text"
-        placeholder="请输入名片分享链接"
-      />
-    </el-form-item>
-
-    <el-form-item v-for="(item, idx) in alertList" :key="item.title" label-width="null">
+    <el-form-item v-if="alertList[0]" label-width="null">
       <el-alert
-        :title="item.title"
+        :title="alertList[0].title"
         type="primary"
         show-icon
-        @close="() => alertList.splice(idx, 1)"
+        @close="() => alertList[0] = null"
       />
     </el-form-item>
-    
+
     <el-form-item label-width="null">
       <el-tooltip 
         :content="'生成一对关联的抖音账号数据表空模板、视频数据表空模板，修改视频数据表的【视频作者】字段可以设置关联的抖音账号数据表'" 
@@ -545,6 +520,31 @@
           生成数据表空模板
         </el-button>
       </el-tooltip>
+    </el-form-item>
+
+    <el-form-item 
+      label="抖音号数据表"
+    >
+      <TableSelect v-model="dyData.userTableId" />
+    </el-form-item>
+
+
+    <el-form-item
+      label="抖音用户id"
+    >
+      <el-input 
+        v-model="dyData.sec_user_id"
+        placeholder="请输入抖音用户id"  
+      />
+    </el-form-item>
+
+    <el-form-item
+      label="名片分享链接"
+    >
+      <el-input 
+        v-model="dyData.share_text"
+        placeholder="请输入名片分享链接"
+      />
     </el-form-item>
 
     <el-form-item label-width="null">
@@ -568,7 +568,6 @@
     </el-form-item>
 
     <el-form-item label-width="null">
-      
       <el-tooltip 
         :content="isLocked || !formData.key || 
         !dyData.userTableId ? '需要key、抖音账号数据表' : '更新抖音账号数据' " 
@@ -586,6 +585,12 @@
           更新抖音账号数据  
         </el-button>
       </el-tooltip>
+    </el-form-item>
+
+    <el-form-item 
+      label="视频数据表"
+    >
+      <TableSelect v-model="dyData.vedioTableId" />
     </el-form-item>
 
     <el-form-item label-width="null">
@@ -665,6 +670,25 @@
           更新视频互动信息
         </el-button>
       </el-tooltip>
+    </el-form-item>
+    
+    <el-form-item v-if="alertList[2]" label-width="null">
+      <el-alert
+        :title="alertList[2].title"
+        type="primary"
+        show-icon
+        @close="() => alertList[2] = null"
+      />
+    </el-form-item>
+
+        
+    <el-form-item v-if="alertList[1]" label-width="null">
+      <el-alert
+        :title="alertList[1].title"
+        type="primary"
+        show-icon
+        @close="() => alertList[1] = null"
+      />
     </el-form-item>
 
     <!-- <p>{{ dyData }}</p> -->

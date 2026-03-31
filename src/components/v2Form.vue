@@ -77,7 +77,7 @@
           fav_count: { label: '喜欢数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           forward_count: { label: '转发数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           comment_count: { label: '评论数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          download_url: { label: '视频下载地址', fieldType: FieldType.Url, },
+          // download_url: { label: '视频下载地址', fieldType: FieldType.Url, },
           last_get_time: { label: '互动数据更新时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           get_interaction_flag: {
             label: '获取互动数标志', 
@@ -92,11 +92,11 @@
         }
       }
       
-      const alertList = ref([
-        { title: '建议使用模板数据表' },
-        { title: '对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据' },
-        { title: '请注意账号数据表中的【获取视频截至时间】字段，不会获取【获取视频截至时间】之前的用户发布的视频。可以手动修改此字段以获取更早的视频数据，但有可能在视频数据表中写入重复数据。' }
-      ])
+      const alertList = ref({
+        0: { title: '建议使用模板数据表' },
+        1: { title: '对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据' },
+        2: { title: '请注意账号数据表中的【获取视频截至时间】字段，不会获取【获取视频截至时间】之前的用户发布的视频。可以手动修改此字段以获取更早的视频数据，但有可能在视频数据表中写入重复数据。' }
+      })
 
       const paneData = ref({
         v2_name: null,
@@ -123,6 +123,10 @@
               workFields(res1.data.tableId),
               '视频号视频数据表模板' + timestamp
             );
+            if (res2.success) {
+              paneData.value.userTableId = res1.data.tableId
+              paneData.value.workTableId = res2.data.tableId
+            }
           }
         }catch (error) {
           console.error('操作失败:', error);
@@ -240,13 +244,14 @@
                 export_id: item.export_id,
                 title: item.title,
                 publish_time: getTimeFromStr(item.publish_time),
-                // fav_count: item.fav_count,
-                // like_count: item.like_count,
-                // forward_count: item.forward_count,
-                // comment_count: item.comment_count,
+                fav_count: item.fav_count,
+                like_count: item.like_count,
+                forward_count: item.forward_count,
+                comment_count: item.comment_count,
                 video_play_len: item.video_play_len,
                 user_link: [user_record],
-                get_interaction_flag: 'unknow',
+                last_get_time: get_time,
+                get_interaction_flag: 'success',
               }))
 
               new_cut_time = Math.max(...dataList.map(item => item.publish_time), new_cut_time)
@@ -339,7 +344,7 @@
             const res = await pluginAPI.post(`/fbmain/monitor/v3/wxvideo`, {
               object_id: object_id.text,
               key: props.formData.key,
-              type: 3,
+              type: 9,
             })
             
             // 构建 updateTable 所需的格式
@@ -349,11 +354,11 @@
               totalCost += res.data.cost
               lastRemainMoney = res.data.remain_money
               updateItem.data = {
-                fav_count: res.data.fav_count,
-                like_count: res.data.like_count,
-                forward_count: res.data.forward_count,
-                comment_count: res.data.comment_count,
-                download_url: res.data.download_url,
+                fav_count: res.data.count_info.fav_count,
+                like_count: res.data.count_info.like_count,
+                forward_count: res.data.count_info.forward_count,
+                comment_count: res.data.count_info.comment_count,
+                // download_url: res.data.download_url,
                 last_get_time: get_time,
                 get_interaction_flag: 'success',
                 fail_reason: '',
@@ -408,33 +413,13 @@
 
 <template>
   <el-form class="ghForm" label-position="left" label-width="120px">
-    <el-form-item 
-      label="视频号数据表"
-    >
-      <TableSelect v-model="paneData.userTableId" />
-    </el-form-item>
 
-    <el-form-item 
-      label="视频数据表"
-    >
-      <TableSelect v-model="paneData.workTableId" />
-    </el-form-item>
-
-    <el-form-item
-      label="视频号名称"
-    >
-      <el-input 
-        v-model="paneData.v2_name"
-        placeholder="请输入视频号名称"  
-      />
-    </el-form-item>
-
-    <el-form-item v-for="(item, idx) in alertList" :key="item.title" label-width="null">
+    <el-form-item v-if="alertList[0]" label-width="null">
       <el-alert
-        :title="item.title"
+        :title="alertList[0].title"
         type="primary"
         show-icon
-        @close="() => alertList.splice(idx, 1)"
+        @close="() => alertList[0] = null"
       />
     </el-form-item>
 
@@ -457,6 +442,21 @@
       </el-tooltip>
     </el-form-item>
 
+    <el-form-item 
+      label="视频号数据表"
+    >
+      <TableSelect v-model="paneData.userTableId" />
+    </el-form-item>
+
+    <el-form-item
+      label="视频号名称"
+    >
+      <el-input 
+        v-model="paneData.v2_name"
+        placeholder="请输入视频号名称"  
+      />
+    </el-form-item>
+
     <el-form-item label-width="null">
       <el-tooltip 
         :content="isLocked || !formData.key || !paneData.v2_name || 
@@ -475,6 +475,12 @@
           添加视频号
         </el-button>
       </el-tooltip>
+    </el-form-item>
+
+    <el-form-item 
+      label="视频数据表"
+    >
+      <TableSelect v-model="paneData.workTableId" />
     </el-form-item>
 
     <el-form-item label-width="null">
@@ -554,6 +560,24 @@
           更新视频互动信息
         </el-button>
       </el-tooltip>
+    </el-form-item>
+    
+    <el-form-item v-if="alertList[2]" label-width="null">
+      <el-alert
+        :title="alertList[2].title"
+        type="primary"
+        show-icon
+        @close="() => alertList[2] = null"
+      />
+    </el-form-item>
+
+    <el-form-item v-if="alertList[1]" label-width="null">
+      <el-alert
+        :title="alertList[1].title"
+        type="primary"
+        show-icon
+        @close="() => alertList[1] = null"
+      />
     </el-form-item>
 
     <!-- <p>{{ paneData }}</p> -->

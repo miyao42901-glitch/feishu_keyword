@@ -6,7 +6,7 @@
     :close-on-click-modal="false"
     :close-on-press-escape="false"
   >
-    <el-form :model="rechargeForm" :rules="rules" ref="rechargeFormRef" label-width="80px">
+    <el-form :model="rechargeForm" :rules="rules" ref="rechargeFormRef">
       <el-alert
         v-if="errorMessage"
         :title="errorMessage"
@@ -23,14 +23,14 @@
           placeholder="请输入充值金额"
           min="5"
           step="1"
-          @input="clearError"
+          @input="handleAmountInput"
         />
-        <div class="gift-info" v-if="calculateGift(rechargeForm.amount) > 0">
-          赠送金额：￥{{ calculateGift(rechargeForm.amount) }}
+        <div class="gift-info"">
+          额外赠送：￥{{ giftAmount }}
         </div>
       </el-form-item>
       
-      <el-form-item label="预设金额">
+      <el-form-item>
         <div class="preset-amounts">
           <el-button
             v-for="item in presetAmounts"
@@ -56,7 +56,8 @@
 </template>
 
 <script setup>
-import { ref, defineProps, defineEmits } from 'vue'
+import { ref, defineProps, defineEmits, computed } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 
 const props = defineProps({
@@ -101,6 +102,14 @@ const clearError = () => {
   errorMessage.value = ''
 }
 
+const handleAmountInput = () => {
+  // 确保金额为整数
+  if (rechargeForm.value.amount) {
+    rechargeForm.value.amount = Math.floor(rechargeForm.value.amount)
+  }
+  clearError()
+}
+
 const selectPresetAmount = (amount) => {
   rechargeForm.value.amount = amount
   clearError()
@@ -110,19 +119,20 @@ const selectPresetAmount = (amount) => {
   }
 }
 
-// 计算赠送金额
-const calculateGift = (amount) => {
-  // 按金额从大到小排序，以便找到对应的区间
-  const sortedPresets = [...presetAmounts].sort((a, b) => b.amount - a.amount)
+// 计算赠送金额（使用computed）
+const giftAmount = computed(() => {
+  const amount = rechargeForm.value.amount
+  if (!amount) return 0
   
-  for (const preset of sortedPresets) {
+  for (let i = presetAmounts.length - 1; i >= 0; i--) {
+    const preset = presetAmounts[i]
     if (amount >= preset.amount && preset.gift > 0) {
       // 计算赠送金额：(充值金额 * 该档位赠送金额) / 该档位金额，取整数部分
       return Math.floor((amount * preset.gift) / preset.amount)
     }
   }
   return 0
-}
+})
 
 const checkPaymentStatus = async(order_no, accessToken) => {
   let count = 0
@@ -154,13 +164,23 @@ const checkPaymentStatus = async(order_no, accessToken) => {
 const handleRecharge = async () => {
   if (!rechargeFormRef.value) return
   
-  // 清除之前的错误信息
-  errorMessage.value = ''
+  clearError()
   
   await rechargeFormRef.value.validate(async (valid) => {
     if (valid) {
-      loading.value = true
       try {
+        // 显示确认对话框
+        await ElMessageBox.confirm(
+          `确认充值 ${rechargeForm.value.amount} 元吗？`,
+          '充值确认',
+          {
+            confirmButtonText: '确认',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }
+        )
+        
+        loading.value = true
         const accessToken = sessionStorage.getItem('user_access_token');
         if (accessToken) {
           const formData = new FormData();
@@ -186,17 +206,24 @@ const handleRecharge = async () => {
               window.open(pay_url, '_blank')
               const isPaid = await checkPaymentStatus(order_no, accessToken)
               if(isPaid){
-                emit('recharge', { amount: rechargeForm.value.amount, gift: calculateGift(rechargeForm.value.amount) })
+                emit('recharge', { amount: rechargeForm.value.amount, gift: giftAmount.value })
                 dialogVisible.value = false
               }
+            }else{
+              errorMessage.value = res_info.data.msg
             }
+          }else{
+            errorMessage.value = res.data.msg
           }
         } else {
           errorMessage.value = '请先登录'
         }
       } catch (error) {
-        console.error('充值失败:', error)
-        errorMessage.value = '充值失败，请稍后重试'
+        // 如果是用户取消确认，不显示错误信息
+        if (error !== 'cancel') {
+          console.error('充值失败:', error)
+          errorMessage.value = '充值失败，请稍后重试'
+        }
       } finally {
         loading.value = false
       }

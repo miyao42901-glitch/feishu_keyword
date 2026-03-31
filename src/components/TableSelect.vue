@@ -29,7 +29,8 @@
       };
 
       // 监听本地数据变化
-      watch(selectedTableId, (newValue) => {
+      watch(selectedTableId, async (newValue) => {
+        await loadTableList();
         syncData();
       });
 
