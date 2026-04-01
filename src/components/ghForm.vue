@@ -546,7 +546,7 @@
     
     <el-form-item label="日期限制">
       <el-select v-model="ghData.searchDate" placeholder="请选择日期限制">
-        <el-option v-for="item in dateRange" :key="item" :label="item > 1 ? item + '天内' : '当日'" :value="item" />
+        <el-option v-for="item in dateRange" :key="item" :label="item > 1 ? item + '天内' : '今日'" :value="item" />
       </el-select>
     </el-form-item>
 
@@ -571,7 +571,7 @@
           plain
           style="flex: 1;"
         >
-          获取{{ghData.searchDate > 1 ? ghData.searchDate + '天内' : '当日'}}发文
+          获取{{ghData.searchDate > 1 ? ghData.searchDate + '天内' : '今日'}}发文
         </el-button>
       </el-tooltip>
     </el-form-item>
