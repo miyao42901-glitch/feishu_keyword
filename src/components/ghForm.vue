@@ -347,7 +347,7 @@
                   }
                 };
 
-                if (dataList.length === 0){
+                if (dataList.length === 0 || dataList.length < res.data.data.length || res.data.now_page >= res.data.total_page){
                   break
                 }
               }
