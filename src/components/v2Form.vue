@@ -511,7 +511,7 @@
 
     <el-form-item label="日期限制">
       <el-select v-model="paneData.searchDate" placeholder="请选择日期限制">
-        <el-option v-for="item in dateRange" :key="item" :label="item + '天内'" :value="item" />
+        <el-option v-for="item in dateRange" :key="item" :label="item > 1 ? item + '天内' : '当日'" :value="item" />
       </el-select>
     </el-form-item>
 
@@ -536,7 +536,7 @@
           plain
           style="flex: 1;"
         >
-          获取近期最多{{ paneData.searchDate }}天视频
+          获取{{paneData.searchDate > 1 ? paneData.searchDate + '天内' : '当日'}}发布视频
         </el-button>
       </el-tooltip>
     </el-form-item>
