@@ -324,6 +324,16 @@
       <div class="title-section">极致了数据助手</div>
 
       <el-card class="card-item" shadow="hover">
+          
+        <el-form-item v-if="alertList[0]" label-width="null">
+          <el-alert
+            type="primary"
+            @close="() => alertList[0] = null"
+          >
+            详情查看<a href="https://lcnnrhjmwxym.feishu.cn/wiki/OruzwbB6nigLMek8zxFcbKwmnXg" target="_blank">使用指南</a>
+          </el-alert>
+        </el-form-item>
+        
         <el-form label-width="60px" label-position="left">
           <el-form-item 
             label="用户名"
@@ -396,15 +406,6 @@
               了解更多
             </el-button>
           </el-form-item>
-          
-          <el-form-item v-if="alertList[0] && !formData.isLogin" label-width="null">
-            <el-alert
-              :title="alertList[0].title"
-              type="primary"
-              show-icon
-              @close="() => alertList[0] = null"
-            />
-          </el-form-item>
 
           <!-- <el-form-item 
             label-width="null"
@@ -460,8 +461,8 @@
 
         </el-form>
       </el-card>
-      
-      
+
+
       <el-card class="card-item" shadow="hover">
         <el-tabs :disabled="isLocked">
           <el-tab-pane label="抖音">
