@@ -1,4 +1,4 @@
-import { bitable, FieldType, IOpenSegmentType } from '@lark-base-open/js-sdk';
+import { bitable, FieldType, IOpenSegmentType, FilterOperator, FilterConjunction } from '@lark-base-open/js-sdk';
 
 /**
  * 写入数据到表格
@@ -268,9 +268,78 @@ export const updateTable = async (tableId, dataList, fieldsConfig) => {
   }
 };
 
+/**
+ * 获取视频表中指定用户记录的最大create_time
+ * @param {string} videoTableId - 视频表格ID
+ * @param {string} userRecordId - 用户记录ID
+ * @param {Object} fieldsConfig - 字段配置，包含dy_link和create_time字段
+ * @param {string} linkField - dy_link字段名称
+ * @param {string} timeField - create_time字段名称
+ * @param {number} minTime - 最小时间戳，当没有找到记录时使用
+ * @returns {Promise<number>} - 最大的create_time时间戳
+ */
+export const getMaxCreateTimeByUser = async (videoTableId, userRecordId, fieldsConfig, linkField, timeField, minTime) => {
+  try {
+    // 获取视频表格实例
+    const videoTable = await bitable.base.getTable(videoTableId);
+    
+    // 获取字段列表并构建字段映射
+    const fieldList = await videoTable.getFieldList();
+    const fieldMap = {};
+    for (const field of fieldList) {
+      const fieldName = await field.getName();
+      fieldMap[fieldName] = field;
+    }
+    
+    // 获取字段ID
+    const linkFieldId = fieldMap[fieldsConfig[linkField].label].id;
+    const timeFieldId = fieldMap[fieldsConfig[timeField].label].id;
+    // console.log(linkFieldId, timeFieldId)
+    
+    // 使用filter和sort参数直接获取最大的createTime记录
+    const records = await videoTable.getRecordsByPage({
+      pageSize: 1,
+      filter: {
+        conditions: [
+          {
+            fieldId: linkFieldId,
+            operator: FilterOperator.Is,
+            value: [userRecordId]
+          }
+        ],
+        conjunction: FilterConjunction.And,
+      },
+      sort: [
+        {
+          fieldId: timeFieldId,
+          desc: true
+        }
+      ]
+    });
+    
+    // 获取最大的createTime
+    // console.log(records)
+    
+    let maxCreateTime = minTime;
+    if (records.records && records.records.length > 0) {
+      const createTime = records.records[0].fields[timeFieldId];
+      if (createTime) {
+        maxCreateTime = Math.max(maxCreateTime, createTime);
+      }
+    }
+    // console.log(maxCreateTime)
+    
+    return maxCreateTime;
+  } catch (error) {
+    console.error('获取最大create_time失败:', error);
+    return minTime;
+  }
+};
+
 export default {
   writeToTable,
   updateTable,
   buildFieldConfig,
   getCellValue,
+  getMaxCreateTimeByUser,
 };

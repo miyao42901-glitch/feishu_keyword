@@ -8,8 +8,21 @@
   >
     <div class="wechat-login-container">
       <div class="qrcode-section" v-if="qrcodeImage">
-        <img :src="qrcodeImage" alt="微信登录二维码" class="qrcode-image" />
+        <div :class="['qrcode-wrapper', { 'blur': !agreeProtocol }]">
+          <img :src="qrcodeImage" alt="微信登录二维码" class="qrcode-image" />
+          <div v-if="!agreeProtocol" class="blur-overlay">
+            <p>请先阅读并同意协议</p>
+          </div>
+        </div>
         <p class="qrcode-tip">请使用微信扫码登录</p>
+        <div class="protocol-section">
+          <el-checkbox v-model="agreeProtocol" label="agree">
+            我已阅读并同意
+            <el-link type="primary" href="https://static.dajiala.com:9224/static/HTMLPage/UserAgreement.html" target="_blank">《用户协议》</el-link>
+            和
+            <el-link type="primary" href="https://static.dajiala.com:9224/static/HTMLPage/ProtectionInform.html" target="_blank">《个人信息保护政策》</el-link>
+          </el-checkbox>
+        </div>
       </div>
       <div class="loading-section" v-else>
         <el-icon class="loading-icon"><i-ep-loading /></el-icon>
@@ -25,7 +38,7 @@
 </template>
 
 <script setup>
-import { ref, defineProps, defineEmits, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
 
@@ -41,6 +54,7 @@ const emit = defineEmits(['update:visible', 'login-success'])
 const dialogVisible = ref(props.visible)
 const qrcodeImage = ref('')
 const checkInterval = ref(null)
+const agreeProtocol = ref(true)
 const loginForm = ref({
   token: ''
 })
@@ -68,7 +82,7 @@ const generateQrcode = async () => {
 // 开始检测登录状态
 const startCheckLoginStatus = () => {
   let count = 0
-  const maxChecks = 100 // 最多检测100次（5分钟）
+  const maxChecks = 100 // 最多检测300次
   
   checkInterval.value = setInterval(async () => {
     count++
@@ -79,7 +93,7 @@ const startCheckLoginStatus = () => {
       
       const formData = new FormData();
       formData.append('token', loginForm.value.token);
-      formData.append('agree_protocol', 1);
+      formData.append('agree_protocol', agreeProtocol.value ? 1 : 0);
       
       const res = await axios.post('https://www.dajiala.com/fbmain/account/v1/login', formData, {
         headers: {
@@ -149,16 +163,63 @@ watch(dialogVisible, (newVal) => {
   align-items: center;
 }
 
-.qrcode-image {
+.qrcode-wrapper {
+  position: relative;
   width: 200px;
   height: 200px;
   margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.qrcode-image {
+  width: 100%;
+  height: 100%;
+  transition: filter 0.3s ease;
+}
+
+.qrcode-wrapper.blur .qrcode-image {
+  filter: blur(5px);
+}
+
+.blur-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+}
+
+.blur-overlay p {
+  color: #666;
+  font-size: 14px;
+  text-align: center;
+  margin: 0;
+  padding: 0 20px;
 }
 
 .qrcode-tip {
   font-size: 14px;
   color: #666;
-  margin: 0;
+  margin: 0 0 16px 0;
+}
+
+.protocol-section {
+  margin-top: 16px;
+  padding: 0 20px;
+}
+
+.protocol-section .el-checkbox {
+  font-size: 12px;
+  color: #666;
+}
+
+.protocol-section .el-link {
+  font-size: 12px;
 }
 
 .loading-section {

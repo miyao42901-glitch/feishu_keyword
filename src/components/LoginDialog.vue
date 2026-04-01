@@ -22,6 +22,15 @@
         <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" @input="clearError" />
       </el-form-item>
     </el-form>
+    <div class="protocol-section">
+      <el-checkbox v-model="agreeProtocol" label="agree" @click="clearError">
+        我已阅读并同意
+        <el-link type="primary" href="https://static.dajiala.com:9224/static/HTMLPage/UserAgreement.html" target="_blank">《用户协议》</el-link>
+        和
+        <el-link type="primary" href="https://static.dajiala.com:9224/static/HTMLPage/ProtectionInform.html" target="_blank" @click="clearError">《个人信息保护政策》</el-link>
+      </el-checkbox>
+    </div>
+    
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -32,7 +41,7 @@
 </template>
 
 <script setup>
-import { ref, defineProps, defineEmits } from 'vue'
+import { ref } from 'vue'
 import axios from 'axios'
 
 const props = defineProps({
@@ -47,11 +56,12 @@ const emit = defineEmits(['update:visible', 'login-success'])
 const dialogVisible = ref(props.visible)
 const loginForm = ref({
   username: '',
-  password: ''
+  password: '',
 })
 const loading = ref(false)
 const loginFormRef = ref(null)
 const errorMessage = ref('')
+const agreeProtocol = ref(true)
 
 const rules = {
   username: [
@@ -59,7 +69,7 @@ const rules = {
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' }
-  ]
+  ],
 }
 
 const clearError = () => {
@@ -76,23 +86,28 @@ const handleLogin = async () => {
     if (valid) {
       loading.value = true
       try {
+        if (!agreeProtocol.value) {
+          errorMessage.value = '请先阅读并同意协议'
+        }
+        else{
         // 以form形式传参数
-        const formData = new FormData();
-        formData.append('username', loginForm.value.username);
-        formData.append('password', loginForm.value.password);
-        formData.append('agree_protocol', 1);
-        
-        const res = await axios.post('https://www.dajiala.com/fbmain/account/v1/login', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
+          const formData = new FormData();
+          formData.append('username', loginForm.value.username);
+          formData.append('password', loginForm.value.password);
+          formData.append('agree_protocol', agreeProtocol.value ? 1 : 0);
+          
+          const res = await axios.post('https://www.dajiala.com/fbmain/account/v1/login', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            }
+          })
+          
+          if (res.data && res.data.error_code === 0) {
+            emit('login-success', res.data)
+            dialogVisible.value = false
+          } else {
+            errorMessage.value = res.data?.msg || '登录失败'
           }
-        })
-        
-        if (res.data && res.data.error_code === 0) {
-          emit('login-success', res.data)
-          dialogVisible.value = false
-        } else {
-          errorMessage.value = res.data?.msg || '登录失败'
         }
       } catch (error) {
         console.error('登录失败:', error)
@@ -131,5 +146,20 @@ watch(dialogVisible, (newVal) => {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+
+.protocol-section {
+  margin-top: 16px;
+  padding: 0 20px;
+}
+
+.protocol-section .el-checkbox {
+  font-size: 12px;
+  color: #666;
+}
+
+.protocol-section .el-link {
+  font-size: 12px;
 }
 </style>

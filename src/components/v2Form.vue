@@ -12,7 +12,7 @@
     ElAlert,
   } from 'element-plus';
   import pluginAPI from '@/utils/request'
-  import { writeToTable, updateTable } from '@/utils/tableHelper'
+  import { writeToTable, updateTable, getMaxCreateTimeByUser } from '@/utils/tableHelper'
   import TableSelect from './TableSelect.vue'
 
   export default {
@@ -44,7 +44,6 @@
           nickname: { label: '视频号昵称', fieldType: FieldType.Text, isPrimary: true},
           username: { label: '视频号id', fieldType: FieldType.Text, },
           signature: { label: '简介', fieldType: FieldType.Text, },
-          get_time_cut: { label: '获取视频截至时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           get_work_flag: {
             label: '获取视频标志', 
             fieldType: FieldType.SingleSelect, 
@@ -93,9 +92,8 @@
       }
       
       const alertList = ref({
-        0: { title: '建议使用模板数据表' },
+        0: { title: '请生成空模板或者选择已有数据表' },
         1: { title: '对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据' },
-        2: { title: '请注意账号数据表中的【获取视频截至时间】字段，不会获取【获取视频截至时间】之前的用户发布的视频，每次获取视频都会自动将【获取视频截至时间】设置为最新视频的发布时间，以避免获取重复视频。可以手动修改此字段以获取更早的视频数据，但有可能在视频数据表中写入重复数据。' }
       })
 
       const dateRange = ref([1,3,7,15,30])
@@ -105,6 +103,7 @@
         userTableId: null,
         workTableId: null,
         searchDate: 3,
+        useTimeCut: true,
       })
 
       const addTableTemplate = async() => {
@@ -117,14 +116,14 @@
             null,
             [],
             userFields(),
-            timestamp + '视频号账号数据表模板'
+            timestamp + '视频号账号'
           );
           if (res1.success) {
             const res2 = await writeToTable(
               null,
               [],
               workFields(res1.data.tableId),
-              timestamp + '视频号视频数据表模板'
+              timestamp + '视频号视频'
             );
             if (res2.success) {
               paneData.value.userTableId = res1.data.tableId
@@ -177,7 +176,7 @@
       }
 
 
-      const getRecentWorks = async(maxDay = 1) => {
+      const getRecentWorks = async(maxDay = 1, timeCut = true) => {
         if (props.isLocked) return;
         emit('update:isLocked', true);
 
@@ -207,7 +206,18 @@
           for (const user_record of recordIdList){
             const userRecord = await userTable.getRecordById(user_record);
             const v2_name = userRecord.fields[fieldMap[user_fields.username.label].id][0]
-            const user_cut_time = Math.max(userRecord.fields[fieldMap[user_fields.get_time_cut.label].id] || min_time, min_time)
+
+            let user_cut_time = min_time
+            if (timeCut){
+              user_cut_time = await getMaxCreateTimeByUser(
+                paneData.value.workTableId,
+                user_record,
+                workFields(),
+                'user_link',
+                'publish_time',
+                min_time
+              );
+            }
 
             // let new_cut_time = Math.max(user_cut_time, Date.now())
             // console.log(user_cut_time)
@@ -274,7 +284,6 @@
               totalLastTime[user_record] = {
                 recordId: user_record, 
                 data: {
-                  get_time_cut: new_cut_time,
                   get_work_flag: 'success',
                   fail_reason: '',
                 }
@@ -288,7 +297,7 @@
           
           // 将嵌套的 totalData 结构展平为数组，只包含 totalLastTime 中为 success 的记录 recordId
           const flatData = Object.entries(totalData)
-            .filter(([recordId]) => totalLastTime[recordId].data.get_work_flag === 'success')
+            // .filter(([recordId]) => totalLastTime[recordId].data.get_work_flag === 'success')
             .flatMap(([_, recordData]) => Object.values(recordData));
           
           await writeToTable(
@@ -507,6 +516,13 @@
     </el-form-item>
 
     <el-form-item label-width="null">
+      <el-radio-group v-model="paneData.useTimeCut">
+        <el-radio :label="false">获取日期内全部</el-radio>
+        <el-radio :label="true">获取日期内新增</el-radio>
+      </el-radio-group>
+    </el-form-item>
+
+    <el-form-item label-width="null">
       <el-tooltip 
         :content="isLocked || !formData.key || !paneData.userTableId || 
         !paneData.workTableId ? '需要登录、账号数据表、视频数据表' : '获取发布视频' " 
@@ -516,7 +532,7 @@
         <el-button 
           type="primary" 
           :disabled="isLocked || !formData.key || !paneData.userTableId || !paneData.workTableId"
-          @click="getRecentWorks(paneData.searchDate)"
+          @click="getRecentWorks(paneData.searchDate, paneData.useTimeCut)"
           plain
           style="flex: 1;"
         >
@@ -560,15 +576,6 @@
           更新视频互动信息(含下载链接)
         </el-button>
       </el-tooltip>
-    </el-form-item>
-    
-    <el-form-item v-if="alertList[2]" label-width="null">
-      <el-alert
-        :title="alertList[2].title"
-        type="primary"
-        show-icon
-        @close="() => alertList[2] = null"
-      />
     </el-form-item>
 
     <el-form-item v-if="alertList[1]" label-width="null">

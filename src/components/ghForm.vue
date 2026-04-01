@@ -10,9 +10,11 @@
     ElButton,
     ElTooltip,
     ElAlert,
+    ElRadio,
+    ElRadioGroup,
   } from 'element-plus';
   import pluginAPI from '@/utils/request'
-  import { writeToTable, updateTable } from '@/utils/tableHelper'
+  import { writeToTable, updateTable, getMaxCreateTimeByUser } from '@/utils/tableHelper'
   import TableSelect from './TableSelect.vue'
 
   export default {
@@ -26,6 +28,8 @@
       ElTooltip,
       TableSelect,
       ElAlert,
+      ElRadio,
+      ElRadioGroup,
     },
     props: {
       formData: {
@@ -44,7 +48,6 @@
           name: { label: '公众号名称', fieldType: FieldType.Text, isPrimary: true},
           biz: { label: '公众号标识(base64)', fieldType: FieldType.Text, },
           desc: { label: '公众号描述', fieldType: FieldType.Text, },
-          get_time_cut: { label: '获取发文截至时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           get_article_flag: {
             label: '获取文章标志', 
             fieldType: FieldType.SingleSelect, 
@@ -114,9 +117,8 @@
       }
 
       const alertList = ref({
-        0: { title: '建议使用模板数据表' },
+        0: { title: '请生成空模板或者选择已有数据表' },
         1: { title: '对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据' },
-        2: { title: '请注意账号数据表中的【获取发文截至时间】字段，不会获取【获取发文截至时间】之前的用户发文，每次获取文章都会自动将【获取发文截至时间】设置为最新文章的发布时间，以避免获取重复文章。可以手动修改此字段以获取更早的发文数据，但有可能在文章数据表中写入重复数据。' }
       })
 
       const dateRange = ref([1,3,7,15,30])
@@ -126,6 +128,7 @@
         selectedGhTableId: null,
         selectedArticleTableId: null,
         searchDate: 3,
+        useTimeCut: true,
       })
 
       const addTableTemplate = async() => {
@@ -138,14 +141,14 @@
             null,
             [],
             ghAccountFields(),
-            timestamp + '公众号数据表模板'
+            timestamp + '公众号账号'
           );
           if (res1.success) {
             const res2 = await writeToTable(
               null,
               [],
               ghArticleFields(res1.data.tableId),
-              timestamp + '公众号文章数据表模板'
+              timestamp + '公众号文章'
             );
             if (res2.success) {
               ghData.value.selectedGhTableId = res1.data.tableId
@@ -193,7 +196,7 @@
         }
       }
 
-      const getRecentArticles = async(maxDay = 1) => {
+      const getRecentArticles = async(maxDay = 1, timeCut = true) => {
         if (props.isLocked) return;
         emit('update:isLocked', true);
 
@@ -223,7 +226,17 @@
           for (const ac_recordId of recordIdList){
             const accountRecord = await accountTable.getRecordById(ac_recordId);
             const ac_biz = accountRecord.fields[fieldMap[ac_fields.biz.label].id][0]
-            const ac_cut_time = Math.max(accountRecord.fields[fieldMap[ac_fields.get_time_cut.label].id] || min_time, min_time)
+            let ac_cut_time = min_time
+            if (timeCut){
+              ac_cut_time = await getMaxCreateTimeByUser(
+                ghData.value.selectedArticleTableId,
+                ac_recordId,
+                ghArticleFields(),
+                'gh_link',
+                'post_time',
+                min_time
+              );
+            }
 
             // console.log(ac_name, ac_biz, ac_cut_time)
             // let new_cut_time = Math.max(ac_cut_time, Date.now())
@@ -273,7 +286,6 @@
               totalLastTime[ac_recordId] = {
                 recordId: ac_recordId, 
                 data: {
-                  get_time_cut: new_cut_time,
                   get_article_flag: 'success',
                   fail_reason: '',
                 }
@@ -330,7 +342,6 @@
                 totalLastTime[ac_recordId] = {
                   recordId: ac_recordId, 
                   data: {
-                    get_time_cut: new_cut_time,
                     get_article_flag: 'success',
                     fail_reason: '',
                   }
@@ -345,7 +356,7 @@
 
           // 将嵌套的 totalData 结构展平为数组，只包含 totalLastTime 中为 success 的记录 recordId
           const flatData = Object.entries(totalData)
-            .filter(([recordId]) => totalLastTime[recordId].data.get_article_flag === 'success')
+            // .filter(([recordId]) => totalLastTime[recordId].data.get_article_flag === 'success')
             .flatMap(([_, recordData]) => Object.values(recordData));
 
           await writeToTable(
@@ -501,17 +512,17 @@
     </el-form-item>
 
     <el-form-item
-      label="公众号名称/id"
+      label="公众号名称"
     >
       <el-input 
         v-model="ghData.ghSearchValue"
-        placeholder="请输入公众号名称或id"
+        placeholder="请输入公众号名称或微信id"
       />
     </el-form-item>
     <el-form-item label-width="null">
       <el-tooltip 
         :content="isLocked || !formData.key || !ghData.ghSearchValue || 
-        !ghData.selectedGhTableId ? '需要登录、公众号名称/id、公众号数据表' : '添加公众号' " 
+        !ghData.selectedGhTableId ? '需要登录、公众号名称、公众号数据表' : '添加公众号' " 
         effect="dark"
         placement="top"
       >
@@ -540,6 +551,13 @@
     </el-form-item>
 
     <el-form-item label-width="null">
+      <el-radio-group v-model="ghData.useTimeCut">
+        <el-radio :label="false">获取日期内全部</el-radio>
+        <el-radio :label="true">获取日期内新增</el-radio>
+      </el-radio-group>
+    </el-form-item>
+
+    <el-form-item label-width="null">
       <el-tooltip 
         :content="isLocked || !formData.key || !ghData.selectedGhTableId || 
         !ghData.selectedArticleTableId ? '需要登录、公众号数据表、文章数据表' : '获取发文' " 
@@ -549,7 +567,7 @@
         <el-button 
           type="primary" 
           :disabled="isLocked || !formData.key || !ghData.selectedGhTableId || !ghData.selectedArticleTableId"
-          @click="getRecentArticles(ghData.searchDate)"
+          @click="getRecentArticles(ghData.searchDate, ghData.useTimeCut)"
           plain
           style="flex: 1;"
         >
@@ -576,16 +594,6 @@
         </el-button>
       </el-tooltip>
     </el-form-item>
-    
-    <el-form-item v-if="alertList[2]" label-width="null">
-      <el-alert
-        :title="alertList[2].title"
-        type="primary"
-        show-icon
-        @close="() => alertList[2] = null"
-      />
-    </el-form-item>
-
         
     <el-form-item v-if="alertList[1]" label-width="null">
       <el-alert
