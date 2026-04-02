@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    title="账号登录"
+    :title="t('loginDialog.title')"
     width="90%"
     :close-on-click-modal="false"
     :close-on-press-escape="false"
@@ -15,16 +15,16 @@
         :closable="false"
         style="margin-bottom: 16px;"
       />
-      <el-form-item label="用户名" prop="username">
-        <el-input v-model="loginForm.username" placeholder="请输入用户名" @input="clearError" />
+      <el-form-item :label="t('loginDialog.fields.username')" prop="username">
+        <el-input v-model="loginForm.username" :placeholder="t('loginDialog.placeholders.username')" @input="clearError" />
       </el-form-item>
-      <el-form-item label="密码" prop="password">
-        <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" @input="clearError" />
+      <el-form-item :label="t('loginDialog.fields.password')" prop="password">
+        <el-input v-model="loginForm.password" type="password" :placeholder="t('loginDialog.placeholders.password')" @input="clearError" />
       </el-form-item>
     </el-form>
     <div class="protocol-section">
       <el-checkbox v-model="agreeProtocol" label="agree" @click="clearError">
-        我已阅读并同意
+        {{ t('loginDialog.protocol') }}
         <el-link type="primary" href="https://static.dajiala.com:9224/static/HTMLPage/UserAgreement.html" target="_blank">《用户协议》</el-link>
         和
         <el-link type="primary" href="https://static.dajiala.com:9224/static/HTMLPage/ProtectionInform.html" target="_blank" @click="clearError">《个人信息保护政策》</el-link>
@@ -33,8 +33,8 @@
     
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleLogin" :loading="loading">登录</el-button>
+        <el-button @click="dialogVisible = false">{{ t('loginDialog.buttons.cancel') }}</el-button>
+        <el-button type="primary" @click="handleLogin" :loading="loading">{{ t('loginDialog.buttons.login') }}</el-button>
       </span>
     </template>
   </el-dialog>
@@ -43,6 +43,9 @@
 <script setup>
 import { ref } from 'vue'
 import axios from 'axios'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n();
 
 const props = defineProps({
   visible: {
@@ -65,10 +68,10 @@ const agreeProtocol = ref(true)
 
 const rules = {
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' }
+    { required: true, message: t('loginDialog.messages.requiredUsername'), trigger: 'blur' }
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' }
+    { required: true, message: t('loginDialog.messages.requiredPassword'), trigger: 'blur' }
   ],
 }
 
@@ -87,7 +90,7 @@ const handleLogin = async () => {
       loading.value = true
       try {
         if (!agreeProtocol.value) {
-          errorMessage.value = '请先阅读并同意协议'
+          errorMessage.value = t('loginDialog.messages.agreeProtocol')
         }
         else{
         // 以form形式传参数
@@ -106,12 +109,12 @@ const handleLogin = async () => {
             emit('login-success', res.data)
             dialogVisible.value = false
           } else {
-            errorMessage.value = res.data?.msg || '登录失败'
+            errorMessage.value = res.data?.msg || t('loginDialog.messages.loginFailed')
           }
         }
       } catch (error) {
         console.error('登录失败:', error)
-        errorMessage.value = '网络错误，请稍后重试'
+        errorMessage.value = t('loginDialog.messages.networkError')
       } finally {
         loading.value = false
       }

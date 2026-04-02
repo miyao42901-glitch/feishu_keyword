@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    title="充值"
+    :title="t('rechargeDialog.title')"
     width="90%"
     :close-on-click-modal="false"
     :close-on-press-escape="false"
@@ -16,17 +16,17 @@
         style="margin-bottom: 16px;"
       />
       
-      <el-form-item label="充值金额" prop="amount">
+      <el-form-item :label="t('rechargeDialog.fields.amount')" prop="amount">
         <el-input
           v-model.number="rechargeForm.amount"
           type="number"
-          placeholder="请输入充值金额"
+          :placeholder="t('rechargeDialog.placeholders.amount')"
           min="5"
           step="1"
           @input="handleAmountInput"
         />
         <div class="gift-info"">
-          额外赠送：￥{{ giftAmount }}
+          {{ t('rechargeDialog.gift', { giftAmount: giftAmount }) }}
         </div>
       </el-form-item>
       
@@ -39,8 +39,8 @@
             @click="selectPresetAmount(item.amount)"
           >
             <div class="button-content">
-              <div class="amount">￥{{ item.amount }}</div>
-              <div class="desc">{{ item.gift ? `送￥${item.gift}` : '无赠送' }}</div>
+              <div class="amount">{{ t('rechargeDialog.amountDesc', { amount: item.amount }) }}</div>
+              <div class="desc">{{ item.gift ? t('rechargeDialog.giftDesc', { giftAmount: item.gift }) : t('rechargeDialog.noGift') }}</div>
             </div>
           </el-button>
         </div>
@@ -48,8 +48,8 @@
     </el-form>
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleRecharge" :loading="loading">充值</el-button>
+        <el-button @click="dialogVisible = false">{{ t('rechargeDialog.buttons.cancel') }}</el-button>
+        <el-button type="primary" @click="handleRecharge" :loading="loading">{{ t('rechargeDialog.buttons.recharge') }}</el-button>
       </span>
     </template>
   </el-dialog>
@@ -59,6 +59,9 @@
 import { ref, defineProps, defineEmits, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n();
 
 const props = defineProps({
   visible: {
@@ -93,8 +96,8 @@ const presetAmounts = [
 
 const rules = {
   amount: [
-    { required: true, message: '请输入充值金额', trigger: 'blur' },
-    { type: 'number', min: 5, message: '充值金额不能小于5元', trigger: 'blur' }
+    { required: true, message: t('rechargeDialog.messages.requiredAmount'), trigger: 'blur' },
+    { type: 'number', min: 5, message: t('rechargeDialog.messages.minAmount'), trigger: 'blur' }
   ]
 }
 
@@ -156,7 +159,7 @@ const checkPaymentStatus = async(order_no, accessToken) => {
     }
   }
   if(dialogVisible.value){
-    ElMessage.error('已超时')
+    ElMessage.error(t('rechargeDialog.messages.timeout'))
   }
   return false
 }
@@ -171,11 +174,11 @@ const handleRecharge = async () => {
       try {
         // 显示确认对话框
         await ElMessageBox.confirm(
-          `确认充值 ${rechargeForm.value.amount} 元吗？`,
-          '充值确认',
+          t('rechargeDialog.confirm.message', { amount: rechargeForm.value.amount }),
+          t('rechargeDialog.confirm.title'),
           {
-            confirmButtonText: '确认',
-            cancelButtonText: '取消',
+            confirmButtonText: t('rechargeDialog.confirm.confirm'),
+            cancelButtonText: t('rechargeDialog.confirm.cancel'),
             type: 'warning'
           }
         )
@@ -216,13 +219,13 @@ const handleRecharge = async () => {
             errorMessage.value = res.data.msg
           }
         } else {
-          errorMessage.value = '请先登录'
-        }
+            errorMessage.value = t('rechargeDialog.messages.loginFirst')
+          }
       } catch (error) {
         // 如果是用户取消确认，不显示错误信息
         if (error !== 'cancel') {
           console.error('充值失败:', error)
-          errorMessage.value = '充值失败，请稍后重试'
+          errorMessage.value = t('rechargeDialog.messages.rechargeFailed')
         }
       } finally {
         loading.value = false

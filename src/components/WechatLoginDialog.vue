@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    title="微信扫码登录"
+    :title="t('wechatLoginDialog.title')"
     width="90%"
     :close-on-click-modal="false"
     :close-on-press-escape="false"
@@ -11,13 +11,13 @@
         <div :class="['qrcode-wrapper', { 'blur': !agreeProtocol }]">
           <img :src="qrcodeImage" alt="微信登录二维码" class="qrcode-image" />
           <div v-if="!agreeProtocol" class="blur-overlay">
-            <p>请先阅读并同意协议</p>
+            <p>{{ t('wechatLoginDialog.agreeProtocol') }}</p>
           </div>
         </div>
-        <p class="qrcode-tip">请使用微信扫码登录</p>
+        <p class="qrcode-tip">{{ t('wechatLoginDialog.tip') }}</p>
         <div class="protocol-section">
           <el-checkbox v-model="agreeProtocol" label="agree">
-            我已阅读并同意
+            {{ t('wechatLoginDialog.protocol') }}
             <el-link type="primary" href="https://static.dajiala.com:9224/static/HTMLPage/UserAgreement.html" target="_blank">《用户协议》</el-link>
             和
             <el-link type="primary" href="https://static.dajiala.com:9224/static/HTMLPage/ProtectionInform.html" target="_blank">《个人信息保护政策》</el-link>
@@ -26,12 +26,12 @@
       </div>
       <div class="loading-section" v-else>
         <el-icon class="loading-icon"><i-ep-loading /></el-icon>
-        <p>正在生成二维码...</p>
+        <p>{{ t('wechatLoginDialog.loading') }}</p>
       </div>
     </div>
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="handleCancel">取消</el-button>
+        <el-button @click="handleCancel">{{ t('wechatLoginDialog.buttons.cancel') }}</el-button>
       </span>
     </template>
   </el-dialog>
@@ -41,6 +41,9 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n();
 
 const props = defineProps({
   visible: {
@@ -74,7 +77,7 @@ const generateQrcode = async () => {
     // 开始检测登录状态
   } catch (error) {
     console.error('生成二维码失败:', error)
-    ElMessage.error('生成二维码失败，请稍后重试')
+    ElMessage.error(t('wechatLoginDialog.messages.qrcodeFailed'))
     dialogVisible.value = false
   }
 }
@@ -103,7 +106,7 @@ const startCheckLoginStatus = () => {
       
       if (res.data && res.data.error_code === 0) {
         clearInterval(checkInterval.value)
-        ElMessage.success('登录成功')
+        ElMessage.success(t('wechatLoginDialog.messages.loginSuccess'))
         emit('login-success', res.data)
         dialogVisible.value = false
       }
@@ -112,11 +115,11 @@ const startCheckLoginStatus = () => {
     }
     
     // 超时处理
-    if (count >= maxChecks) {
-      clearInterval(checkInterval.value)
-      ElMessage.error('登录超时，请重新扫码')
-      dialogVisible.value = false
-    }
+  if (count >= maxChecks) {
+    clearInterval(checkInterval.value)
+    ElMessage.error(t('wechatLoginDialog.messages.loginTimeout'))
+    dialogVisible.value = false
+  }
   }, 2000) // 每2秒检测一次
 }
 

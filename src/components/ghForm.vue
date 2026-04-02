@@ -1,5 +1,6 @@
 <script>
-  import { ref } from 'vue';
+  import { ref, computed } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import { bitable, FieldType, NumberFormatter, DateFormatter } from '@lark-base-open/js-sdk';
   import {
     ElForm,
@@ -43,82 +44,88 @@
     },
     emits: ['update:isLocked'],
     setup(props, { emit }) {
+      const { t } = useI18n();
       function ghAccountFields() {
         return {
-          name: { label: '公众号名称', fieldType: FieldType.Text, isPrimary: true},
-          biz: { label: '公众号标识(base64)', fieldType: FieldType.Text, },
-          desc: { label: '公众号描述', fieldType: FieldType.Text, },
+          name: { label: t('ghForm.userFields.name'), fieldType: FieldType.Text, isPrimary: true},
+          biz: { label: t('ghForm.userFields.biz'), fieldType: FieldType.Text, },
+          desc: { label: t('ghForm.userFields.desc'), fieldType: FieldType.Text, },
           get_article_flag: {
-            label: '获取文章标志', 
+            label: t('ghForm.userFields.get_article_flag'), 
             fieldType: FieldType.SingleSelect, 
             options: {
-              unknow: '未获取过文章',
-              fail: '上次获取文章失败',
-              success: '上次获取文章成功',
+              unknow: t('ghForm.options.article.unknow'),
+              fail: t('ghForm.options.article.fail'),
+              success: t('ghForm.options.article.success'),
             },
           },
-          fail_reason: { label: '获取失败原因', fieldType: FieldType.Text, },
+          fail_reason: { label: t('ghForm.userFields.fail_reason'), fieldType: FieldType.Text, },
         }
       }
 
       function ghArticleFields(linkTableId = '') {
         return {
-          title: { label: '文章标题', fieldType: FieldType.Text, isPrimary: true },
+          title: { label: t('ghForm.articleFields.title'), fieldType: FieldType.Text, isPrimary: true },
           gh_link: {
-            label: '公众号',
+            label: t('ghForm.articleFields.gh_link'),
             fieldType: FieldType.SingleLink,
             property:{
               tableId: linkTableId, 
               multiple: false,
             }
           },
-          url: { label: '文章链接', fieldType: FieldType.Url, },
-          post_time: { label: '发文时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME },},
-          digest: { label: '文章摘要', fieldType: FieldType.Text, },
+          url: { label: t('ghForm.articleFields.url'), fieldType: FieldType.Url, },
+          post_time: { label: t('ghForm.articleFields.post_time'), fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME },},
+          digest: { label: t('ghForm.articleFields.digest'), fieldType: FieldType.Text, },
           original: {
-            label: '原创类型', 
+            label: t('ghForm.articleFields.original'), 
             fieldType: FieldType.SingleSelect, 
             options: {
-              0: '未声明原创',
-              1: '原创',
-              2: '转载'
+              0: t('ghForm.options.original.0'),
+              1: t('ghForm.options.original.1'),
+              2: t('ghForm.options.original.2')
             },
           },
           item_show_type: {
-            label: '内容类型', 
+            label: t('ghForm.articleFields.item_show_type'), 
             fieldType: FieldType.SingleSelect, 
             options: {
-              0: '图文',
-              5: '纯视频',
-              7: '纯音乐',
-              8: '纯图片',
-              10: '纯文字',
-              11: '其他'
+              0: t('ghForm.options.item_show_type.0'),
+              5: t('ghForm.options.item_show_type.5'),
+              7: t('ghForm.options.item_show_type.7'),
+              8: t('ghForm.options.item_show_type.8'),
+              10: t('ghForm.options.item_show_type.10'),
+              11: t('ghForm.options.item_show_type.11')
             },
           },
-          read: {label: '阅读', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          zan: {label: '点赞', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          looking: {label: '在看', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          share_num: {label: '转发数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          collect_num: {label: '收藏数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          comment_count: {label: '评论数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          last_get_time: { label: '互动信息更新时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
+          read: {label: t('ghForm.articleFields.read'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          zan: {label: t('ghForm.articleFields.zan'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          looking: {label: t('ghForm.articleFields.looking'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          share_num: {label: t('ghForm.articleFields.share_num'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          collect_num: {label: t('ghForm.articleFields.collect_num'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          comment_count: {label: t('ghForm.articleFields.comment_count'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          last_get_time: { label: t('ghForm.articleFields.last_get_time'), fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           get_interaction_flag: {
-            label: '获取互动数标志', 
+            label: t('ghForm.articleFields.get_interaction_flag'), 
             fieldType: FieldType.SingleSelect, 
             options: {
-              unknow: '未获取过互动数',
-              fail: '上次获取互动数失败',
-              success: '上次获取互动数成功',
+              unknow: t('ghForm.options.interaction.unknow'),
+              fail: t('ghForm.options.interaction.fail'),
+              success: t('ghForm.options.interaction.success'),
             },
           },
-          fail_reason: { label: '获取失败原因', fieldType: FieldType.Text, },
+          fail_reason: { label: t('ghForm.articleFields.fail_reason'), fieldType: FieldType.Text, },
         }
       }
 
-      const alertList = ref({
-        0: { title: '请生成空模板或者选择已有数据表' },
-        1: { title: '对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据' },
+      const alertList = computed(() => ({
+        0: { title: t('ghForm.alerts.template') },
+        1: { title: t('ghForm.alerts.duplicate') },
+      }))
+      
+      const alterShow = ref({
+        0: true,
+        1: true,
       })
 
       const dateRange = ref([1,3,7,15,30])
@@ -157,7 +164,7 @@
           }
         }catch (error) {
           console.error('操作失败:', error);
-          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.message = t('ghForm.messages.operationFailed', { error: error.message || t('ghForm.messages.unknownError') });
           props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
@@ -180,16 +187,16 @@
               [{...res.data.data, get_article_flag: 'unknow'}],
               ghAccountFields(),
             );
-            props.formData.message = '新增公众号数据完成，消耗：0.5';
+            props.formData.message = t('ghForm.messages.addGhAccountSuccess');
             props.formData.messageType = 'success';
           }
           else{
-            props.formData.message = '操作失败: ' + (res.data.msg || '未知错误');
+            props.formData.message = t('ghForm.messages.operationFailed', { error: res.data.msg || t('ghForm.messages.unknownError') });
             props.formData.messageType = 'error';
           }
         } catch (error) {
           console.error('操作失败:', error);
-          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.message = t('ghForm.messages.operationFailed', { error: error.message || t('ghForm.messages.unknownError') });
           props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
@@ -248,15 +255,15 @@
               })
               
               if (!(res && res.data && res.data.code === 0)) {
-                totalLastTime[ac_recordId] = {
-                recordId: ac_recordId, 
-                data: {
-                  get_article_flag: 'fail',
-                  fail_reason: res.data.msg || '未知错误',
+                  totalLastTime[ac_recordId] = {
+                  recordId: ac_recordId, 
+                  data: {
+                    get_article_flag: 'fail',
+                    fail_reason: res.data.msg || t('ghForm.messages.unknownError'),
+                  }
+                };
+                  continue
                 }
-              };
-                continue
-              }
 
               totalCost += res.data.cost_money
               lastRemainMoney = res.data.remain_money
@@ -306,7 +313,7 @@
                     recordId: ac_recordId, 
                     data: {
                       get_article_flag: 'fail',
-                      fail_reason: res.data.msg || '未知错误',
+                      fail_reason: res.data.msg || t('ghForm.messages.unknownError'),
                     }
                   };
                   break
@@ -373,13 +380,12 @@
           
           if(recordIdList.length > 0){
             const successCount = Object.values(totalLastTime).filter(item => item.data.get_article_flag === 'success').length;
-            props.formData.message = '获取公众号文章数据完成，共操作' + recordIdList.length + '条公众号数据，成功操作' +
-              successCount + '条公众号数据，新增' + flatData.length + '条文章数据，消耗：' + totalCost.toFixed(2);
+            props.formData.message = t('ghForm.messages.getArticlesSuccess', { total: recordIdList.length, success: successCount, new: flatData.length, price: totalCost.toFixed(2) });
             props.formData.messageType = 'success';
           }
         } catch (error) {
           console.error('操作失败:', error);
-          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.message = t('ghForm.messages.operationFailed', { error: error.message || t('ghForm.messages.unknownError') });
           props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
@@ -434,7 +440,7 @@
             else{
               updateItem.data = {
                 get_interaction_flag: 'fail',
-                fail_reason: res.data.msg || '未知错误',
+                fail_reason: res.data.msg || t('ghForm.messages.unknownError'),
               }
             }
 
@@ -448,14 +454,13 @@
           )
           
           if(recordIdList.length > 0){
-            props.formData.message = '获取文章互动数据完成，共操作' + recordIdList.length + '条文章数据，成功操作' +
-              successCount + '条文章数据，消耗：' + totalCost.toFixed(2);
+            props.formData.message = t('ghForm.messages.updateArticleSuccess', { total: recordIdList.length, success: successCount, price: totalCost.toFixed(2) });
             props.formData.messageType = 'success';
           }
           
         } catch (error) {
           console.error('操作失败:', error);
-          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.message = t('ghForm.messages.operationFailed', { error: error.message || t('ghForm.messages.unknownError') });
           props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
@@ -464,12 +469,14 @@
 
       return {
         alertList,
+        alterShow,
         ghData,
         dateRange,
         addTableTemplate,
         addGhAccount,
         getRecentArticles,
         getArticleInteract,
+        t,
       };
     },
   };
@@ -478,18 +485,18 @@
 <template>
   <el-form class="ghForm" label-position="left" label-width="120px">
 
-    <el-form-item v-if="alertList[0]" label-width="null">
+    <el-form-item v-if="alterShow[0]" label-width="null">
       <el-alert
         :title="alertList[0].title"
         type="primary"
         show-icon
-        @close="() => alertList[0] = null"
+        @close="() => alterShow[0] = false"
       />
     </el-form-item>
 
     <el-form-item label-width="null">
       <el-tooltip 
-        :content="'生成一对关联的公众号数据表空模板、文章数据表空模板，修改文章数据表的公众号字段可以设置关联的公众号数据表'" 
+        :content="t('ghForm.tooltips.generateTemplate')" 
         effect="dark"
         placement="top"
       >
@@ -500,29 +507,29 @@
           plain
           style="flex: 1;"
         >
-          生成数据表空模板
+          {{ t('ghForm.form.generateTemplate') }}
         </el-button>
       </el-tooltip>
     </el-form-item>
 
     <el-form-item 
-      label="公众号数据表"
+      :label="t('ghForm.form.ghTable')"
     >
       <TableSelect v-model="ghData.selectedGhTableId" />
     </el-form-item>
 
     <el-form-item
-      label="公众号名称"
+      :label="t('ghForm.form.ghName')"
     >
       <el-input 
         v-model="ghData.ghSearchValue"
-        placeholder="请输入公众号名称或微信id"
+        :placeholder="t('ghForm.form.ghNamePlaceholder')"
       />
     </el-form-item>
     <el-form-item label-width="null">
       <el-tooltip 
         :content="isLocked || !formData.key || !ghData.ghSearchValue || 
-        !ghData.selectedGhTableId ? '需要登录、公众号名称、公众号数据表' : '添加公众号' " 
+        !ghData.selectedGhTableId ? t('ghForm.tooltips.addGhAccount') : t('ghForm.form.addGhAccount') " 
         effect="dark"
         placement="top"
       >
@@ -533,34 +540,34 @@
           plain
           style="flex: 1;"
         >
-          添加公众号
+          {{ t('ghForm.form.addGhAccount') }}
         </el-button>
       </el-tooltip>
     </el-form-item>
 
     <el-form-item 
-      label="文章数据表"
+      :label="t('ghForm.form.articleTable')"
     >
       <TableSelect v-model="ghData.selectedArticleTableId" />
     </el-form-item>
     
-    <el-form-item label="日期限制">
-      <el-select v-model="ghData.searchDate" placeholder="请选择日期限制">
-        <el-option v-for="item in dateRange" :key="item" :label="item > 1 ? item + '天内' : '今日'" :value="item" />
+    <el-form-item :label="t('ghForm.form.dateLimit')">
+      <el-select v-model="ghData.searchDate" :placeholder="t('ghForm.form.dateLimitPlaceholder')">
+        <el-option v-for="item in dateRange" :key="item" :label="item > 1 ? item + t('ghForm.form.days') : t('ghForm.form.today')" :value="item" />
       </el-select>
     </el-form-item>
 
     <el-form-item label-width="null">
       <el-radio-group v-model="ghData.useTimeCut">
-        <el-radio :label="false">获取日期内全部</el-radio>
-        <el-radio :label="true">获取日期内新增</el-radio>
+        <el-radio :label="false">{{ t('ghForm.form.allInDate') }}</el-radio>
+        <el-radio :label="true">{{ t('ghForm.form.newInDate') }}</el-radio>
       </el-radio-group>
     </el-form-item>
 
     <el-form-item label-width="null">
       <el-tooltip 
         :content="isLocked || !formData.key || !ghData.selectedGhTableId || 
-        !ghData.selectedArticleTableId ? '需要登录、公众号数据表、文章数据表' : '获取发文' " 
+        !ghData.selectedArticleTableId ? t('ghForm.tooltips.getArticles') : t('ghForm.form.getArticles') " 
         effect="dark"
         placement="top"
       >
@@ -571,7 +578,7 @@
           plain
           style="flex: 1;"
         >
-          获取{{ghData.searchDate > 1 ? ghData.searchDate + '天内' : '今日'}}发文
+          {{ t('ghForm.form.getArticles', { days: ghData.searchDate > 1 ? ghData.searchDate + t('ghForm.form.days') : t('ghForm.form.today') }) }}
         </el-button>
       </el-tooltip>
     </el-form-item>
@@ -579,7 +586,7 @@
     <el-form-item label-width="null">
       <el-tooltip 
         :content="isLocked || !formData.key || 
-        !ghData.selectedArticleTableId ? '需要登录、文章数据表' : '更新文章互动信息' " 
+        !ghData.selectedArticleTableId ? t('ghForm.tooltips.updateArticleInteraction') : t('ghForm.form.updateArticleInteraction') " 
         effect="dark"
         placement="top"
       >
@@ -590,17 +597,17 @@
           plain
           style="flex: 1;"
         >
-          更新文章互动信息
+          {{ t('ghForm.form.updateArticleInteraction') }}
         </el-button>
       </el-tooltip>
     </el-form-item>
         
-    <el-form-item v-if="alertList[1]" label-width="null">
+    <el-form-item v-if="alterShow[1]" label-width="null">
       <el-alert
         :title="alertList[1].title"
         type="primary"
         show-icon
-        @close="() => alertList[1] = null"
+        @close="() => alterShow[1] = false"
       />
     </el-form-item>
 

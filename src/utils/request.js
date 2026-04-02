@@ -8,6 +8,9 @@ const pluginAPI = axios.create({
   timeout: 10000 // 请求超时时间
 })
 
+// 网络错误消息
+const NETWORK_ERROR = '网络连接错误'
+
 // 请求拦截器
 pluginAPI.interceptors.request.use(
   config => {
@@ -72,7 +75,7 @@ const withRetry = async (requestFn, maxRetries = 3, retryDelay = 1000) => {
     return {
       data: {
         code: -1,
-        msg: '网络连接错误',
+        msg: NETWORK_ERROR,
       }
     }
   }

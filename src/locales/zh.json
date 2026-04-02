@@ -1,3 +1,348 @@
 {
-  "title":"标题"
+  "title": "标题",
+  "dyForm": {
+    "userFields": {
+      "nickname": "用户名",
+      "sec_uid": "用户id",
+      "max_follower_count": "最大粉丝数",
+      "mplatform_followers_count": "当前粉丝数",
+      "following_count": "关注数",
+      "signature": "简介",
+      "total_favorited": "获赞总数",
+      "last_get_time": "用户数据更新时间",
+      "get_interaction_flag": "获取互动数标志",
+      "interaction_fail_reason": "获取互动数失败原因",
+      "get_vedio_flag": "获取视频标志",
+      "vedio_fail_reason": "获取视频失败原因"
+    },
+    "videoFields": {
+      "caption": "视频标题",
+      "dy_link": "视频作者",
+      "aweme_id": "视频id",
+      "vedio_url": "视频url",
+      "create_time": "视频发布时间",
+      "digg_count": "点赞数",
+      "comment_count": "评论数",
+      "share_count": "分享数",
+      "collect_count": "收藏数",
+      "last_get_time": "互动数据更新时间",
+      "get_interaction_flag": "获取互动数标志",
+      "interaction_fail_reason": "获取互动数失败原因"
+    },
+    "options": {
+      "interaction": {
+        "unknow": "未获取过互动数",
+        "fail": "上次获取互动数失败",
+        "success": "上次获取互动数成功"
+      },
+      "video": {
+        "unknow": "未获取过视频",
+        "fail": "上次获取视频失败",
+        "success": "上次获取视频成功"
+      }
+    },
+    "alerts": {
+      "template": "请生成空模板或者选择已有数据表",
+      "duplicate": "对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据"
+    },
+    "form": {
+      "generateTemplate": "生成数据表空模板",
+      "userTable": "抖音号数据表",
+      "userId": "抖音用户id",
+      "userIdPlaceholder": "请输入抖音用户id",
+      "shareLink": "主页分享链接",
+      "shareLinkPlaceholder": "请输入主页分享链接",
+      "addUser": "添加抖音账号",
+      "updateUser": "更新抖音账号数据",
+      "videoTable": "视频数据表",
+      "dateLimit": "日期限制",
+      "dateLimitPlaceholder": "请选择日期限制",
+      "today": "今日",
+      "days": "天内",
+      "allInDate": "获取日期内全部",
+      "newInDate": "获取日期内新增",
+      "getVideos": "获取{days}发布视频",
+      "updateVideoInteraction": "更新视频互动信息"
+    },
+    "tooltips": {
+      "generateTemplate": "生成一对关联的抖音账号数据表空模板、视频数据表空模板，修改视频数据表的【视频作者】字段可以设置关联的抖音账号数据表",
+      "addUser": "需要登录、抖音账号id或名片分享链接、抖音账号数据表",
+      "updateUser": "需要登录、抖音账号数据表",
+      "getVideos": "需要登录、抖音账号数据表、抖音视频数据表",
+      "updateVideoInteraction": "需要登录、抖音视频数据表"
+    },
+    "messages": {
+      "addUserSuccess": "新增抖音账号完成，消耗：{price}",
+      "updateUserSuccess": "获取抖音账号互动数据完成，共操作{total}条抖音账号数据，成功操作{success}条抖音账号数据，消耗：{price}",
+      "getVideosSuccess": "获取抖音账号视频数据完成，共操作{total}条抖音账号数据，成功操作{success}条抖音账号数据，新增{new}条视频数据，消耗：{price}",
+      "updateVideoSuccess": "获取视频互动数据完成，共操作{total}条视频数据，成功操作{success}条视频数据，消耗：{price}",
+      "operationFailed": "操作失败: {error}",
+      "unknownError": "未知错误"
+    }
+  },
+  "ghForm": {
+    "userFields": {
+      "name": "公众号名称",
+      "biz": "公众号标识(base64)",
+      "desc": "公众号描述",
+      "get_article_flag": "获取文章标志",
+      "fail_reason": "获取失败原因"
+    },
+    "articleFields": {
+      "title": "文章标题",
+      "gh_link": "公众号",
+      "url": "文章链接",
+      "post_time": "发文时间",
+      "digest": "文章摘要",
+      "original": "原创类型",
+      "item_show_type": "内容类型",
+      "read": "阅读",
+      "zan": "点赞",
+      "looking": "在看",
+      "share_num": "转发数",
+      "collect_num": "收藏数",
+      "comment_count": "评论数",
+      "last_get_time": "互动信息更新时间",
+      "get_interaction_flag": "获取互动数标志",
+      "fail_reason": "获取失败原因"
+    },
+    "options": {
+      "article": {
+        "unknow": "未获取过文章",
+        "fail": "上次获取文章失败",
+        "success": "上次获取文章成功"
+      },
+      "interaction": {
+        "unknow": "未获取过互动数",
+        "fail": "上次获取互动数失败",
+        "success": "上次获取互动数成功"
+      },
+      "original": {
+        "0": "未声明原创",
+        "1": "原创",
+        "2": "转载"
+      },
+      "item_show_type": {
+        "0": "图文",
+        "5": "纯视频",
+        "7": "纯音乐",
+        "8": "纯图片",
+        "10": "纯文字",
+        "11": "其他"
+      }
+    },
+    "alerts": {
+      "template": "请生成空模板或者选择已有数据表",
+      "duplicate": "对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据"
+    },
+    "form": {
+      "generateTemplate": "生成数据表空模板",
+      "ghTable": "公众号数据表",
+      "ghName": "公众号名称",
+      "ghNamePlaceholder": "请输入公众号名称或微信id",
+      "addGhAccount": "添加公众号",
+      "articleTable": "文章数据表",
+      "dateLimit": "日期限制",
+      "dateLimitPlaceholder": "请选择日期限制",
+      "today": "今日",
+      "days": "天内",
+      "allInDate": "获取日期内全部",
+      "newInDate": "获取日期内新增",
+      "getArticles": "获取{days}发文",
+      "updateArticleInteraction": "更新文章互动信息"
+    },
+    "tooltips": {
+      "generateTemplate": "生成一对关联的公众号数据表空模板、文章数据表空模板，修改文章数据表的公众号字段可以设置关联的公众号数据表",
+      "addGhAccount": "需要登录、公众号名称、公众号数据表",
+      "getArticles": "需要登录、公众号数据表、文章数据表",
+      "updateArticleInteraction": "需要登录、文章数据表"
+    },
+    "messages": {
+      "addGhAccountSuccess": "新增公众号数据完成，消耗：0.5",
+      "getArticlesSuccess": "获取公众号文章数据完成，共操作{total}条公众号数据，成功操作{success}条公众号数据，新增{new}条文章数据，消耗：{price}",
+      "updateArticleSuccess": "获取文章互动数据完成，共操作{total}条文章数据，成功操作{success}条文章数据，消耗：{price}",
+      "operationFailed": "操作失败: {error}",
+      "unknownError": "未知错误"
+    }
+  },
+  "v2Form": {
+    "userFields": {
+      "nickname": "视频号昵称",
+      "username": "视频号id",
+      "signature": "简介",
+      "get_work_flag": "获取视频标志",
+      "fail_reason": "获取失败原因"
+    },
+    "workFields": {
+      "title": "视频标题",
+      "user_link": "视频号",
+      "object_id": "视频id",
+      "export_id": "导出id",
+      "publish_time": "视频发布时间",
+      "video_play_len": "视频播放时长",
+      "like_count": "点赞数",
+      "fav_count": "喜欢数",
+      "forward_count": "转发数",
+      "comment_count": "评论数",
+      "download_url": "视频下载地址",
+      "last_get_time": "互动数据更新时间",
+      "get_interaction_flag": "获取互动数标志",
+      "fail_reason": "获取失败原因"
+    },
+    "options": {
+      "work": {
+        "unknow": "未获取过视频",
+        "fail": "上次获取视频失败",
+        "success": "上次获取视频成功"
+      },
+      "interaction": {
+        "unknow": "未获取过互动数",
+        "fail": "上次获取互动数失败",
+        "success": "上次获取互动数成功"
+      }
+    },
+    "alerts": {
+      "template": "请生成空模板或者选择已有数据表",
+      "duplicate": "对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据"
+    },
+    "form": {
+      "generateTemplate": "生成数据表空模板",
+      "userTable": "视频号数据表",
+      "v2Name": "视频号名称",
+      "v2NamePlaceholder": "请输入视频号名称",
+      "addUser": "添加视频号",
+      "workTable": "视频数据表",
+      "dateLimit": "日期限制",
+      "dateLimitPlaceholder": "请选择日期限制",
+      "today": "今日",
+      "days": "天内",
+      "allInDate": "获取日期内全部",
+      "newInDate": "获取日期内新增",
+      "getWorks": "获取{days}发布视频",
+      "updateWorkInteraction": "更新视频互动信息",
+      "updateWorkInteractionWithDownload": "更新视频互动信息(含下载链接)"
+    },
+    "tooltips": {
+      "generateTemplate": "生成一对关联的视频号用户数据表空模板、视频号视频数据表空模板，修改视频数据表的【视频号】字段可以设置关联的用户数据表",
+      "addUser": "需要登录、视频号名称、账号数据表",
+      "getWorks": "需要登录、账号数据表、视频数据表",
+      "updateWorkInteraction": "需要登录、视频数据表"
+    },
+    "messages": {
+      "addUserSuccess": "新增视频号数据完成，消耗：{price}",
+      "getWorksSuccess": "获取视频数据完成，共操作{total}条视频号数据，成功操作{success}条视频号数据，新增{new}条视频数据，消耗：{price}",
+      "updateWorkSuccess": "获取互动数据完成，共操作{total}条视频数据，成功操作{success}条视频数据，消耗：{price}",
+      "operationFailed": "操作失败: {error}",
+      "unknownError": "未知错误"
+    }
+  },
+  "form": {
+    "title": "极致了数据助手",
+    "alert": {
+      "guide": {
+        "text": "详情查看",
+        "urlText": "使用指南"
+      }
+    },
+    "fields": {
+      "username": "用户名",
+      "balance": "余额"
+    },
+    "buttons": {
+      "refreshBalance": "刷新余额",
+      "logout": "退出登录",
+      "recharge": "余额充值",
+      "learnMore": "了解更多",
+      "wechatLogin": "微信扫码注册/登录",
+      "passwordLogin": "账号密码登录"
+    },
+    "tabs": {
+      "douyin": "抖音",
+      "video号": "视频号",
+      "wechat": "公众号"
+    },
+    "loading": "操作进行中，请稍候...",
+    "messages": {
+      "loginFirst": "请先登录",
+      "loginFailed": "登录失败，请重试或联系管理员",
+      "rechargeSuccess": "充值{amount}元成功，赠送{gift}元",
+      "autoLoginFailed": "自动登录失败，请重新登录"
+    }
+  },
+  "loginDialog": {
+    "title": "账号登录",
+    "fields": {
+      "username": "用户名",
+      "password": "密码"
+    },
+    "placeholders": {
+      "username": "请输入用户名",
+      "password": "请输入密码"
+    },
+    "protocol": "我已阅读并同意",
+    "buttons": {
+      "cancel": "取消",
+      "login": "登录"
+    },
+    "messages": {
+      "requiredUsername": "请输入用户名",
+      "requiredPassword": "请输入密码",
+      "agreeProtocol": "请先阅读并同意协议",
+      "loginFailed": "登录失败",
+      "networkError": "网络错误，请稍后重试"
+    }
+  },
+  "rechargeDialog": {
+    "title": "充值",
+    "fields": {
+      "amount": "充值金额"
+    },
+    "placeholders": {
+      "amount": "请输入充值金额"
+    },
+    "gift": "额外赠送：{giftAmount}元",
+    "noGift": "无赠送",
+    "giftDesc": "送{giftAmount}元",
+    "amountDesc": "{amount}元",
+    "buttons": {
+      "cancel": "取消",
+      "recharge": "充值"
+    },
+    "messages": {
+      "requiredAmount": "请输入充值金额",
+      "minAmount": "充值金额不能小于5元",
+      "loginFirst": "请先登录",
+      "rechargeFailed": "充值失败，请稍后重试",
+      "timeout": "已超时"
+    },
+    "confirm": {
+      "message": "确认充值 {amount} 元吗？",
+      "title": "充值确认",
+      "confirm": "确认",
+      "cancel": "取消"
+    }
+  },
+  "tableSelect": {
+    "placeholder": "请选择表格"
+  },
+  "wechatLoginDialog": {
+    "title": "微信扫码登录",
+    "protocol": "我已阅读并同意",
+    "agreeProtocol": "请先阅读并同意协议",
+    "tip": "请使用微信扫码登录",
+    "loading": "正在生成二维码...",
+    "buttons": {
+      "cancel": "取消"
+    },
+    "messages": {
+      "qrcodeFailed": "生成二维码失败，请稍后重试",
+      "loginSuccess": "登录成功",
+      "loginTimeout": "登录超时，请重新扫码"
+    }
+  },
+  "utils": {
+    "networkError": "网络连接错误",
+    "writeFailed": "写入失败",
+    "updateFailed": "更新失败"
+  }
 }

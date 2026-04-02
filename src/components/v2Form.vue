@@ -1,5 +1,6 @@
 <script>
-  import { ref } from 'vue';
+  import { ref, computed } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import { bitable, FieldType, NumberFormatter, DateFormatter } from '@lark-base-open/js-sdk';
   import {
     ElForm,
@@ -39,61 +40,67 @@
     },
     emits: ['update:isLocked'],
     setup(props, { emit }) {
+      const { t } = useI18n();
       function userFields() {
         return {
-          nickname: { label: '视频号昵称', fieldType: FieldType.Text, isPrimary: true},
-          username: { label: '视频号id', fieldType: FieldType.Text, },
-          signature: { label: '简介', fieldType: FieldType.Text, },
+          nickname: { label: t('v2Form.userFields.nickname'), fieldType: FieldType.Text, isPrimary: true},
+          username: { label: t('v2Form.userFields.username'), fieldType: FieldType.Text, },
+          signature: { label: t('v2Form.userFields.signature'), fieldType: FieldType.Text, },
           get_work_flag: {
-            label: '获取视频标志', 
+            label: t('v2Form.userFields.get_work_flag'), 
             fieldType: FieldType.SingleSelect, 
             options: {
-              unknow: '未获取过视频',
-              fail: '上次获取视频失败',
-              success: '上次获取视频成功',
+              unknow: t('v2Form.options.work.unknow'),
+              fail: t('v2Form.options.work.fail'),
+              success: t('v2Form.options.work.success'),
             },
           },
-          fail_reason: { label: '获取失败原因', fieldType: FieldType.Text, },
+          fail_reason: { label: t('v2Form.userFields.fail_reason'), fieldType: FieldType.Text, },
         }
       }
 
       function workFields(linkTableId = '') {
         return {
-          title: { label: '视频标题', fieldType: FieldType.Text, isPrimary: true},
+          title: { label: t('v2Form.workFields.title'), fieldType: FieldType.Text, isPrimary: true},
           user_link: {
-            label: '视频号',
+            label: t('v2Form.workFields.user_link'),
             fieldType: FieldType.SingleLink,
             property:{
               tableId: linkTableId, 
               multiple: false,
             }
           },
-          object_id: { label: '视频id', fieldType: FieldType.Text, },
-          export_id: { label: '导出id', fieldType: FieldType.Text, },
-          publish_time: { label: '视频发布时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
-          video_play_len: { label: '视频播放时长', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          like_count: { label: '点赞数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          fav_count: { label: '喜欢数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          forward_count: { label: '转发数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          comment_count: { label: '评论数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          download_url: { label: '视频下载地址', fieldType: FieldType.Url, },
-          last_get_time: { label: '互动数据更新时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
+          object_id: { label: t('v2Form.workFields.object_id'), fieldType: FieldType.Text, },
+          export_id: { label: t('v2Form.workFields.export_id'), fieldType: FieldType.Text, },
+          publish_time: { label: t('v2Form.workFields.publish_time'), fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
+          video_play_len: { label: t('v2Form.workFields.video_play_len'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          like_count: { label: t('v2Form.workFields.like_count'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          fav_count: { label: t('v2Form.workFields.fav_count'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          forward_count: { label: t('v2Form.workFields.forward_count'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          comment_count: { label: t('v2Form.workFields.comment_count'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          download_url: { label: t('v2Form.workFields.download_url'), fieldType: FieldType.Url, },
+          last_get_time: { label: t('v2Form.workFields.last_get_time'), fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           get_interaction_flag: {
-            label: '获取互动数标志', 
+            label: t('v2Form.workFields.get_interaction_flag'), 
             fieldType: FieldType.SingleSelect, 
             options: {
-              unknow: '未获取过互动数',
-              fail: '上次获取互动数失败',
-              success: '上次获取互动数成功',
+              unknow: t('v2Form.options.interaction.unknow'),
+              fail: t('v2Form.options.interaction.fail'),
+              success: t('v2Form.options.interaction.success'),
             },
           },
-          fail_reason: { label: '获取失败原因', fieldType: FieldType.Text, },
+          fail_reason: { label: t('v2Form.workFields.fail_reason'), fieldType: FieldType.Text, },
         }
       }
       
-      const alertList = ref({
-        0: { title: '请生成空模板或者选择已有数据表' },
-        1: { title: '对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据' },
+      const alertList = computed(() => ({
+        0: { title: t('v2Form.alerts.template') },
+        1: { title: t('v2Form.alerts.duplicate') },
+      }))
+      
+      const alterShow = ref({
+        0: true,
+        1: true,
       })
 
       const dateRange = ref([1,3,7,15,30])
@@ -132,7 +139,7 @@
           }
         }catch (error) {
           console.error('操作失败:', error);
-          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.message = t('v2Form.messages.operationFailed', { error: error.message || t('v2Form.messages.unknownError') });
           props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
@@ -159,16 +166,16 @@
               }],
               userFields(),
             );
-            props.formData.message = '新增账户数据完成，消耗：' + res.data.cost;
+            props.formData.message = t('v2Form.messages.addUserSuccess', { price: res.data.cost });
             props.formData.messageType = 'success';
           }
           else{
-            props.formData.message = '操作失败: ' + (res.data.msg || '未知错误');
+            props.formData.message = t('v2Form.messages.operationFailed', { error: res.data.msg || t('v2Form.messages.unknownError') });
             props.formData.messageType = 'error';
           }
         } catch (error) {
           console.error('操作失败:', error);
-          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.message = t('v2Form.messages.operationFailed', { error: error.message || t('v2Form.messages.unknownError') });
           props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
@@ -240,7 +247,7 @@
                   recordId: user_record, 
                   data: {
                     get_work_flag: 'fail',
-                    fail_reason: res.data.msg || '未知错误',
+                    fail_reason: res.data.msg || t('v2Form.messages.unknownError'),
                   }
                 };
                 break
@@ -314,13 +321,12 @@
           
           if(recordIdList.length > 0){
             const successCount = Object.values(totalLastTime).filter(item => item.data.get_work_flag === 'success').length;
-            props.formData.message = '获取视频数据完成，共操作' + recordIdList.length + '条账户数据，成功操作' +
-              successCount + '条账户数据，新增' + flatData.length + '条视频数据，消耗：' + totalCost.toFixed(2);
+            props.formData.message = t('v2Form.messages.getWorksSuccess', { total: recordIdList.length, success: successCount, new: flatData.length, price: totalCost.toFixed(2) });
             props.formData.messageType = 'success';
           }
         } catch (error) {
           console.error('操作失败:', error);
-          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.message = t('v2Form.messages.operationFailed', { error: error.message || t('v2Form.messages.unknownError') });
           props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
@@ -394,7 +400,7 @@
             else{
               updateItem.data = {
                 get_interaction_flag: 'fail',
-                fail_reason: res.data.msg || '未知错误',
+                fail_reason: res.data.msg || t('v2Form.messages.unknownError'),
               }
             }
             
@@ -407,13 +413,12 @@
             workFields()
           )
           if(recordIdList.length > 0){
-            props.formData.message = '获取互动数据完成，共操作' + recordIdList.length + 
-              '条视频数据，成功操作' + successCount + '条视频数据，消耗：' + totalCost.toFixed(2);
+            props.formData.message = t('v2Form.messages.updateWorkSuccess', { total: recordIdList.length, success: successCount, price: totalCost.toFixed(2) });
             props.formData.messageType = 'success';
           }
         } catch (error) {
           console.error('操作失败:', error);
-          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.message = t('v2Form.messages.operationFailed', { error: error.message || t('v2Form.messages.unknownError') });
           props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
@@ -429,11 +434,13 @@
       return {
         paneData,
         alertList,
+        alterShow,
         dateRange,
         addTableTemplate,
         addUser,
         getRecentWorks,
         getWorksInteract,
+        t,
       };
     },
   };
@@ -442,18 +449,18 @@
 <template>
   <el-form class="ghForm" label-position="left" label-width="120px">
 
-    <el-form-item v-if="alertList[0]" label-width="null">
+    <el-form-item v-if="alterShow[0]" label-width="null">
       <el-alert
         :title="alertList[0].title"
         type="primary"
         show-icon
-        @close="() => alertList[0] = null"
+        @close="() => alterShow[0] = false"
       />
     </el-form-item>
 
     <el-form-item label-width="null">
       <el-tooltip 
-        :content="'生成一对关联的视频号用户数据表空模板、视频号视频数据表空模板，修改视频数据表的【视频号】字段可以设置关联的用户数据表'" 
+        :content="t('v2Form.tooltips.generateTemplate')" 
         effect="dark"
         placement="top"
       >
@@ -464,30 +471,30 @@
           plain
           style="flex: 1;"
         >
-          生成数据表空模板
+          {{ t('v2Form.form.generateTemplate') }}
         </el-button>
       </el-tooltip>
     </el-form-item>
 
     <el-form-item 
-      label="视频号数据表"
+      :label="t('v2Form.form.userTable')"
     >
       <TableSelect v-model="paneData.userTableId" />
     </el-form-item>
 
     <el-form-item
-      label="视频号名称"
+      :label="t('v2Form.form.v2Name')"
     >
       <el-input 
         v-model="paneData.v2_name"
-        placeholder="请输入视频号名称"  
+        :placeholder="t('v2Form.form.v2NamePlaceholder')"  
       />
     </el-form-item>
 
     <el-form-item label-width="null">
       <el-tooltip 
         :content="isLocked || !formData.key || !paneData.v2_name || 
-        !paneData.userTableId ? '需要登录、视频号名称、账号数据表' : '添加视频号' " 
+        !paneData.userTableId ? t('v2Form.tooltips.addUser') : t('v2Form.form.addUser') " 
         effect="dark"
         placement="top"
       >
@@ -498,34 +505,34 @@
           plain
           style="flex: 1;"
         >
-          添加视频号
+          {{ t('v2Form.form.addUser') }}
         </el-button>
       </el-tooltip>
     </el-form-item>
 
     <el-form-item 
-      label="视频数据表"
+      :label="t('v2Form.form.workTable')"
     >
       <TableSelect v-model="paneData.workTableId" />
     </el-form-item>
 
-    <el-form-item label="日期限制">
-      <el-select v-model="paneData.searchDate" placeholder="请选择日期限制">
-        <el-option v-for="item in dateRange" :key="item" :label="item > 1 ? item + '天内' : '今日'" :value="item" />
+    <el-form-item :label="t('v2Form.form.dateLimit')">
+      <el-select v-model="paneData.searchDate" :placeholder="t('v2Form.form.dateLimitPlaceholder')">
+        <el-option v-for="item in dateRange" :key="item" :label="item > 1 ? item + t('v2Form.form.days') : t('v2Form.form.today')" :value="item" />
       </el-select>
     </el-form-item>
 
     <el-form-item label-width="null">
       <el-radio-group v-model="paneData.useTimeCut">
-        <el-radio :label="false">获取日期内全部</el-radio>
-        <el-radio :label="true">获取日期内新增</el-radio>
+        <el-radio :label="false">{{ t('v2Form.form.allInDate') }}</el-radio>
+        <el-radio :label="true">{{ t('v2Form.form.newInDate') }}</el-radio>
       </el-radio-group>
     </el-form-item>
 
     <el-form-item label-width="null">
       <el-tooltip 
         :content="isLocked || !formData.key || !paneData.userTableId || 
-        !paneData.workTableId ? '需要登录、账号数据表、视频数据表' : '获取发布视频' " 
+        !paneData.workTableId ? t('v2Form.tooltips.getWorks') : t('v2Form.form.getWorks') " 
         effect="dark"
         placement="top"
       >
@@ -536,7 +543,7 @@
           plain
           style="flex: 1;"
         >
-          获取{{paneData.searchDate > 1 ? paneData.searchDate + '天内' : '今日'}}发布视频
+          {{ t('v2Form.form.getWorks', { days: paneData.searchDate > 1 ? paneData.searchDate + t('v2Form.form.days') : t('v2Form.form.today') }) }}
         </el-button>
       </el-tooltip>
     </el-form-item>
@@ -544,7 +551,7 @@
 
     <el-form-item label-width="null">
       <el-tooltip 
-        :content="isLocked || !formData.key || !paneData.workTableId ? '需要登录、视频数据表' : '更新视频互动信息' " 
+        :content="isLocked || !formData.key || !paneData.workTableId ? t('v2Form.tooltips.updateWorkInteraction') : '更新视频互动信息' " 
         effect="dark"
         placement="top"
       >
@@ -555,14 +562,14 @@
           plain
           style="flex: 1;"
         >
-          更新视频互动信息
+          {{ t('v2Form.form.updateWorkInteraction') }}
         </el-button>
       </el-tooltip>
     </el-form-item>
     
     <el-form-item label-width="null">
       <el-tooltip 
-        :content="isLocked || !formData.key || !paneData.workTableId ? '需要登录、视频数据表' : '更新视频互动信息' " 
+        :content="isLocked || !formData.key || !paneData.workTableId ? t('v2Form.tooltips.updateWorkInteraction') : '更新视频互动信息' " 
         effect="dark"
         placement="top"
       >
@@ -573,17 +580,17 @@
           plain
           style="flex: 1;"
         >
-          更新视频互动信息(含下载链接)
+          {{ t('v2Form.form.updateWorkInteractionWithDownload') }}
         </el-button>
       </el-tooltip>
     </el-form-item>
 
-    <el-form-item v-if="alertList[1]" label-width="null">
+    <el-form-item v-if="alterShow[1]" label-width="null">
       <el-alert
         :title="alertList[1].title"
         type="primary"
         show-icon
-        @close="() => alertList[1] = null"
+        @close="() => alterShow[1] = false"
       />
     </el-form-item>
 

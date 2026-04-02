@@ -1,5 +1,11 @@
 import { bitable, FieldType, IOpenSegmentType, FilterOperator, FilterConjunction } from '@lark-base-open/js-sdk';
 
+// 错误消息
+const ERROR_MESSAGES = {
+  writeFailed: '写入失败',
+  updateFailed: '更新失败'
+}
+
 /**
  * 写入数据到表格
  * @param {string} tableId - 表格ID，如果是新建表格则为null
@@ -124,7 +130,7 @@ export const writeToTable = async (tableId, dataList, fieldsConfig, tableName = 
     return {
       success: false,
       data: null,
-      error: error.message || '写入失败'
+      error: error.message || ERROR_MESSAGES.writeFailed
     };
   }
 };
@@ -263,7 +269,7 @@ export const updateTable = async (tableId, dataList, fieldsConfig) => {
     return {
       success: false,
       data: null,
-      error: error.message || '更新失败'
+      error: error.message || ERROR_MESSAGES.updateFailed
     };
   }
 };

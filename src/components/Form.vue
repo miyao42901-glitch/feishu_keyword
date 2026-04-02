@@ -1,6 +1,7 @@
 <script>
   import { bitable, bridge, FieldType } from '@lark-base-open/js-sdk';
   import { ref, onMounted, computed, watch } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import {
     ElButton,
     ElForm,
@@ -54,10 +55,11 @@
       WechatLoginDialog,
     },
     setup() {
+      const { t } = useI18n();
       const app_id = 'cli_a9f6a88460f85bc6';
       const formRef = ref(null)
       const alertList = ref({
-        0: {title: '尚未登录,请选择登录方式' },
+        0: {title: t('form.alert.guide') },
       })
       const formData = ref({
         username: null,
@@ -120,7 +122,7 @@
           if (localStorage.getItem('user_access_token')) {
             if (!(await getUserDetail(localStorage.getItem('user_access_token')))) {
               localStorage.removeItem('user_access_token');
-              formData.value.message = '自动登录失败，请重新登录';
+              formData.value.message = t('form.messages.autoLoginFailed');
               formData.value.messageType = 'error';
             }
           }
@@ -231,7 +233,7 @@
         isLocked.value = true;
         try {
           if (!localStorage.getItem('user_access_token')) {
-            formData.value.message = '请先登录';
+            formData.value.message = t('form.messages.loginFirst');
             formData.value.messageType = 'error';
           }
           else {
@@ -249,7 +251,7 @@
 
       async function handleRecharge(data) {
         isLocked.value = true;
-        formData.value.message = `充值${data.amount}元成功，赠送${data.gift}元`;
+        formData.value.message = t('form.messages.rechargeSuccess', { amount: data.amount, gift: data.gift });
         formData.value.messageType = 'success';
         await delay(500)
         isLocked.value = false;
@@ -259,14 +261,14 @@
         isLocked.value = true;
         try {
           if (!data.data.accessToken) {
-            formData.value.message = '登录失败，请重试或联系管理员';
+            formData.value.message = t('form.messages.loginFailed');
             formData.value.messageType = 'error';
           }
           else {
             localStorage.setItem('user_access_token', data.data.accessToken);
             const result = await getUserDetail(data.data.accessToken);
             if (!result) {
-              formData.value.message = '登录失败，请重试或联系管理员';
+              formData.value.message = t('form.messages.loginFailed');
               formData.value.messageType = 'error';
             }
           }
@@ -284,7 +286,7 @@
             await delay(500)
           }
           else {
-            formData.value.message = '请先登录';
+            formData.value.message = t('form.messages.loginFirst');
             formData.value.messageType = 'error';
           }
         }
@@ -313,6 +315,7 @@
         openRechargeDialog,
         handleRecharge,
         openWechatLoginDialog,
+        t,
       };
     },
   };
@@ -321,7 +324,7 @@
 <template>
   <div class="form-container">
     <el-form ref="formRef" class="form" :model="formData">
-      <div class="title-section">极致了数据助手</div>
+      <div class="title-section">{{ t('form.title') }}</div>
 
       <el-card class="card-item" shadow="hover">
           
@@ -330,20 +333,20 @@
             type="primary"
             @close="() => alertList[0] = null"
           >
-            详情查看<a href="https://lcnnrhjmwxym.feishu.cn/wiki/OruzwbB6nigLMek8zxFcbKwmnXg" target="_blank">使用指南</a>
+            {{ t('form.alert.guide.text') }}<a href="https://lcnnrhjmwxym.feishu.cn/wiki/OruzwbB6nigLMek8zxFcbKwmnXg" target="_blank">{{ t('form.alert.guide.urlText') }}</a>
           </el-alert>
         </el-form-item>
         
         <el-form label-width="60px" label-position="left">
           <el-form-item 
-            label="用户名"
+            :label="t('form.fields.username')"
             v-if="formData.isLogin"
           >
             <el-text style="flex: 1;">{{ formData.username }}</el-text>
           </el-form-item>
 
           <el-form-item 
-            label="余额"
+            :label="t('form.fields.balance')"
             v-if="formData.isLogin"
           >
             <el-text style="flex: 1;">{{ formData.remainMoney }}</el-text>
@@ -369,7 +372,7 @@
               plain
               style="flex: 1;"
             >
-              刷新余额
+              {{ t('form.buttons.refreshBalance') }}
             </el-button>
 
             <el-button 
@@ -378,7 +381,7 @@
               plain
               style="flex: 1;"
             >
-              退出登录
+              {{ t('form.buttons.logout') }}
             </el-button>
           </el-form-item>
 
@@ -392,7 +395,7 @@
               style="flex: 1;"
               @click="openRechargeDialog"
             >
-              余额充值
+              {{ t('form.buttons.recharge') }}
             </el-button>
 
             <el-button
@@ -403,7 +406,7 @@
               plain
               style="flex: 1;text-decoration: none;"
             >
-              了解更多
+              {{ t('form.buttons.learnMore') }}
             </el-button>
           </el-form-item>
 
@@ -428,7 +431,7 @@
               @click="openWechatLoginDialog"
               plain
               style="flex: 1;"
-            >微信扫码注册/登录</el-button>
+            >{{ t('form.buttons.wechatLogin') }}</el-button>
           </el-form-item>
 
           <el-form-item 
@@ -440,7 +443,7 @@
               @click="openLoginDialog"
               plain
               style="flex: 1;"
-            >账号密码登录</el-button>
+            >{{ t('form.buttons.passwordLogin') }}</el-button>
           </el-form-item>
 
           <el-form-item 
@@ -455,7 +458,7 @@
               plain
               style="flex: 1;text-decoration: none;"
             >
-              了解更多
+              {{ t('form.buttons.learnMore') }}
             </el-button>
           </el-form-item>
 
@@ -465,13 +468,13 @@
 
       <el-card class="card-item" shadow="hover">
         <el-tabs :disabled="isLocked">
-          <el-tab-pane label="抖音">
+          <el-tab-pane :label="t('form.tabs.douyin')">
             <DyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
-          <el-tab-pane label="视频号">
+          <el-tab-pane :label="t('form.tabs.video号')">
             <V2Form :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
-          <el-tab-pane label="公众号">
+          <el-tab-pane :label="t('form.tabs.wechat')">
             <GhForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
         </el-tabs>
@@ -485,7 +488,7 @@
     <div class="loading-overlay" v-if="isShow">
       <div class="loading-content">
         <div class="loading-spinner"></div>
-        <p>操作进行中，请稍候...</p>
+        <p>{{ t('form.loading') }}</p>
       </div>
     </div>
 

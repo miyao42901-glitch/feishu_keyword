@@ -1,6 +1,7 @@
 <script>
   import { ref, watch } from 'vue';
   import { bitable } from '@lark-base-open/js-sdk';
+  import { useI18n } from 'vue-i18n';
   import {
     ElSelect,
     ElOption,
@@ -19,6 +20,7 @@
     },
     emits: ['update:modelValue'],
     setup(props, { emit }) {
+      const { t } = useI18n();
       const tableDataList = ref([]);
       const isLoading = ref(false);
       const selectedTableId = ref(props.modelValue);
@@ -61,6 +63,7 @@
         tableDataList,
         isLoading,
         loadTableList,
+        t,
       };
     },
   };
@@ -70,7 +73,7 @@
   <div class="table-select">
     <el-select
       v-model="selectedTableId"
-      placeholder="请选择表格"
+      :placeholder="t('tableSelect.placeholder')"
       style="width: 100%;"
       @visible-change="loadTableList"
       :loading="isLoading"

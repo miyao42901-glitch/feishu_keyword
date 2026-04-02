@@ -1,5 +1,6 @@
 <script>
-  import { ref } from 'vue';
+  import { ref, computed } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import { bitable, FieldType, NumberFormatter, DateFormatter } from '@lark-base-open/js-sdk';
   import {
     ElForm,
@@ -43,74 +44,81 @@
     },
     emits: ['update:isLocked'],
     setup(props, { emit }) {
+      const { t } = useI18n();
+
       function dyUserFields() {
         return {
-          nickname: { label: '用户名', fieldType: FieldType.Text, isPrimary: true},
-          sec_uid: { label: '用户id', fieldType: FieldType.Text, },
-          max_follower_count: { label: '最大粉丝数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          mplatform_followers_count: { label: '当前粉丝数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          following_count: { label: '关注数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          signature: { label: '简介', fieldType: FieldType.Text, },
-          total_favorited: { label: '获赞总数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          last_get_time: { label: '用户数据更新时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
+          nickname: { label: t('dyForm.userFields.nickname'), fieldType: FieldType.Text, isPrimary: true},
+          sec_uid: { label: t('dyForm.userFields.sec_uid'), fieldType: FieldType.Text, },
+          max_follower_count: { label: t('dyForm.userFields.max_follower_count'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          mplatform_followers_count: { label: t('dyForm.userFields.mplatform_followers_count'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          following_count: { label: t('dyForm.userFields.following_count'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          signature: { label: t('dyForm.userFields.signature'), fieldType: FieldType.Text, },
+          total_favorited: { label: t('dyForm.userFields.total_favorited'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          last_get_time: { label: t('dyForm.userFields.last_get_time'), fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           get_interaction_flag: {
-            label: '获取互动数标志', 
+            label: t('dyForm.userFields.get_interaction_flag'), 
             fieldType: FieldType.SingleSelect, 
             options: {
-              unknow: '未获取过互动数',
-              fail: '上次获取互动数失败',
-              success: '上次获取互动数成功',
+              unknow: t('dyForm.options.interaction.unknow'),
+              fail: t('dyForm.options.interaction.fail'),
+              success: t('dyForm.options.interaction.success'),
             },
           },
-          interaction_fail_reason: { label: '获取互动数失败原因', fieldType: FieldType.Text, },
+          interaction_fail_reason: { label: t('dyForm.userFields.interaction_fail_reason'), fieldType: FieldType.Text, },
           get_vedio_flag: {
-            label: '获取视频标志', 
+            label: t('dyForm.userFields.get_vedio_flag'), 
             fieldType: FieldType.SingleSelect, 
             options: {
-              unknow: '未获取过视频',
-              fail: '上次获取视频失败',
-              success: '上次获取视频成功',
+              unknow: t('dyForm.options.video.unknow'),
+              fail: t('dyForm.options.video.fail'),
+              success: t('dyForm.options.video.success'),
             },
           },
-          vedio_fail_reason: { label: '获取视频失败原因', fieldType: FieldType.Text, },
+          vedio_fail_reason: { label: t('dyForm.userFields.vedio_fail_reason'), fieldType: FieldType.Text, },
         }
       }
 
       function dyVedioFields(linkTableId = '') {
         return {
-          caption: { label: '视频标题', fieldType: FieldType.Text, isPrimary: true},
+          caption: { label: t('dyForm.videoFields.caption'), fieldType: FieldType.Text, isPrimary: true},
           dy_link: {
-            label: '视频作者',
+            label: t('dyForm.videoFields.dy_link'),
             fieldType: FieldType.SingleLink,
             property:{
               tableId: linkTableId, 
               multiple: false,
             }
           },
-          aweme_id: { label: '视频id', fieldType: FieldType.Text, },
-          vedio_url: { label: '视频url', fieldType: FieldType.Url, },
-          create_time: { label: '视频发布时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
-          digg_count: { label: '点赞数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          comment_count: { label: '评论数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          share_count: { label: '分享数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          collect_count: { label: '收藏数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          last_get_time: { label: '互动数据更新时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
+          aweme_id: { label: t('dyForm.videoFields.aweme_id'), fieldType: FieldType.Text, },
+          vedio_url: { label: t('dyForm.videoFields.vedio_url'), fieldType: FieldType.Url, },
+          create_time: { label: t('dyForm.videoFields.create_time'), fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
+          digg_count: { label: t('dyForm.videoFields.digg_count'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          comment_count: { label: t('dyForm.videoFields.comment_count'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          share_count: { label: t('dyForm.videoFields.share_count'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          collect_count: { label: t('dyForm.videoFields.collect_count'), fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          last_get_time: { label: t('dyForm.videoFields.last_get_time'), fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           get_interaction_flag: {
-            label: '获取互动数标志', 
+            label: t('dyForm.videoFields.get_interaction_flag'), 
             fieldType: FieldType.SingleSelect, 
             options: {
-              unknow: '未获取过互动数',
-              fail: '上次获取互动数失败',
-              success: '上次获取互动数成功',
+              unknow: t('dyForm.options.interaction.unknow'),
+              fail: t('dyForm.options.interaction.fail'),
+              success: t('dyForm.options.interaction.success'),
             },
           },
-          interaction_fail_reason: { label: '获取互动数失败原因', fieldType: FieldType.Text, },
+          interaction_fail_reason: { label: t('dyForm.videoFields.interaction_fail_reason'), fieldType: FieldType.Text, },
         }
       }
 
-      const alertList = ref({
-        0: {title: '请生成空模板或者选择已有数据表' },
-        1: {title: '对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据' },
+      const alertList = computed(() => ({
+        0: {title: t('dyForm.alerts.template')},
+        1: {title: t('dyForm.alerts.duplicate')},
+      }))
+
+      const alterShow = ref({
+        0: true,
+        1: true,
       })
 
       const dateRange = ref([1,3,7,15,30])
@@ -150,7 +158,7 @@
           }
         }catch (error) {
           console.error('操作失败:', error);
-          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.message = t('dyForm.messages.operationFailed', { error: error.message || t('dyForm.messages.unknownError') });
           props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
@@ -178,16 +186,16 @@
               }],
               dyUserFields(),
             );
-            props.formData.message = '新增账户数据完成，消耗：' + res.data.price;
+            props.formData.message = t('dyForm.messages.addUserSuccess', { price: res.data.price });
             props.formData.messageType = 'success';
           }
           else{
-            props.formData.message = '操作失败: ' + (res.data.msg || '未知错误');
+            props.formData.message = t('dyForm.messages.operationFailed', { error: res.data.msg || t('dyForm.messages.unknownError') });
             props.formData.messageType = 'error';
           }
         } catch (error) {
           console.error('操作失败:', error);
-          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.message = t('dyForm.messages.operationFailed', { error: error.message || t('dyForm.messages.unknownError') });
           props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
@@ -240,7 +248,7 @@
             else{
               updateItem.data = {
                 get_interaction_flag: 'fail',
-                interaction_fail_reason: res.data.msg || '未知错误',
+                interaction_fail_reason: res.data.msg || t('dyForm.messages.unknownError'),
               }
             }
             
@@ -254,13 +262,16 @@
           )
 
           if(recordIdList.length > 0){
-            props.formData.message = '获取账户互动数据完成，共操作' + recordIdList.length + '条账户数据，成功操作' +
-              successCount + '条账户数据，消耗：' + totalCost.toFixed(2);
+            props.formData.message = t('dyForm.messages.updateUserSuccess', {
+              total: recordIdList.length,
+              success: successCount,
+              price: totalCost.toFixed(2)
+            });
             props.formData.messageType = 'success';
           }
         } catch (error) {
           console.error('操作失败:', error);
-          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.message = t('dyForm.messages.operationFailed', { error: error.message || t('dyForm.messages.unknownError') });
           props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
@@ -328,7 +339,7 @@
                   recordId: user_record, 
                   data: {
                     get_vedio_flag: 'fail',
-                    vedio_fail_reason: res.data.msg || '未知错误',
+                    vedio_fail_reason: res.data.msg || t('dyForm.messages.unknownError'),
                   }
                 };
                 break
@@ -402,14 +413,18 @@
 
           if(recordIdList.length > 0){
             const successCount = Object.values(totalLastTime).filter(item => item.data.get_vedio_flag === 'success').length;
-            props.formData.message = '获取账户视频数据完成，共操作' + recordIdList.length + '条账户数据，成功操作' +
-              successCount + '条账户数据，新增' + flatData.length + '条视频数据，消耗：' + totalCost.toFixed(2);
+            props.formData.message = t('dyForm.messages.getVideosSuccess', {
+              total: recordIdList.length,
+              success: successCount,
+              new: flatData.length,
+              price: totalCost.toFixed(2)
+            });
             props.formData.messageType = 'success';
           }
 
         } catch (error) {
           console.error('操作失败:', error);
-          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.message = t('dyForm.messages.operationFailed', { error: error.message || t('dyForm.messages.unknownError') });
           props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
@@ -465,7 +480,7 @@
             else{
               updateItem.data = {
                 get_interaction_flag: 'fail',
-                interaction_fail_reason: res.data.msg || '未知错误',
+                interaction_fail_reason: res.data.msg || t('dyForm.messages.unknownError'),
               }
             }
             
@@ -479,13 +494,16 @@
           )
           
           if(recordIdList.length > 0){
-            props.formData.message = '获取视频互动数据完成，共操作' + recordIdList.length + '条视频数据，成功操作' +
-              successCount + '条视频数据，消耗：' + totalCost.toFixed(2);
+            props.formData.message = t('dyForm.messages.updateVideoSuccess', {
+              total: recordIdList.length,
+              success: successCount,
+              price: totalCost.toFixed(2)
+            });
             props.formData.messageType = 'success';
           }
         } catch (error) {
           console.error('操作失败:', error);
-          props.formData.message = '操作失败: ' + (error.message || '未知错误');
+          props.formData.message = t('dyForm.messages.operationFailed', { error: error.message || t('dyForm.messages.unknownError') });
           props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
@@ -495,12 +513,14 @@
       return {
         dyData,
         alertList,
+        alterShow,
         dateRange,
         addTableTemplate,
         addDyUser,
         updateDyUser,
         getRecentVedios,
         getVedioInteract,
+        t
       };
     },
   };
@@ -509,18 +529,18 @@
 <template>
   <el-form class="ghForm" label-position="left" label-width="120px">   
 
-    <el-form-item v-if="alertList[0]" label-width="null">
+    <el-form-item v-if="alterShow[0]" label-width="null">
       <el-alert
         :title="alertList[0].title"
         type="primary"
         show-icon
-        @close="() => alertList[0] = null"
+        @close="() => alterShow[0] = false"
       />
     </el-form-item>
 
     <el-form-item label-width="null">
       <el-tooltip 
-        :content="'生成一对关联的抖音账号数据表空模板、视频数据表空模板，修改视频数据表的【视频作者】字段可以设置关联的抖音账号数据表'" 
+        :content="t('dyForm.tooltips.generateTemplate')" 
         effect="dark"
         placement="top"
       >
@@ -531,40 +551,40 @@
           plain
           style="flex: 1;"
         >
-          生成数据表空模板
+          {{ t('dyForm.form.generateTemplate') }}
         </el-button>
       </el-tooltip>
     </el-form-item>
 
     <el-form-item 
-      label="抖音号数据表"
+      :label="t('dyForm.form.userTable')"
     >
       <TableSelect v-model="dyData.userTableId" />
     </el-form-item>
 
 
     <el-form-item
-      label="抖音用户id"
+      :label="t('dyForm.form.userId')"
     >
       <el-input 
         v-model="dyData.sec_user_id"
-        placeholder="请输入抖音用户id"  
+        :placeholder="t('dyForm.form.userIdPlaceholder')"  
       />
     </el-form-item>
 
     <el-form-item
-      label="主页分享链接"
+      :label="t('dyForm.form.shareLink')"
     >
       <el-input 
         v-model="dyData.share_text"
-        placeholder="请输入主页分享链接"
+        :placeholder="t('dyForm.form.shareLinkPlaceholder')"
       />
     </el-form-item>
 
     <el-form-item label-width="null">
       <el-tooltip 
         :content="isLocked || !formData.key || !dyData.sec_user_id && !dyData.share_text || 
-        !dyData.userTableId ? '需要登录、抖音账号id或名片分享链接、抖音账号数据表' : '添加抖音账号' " 
+        !dyData.userTableId ? t('dyForm.tooltips.addUser') : t('dyForm.form.addUser') " 
         effect="dark"
         placement="top"
       >
@@ -575,7 +595,7 @@
           plain
           style="flex: 1;"
         >
-          添加抖音账号
+          {{ t('dyForm.form.addUser') }}
         </el-button>
       </el-tooltip>
     </el-form-item>
@@ -583,7 +603,7 @@
     <el-form-item label-width="null">
       <el-tooltip 
         :content="isLocked || !formData.key || 
-        !dyData.userTableId ? '需要登录、抖音账号数据表' : '更新抖音账号数据' " 
+        !dyData.userTableId ? t('dyForm.tooltips.updateUser') : t('dyForm.form.updateUser') " 
         effect="dark"
         placement="top"
       >
@@ -594,34 +614,34 @@
           plain
           style="flex: 1;"
         >
-          更新抖音账号数据  
+          {{ t('dyForm.form.updateUser') }}
         </el-button>
       </el-tooltip>
     </el-form-item>
 
     <el-form-item 
-      label="视频数据表"
+      :label="t('dyForm.form.videoTable')"
     >
       <TableSelect v-model="dyData.vedioTableId" />
     </el-form-item>
 
-    <el-form-item label="日期限制">
-      <el-select v-model="dyData.searchDate" placeholder="请选择日期限制">
-        <el-option v-for="item in dateRange" :key="item" :label="item > 1 ? item + '天内' : '今日'" :value="item" />
+    <el-form-item :label="t('dyForm.form.dateLimit')">
+      <el-select v-model="dyData.searchDate" :placeholder="t('dyForm.form.dateLimitPlaceholder')">
+        <el-option v-for="item in dateRange" :key="item" :label="item > 1 ? item + t('dyForm.form.days') : t('dyForm.form.today')" :value="item" />
       </el-select>
     </el-form-item>
 
     <el-form-item label-width="null">
       <el-radio-group v-model="dyData.useTimeCut">
-        <el-radio :label="false">获取日期内全部</el-radio>
-        <el-radio :label="true">获取日期内新增</el-radio>
+        <el-radio :label="false">{{ t('dyForm.form.allInDate') }}</el-radio>
+        <el-radio :label="true">{{ t('dyForm.form.newInDate') }}</el-radio>
       </el-radio-group>
     </el-form-item>
 
     <el-form-item label-width="null">
       <el-tooltip 
         :content="isLocked || !formData.key || !dyData.userTableId || 
-        !dyData.vedioTableId ? '需要登录、抖音账号数据表、抖音视频数据表' : '获取发布视频' " 
+        !dyData.vedioTableId ? t('dyForm.tooltips.getVideos') : t('dyForm.form.getVideos') " 
         effect="dark"
         placement="top"
       >
@@ -632,14 +652,14 @@
           plain
           style="flex: 1;"
         >
-          获取{{dyData.searchDate > 1 ? dyData.searchDate + '天内' : '今日'}}发布视频
+          {{ t('dyForm.form.getVideos', { days: dyData.searchDate > 1 ? dyData.searchDate + t('dyForm.form.days') : t('dyForm.form.today') }) }}
         </el-button>
       </el-tooltip>
     </el-form-item>
 
     <el-form-item label-width="null">
       <el-tooltip
-        :content="isLocked || !formData.key || !dyData.vedioTableId ? '需要登录、抖音视频数据表' : '更新视频互动信息' " 
+        :content="isLocked || !formData.key || !dyData.vedioTableId ? t('dyForm.tooltips.updateVideoInteraction') : t('dyForm.form.updateVideoInteraction') " 
         effect="dark"
         placement="top"
       >
@@ -650,17 +670,17 @@
           plain
           style="flex: 1;"
         >
-          更新视频互动信息
+          {{ t('dyForm.form.updateVideoInteraction') }}
         </el-button>
       </el-tooltip>
     </el-form-item>
         
-    <el-form-item v-if="alertList[1]" label-width="null">
+    <el-form-item v-if="alterShow[1]" label-width="null">
       <el-alert
         :title="alertList[1].title"
         type="primary"
         show-icon
-        @close="() => alertList[1] = null"
+        @close="() => alterShow[1] = false"
       />
     </el-form-item>
 
