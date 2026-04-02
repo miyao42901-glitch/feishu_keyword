@@ -237,7 +237,7 @@
     }
   },
   "form": {
-    "title": "Extreme Data Assistant",
+    "title": "JiZhiLa Data Assistant",
     "alert": {
       "guide": {
         "text": "For details, please check",
@@ -279,7 +279,7 @@
       "username": "Please enter username",
       "password": "Please enter password"
     },
-    "protocol": "I have read and agree to",
+    "protocol": "I have read and agree to the",
     "buttons": {
       "cancel": "Cancel",
       "login": "Login"
@@ -290,6 +290,10 @@
       "agreeProtocol": "Please read and agree to the agreement first",
       "loginFailed": "Login failed",
       "networkError": "Network error, please try again later"
+    },
+    "agreement": {
+      "userAgreement": "User Agreement",
+      "privacyPolicy": "Privacy Policy"
     }
   },
   "rechargeDialog": {
@@ -327,9 +331,9 @@
   },
   "wechatLoginDialog": {
     "title": "WeChat QR Code Login",
-    "protocol": "I have read and agree to",
+    "protocol": "I have read and agree to the",
     "agreeProtocol": "Please read and agree to the agreement first",
-    "tip": "Please use WeChat to scan the QR code to login",
+    "tip": "Please use WeChat to scan the code to log in",
     "loading": "Generating QR code...",
     "buttons": {
       "cancel": "Cancel"
@@ -338,6 +342,10 @@
       "qrcodeFailed": "Failed to generate QR code, please try again later",
       "loginSuccess": "Login successful",
       "loginTimeout": "Login timeout, please scan the code again"
+    },
+    "agreement": {
+      "userAgreement": "User Agreement",
+      "privacyPolicy": "Privacy Policy"
     }
   },
   "utils": {

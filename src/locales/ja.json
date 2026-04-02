@@ -237,7 +237,7 @@
     }
   },
   "form": {
-    "title": "究極のデータアシスタント",
+    "title": "JiZhiLaデータアシスタント",
     "alert": {
       "guide": {
         "text": "詳細はこちらを参照",
@@ -290,6 +290,10 @@
       "agreeProtocol": "まず利用規約に同意してください",
       "loginFailed": "ログインに失敗しました",
       "networkError": "ネットワークエラー、後でもう一度お試しください"
+    },
+    "agreement": {
+      "userAgreement": "利用規約",
+      "privacyPolicy": "プライバシーポリシー"
     }
   },
   "rechargeDialog": {
@@ -338,6 +342,10 @@
       "qrcodeFailed": "QRコードの生成に失敗しました、後でもう一度お試しください",
       "loginSuccess": "ログインに成功しました",
       "loginTimeout": "ログインタイムアウト、再度コードをスキャンしてください"
+    },
+    "agreement": {
+      "userAgreement": "利用規約",
+      "privacyPolicy": "プライバシーポリシー"
     }
   },
   "utils": {

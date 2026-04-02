@@ -182,7 +182,7 @@
       async function getUserDetail(user_access_token) {
         let result = false;
         try {
-          const res = await pluginAPI.get('/fbmain/monitor/v3/api_user_detail', {
+          const res = await axios.get('https://www.dajiala.com/fbmain/monitor/v3/api_user_detail', {
             headers: {
               accesstoken: user_access_token,
             }

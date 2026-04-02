@@ -25,9 +25,9 @@
     <div class="protocol-section">
       <el-checkbox v-model="agreeProtocol" label="agree" @click="clearError">
         {{ t('loginDialog.protocol') }}
-        <el-link type="primary" href="https://static.dajiala.com:9224/static/HTMLPage/UserAgreement.html" target="_blank">《用户协议》</el-link>
-        和
-        <el-link type="primary" href="https://static.dajiala.com:9224/static/HTMLPage/ProtectionInform.html" target="_blank" @click="clearError">《个人信息保护政策》</el-link>
+        <el-link type="primary" href="https://static.dajiala.com:9224/static/HTMLPage/UserAgreement.html" target="_blank">{{ t('loginDialog.agreement.userAgreement') }}</el-link>
+        {{ '&' }}
+        <el-link type="primary" href="https://static.dajiala.com:9224/static/HTMLPage/ProtectionInform.html" target="_blank">{{ t('loginDialog.agreement.privacyPolicy') }}</el-link>
       </el-checkbox>
     </div>
     
@@ -154,7 +154,6 @@ watch(dialogVisible, (newVal) => {
 
 .protocol-section {
   margin-top: 16px;
-  padding: 0 20px;
 }
 
 .protocol-section .el-checkbox {

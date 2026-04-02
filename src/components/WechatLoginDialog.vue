@@ -18,9 +18,9 @@
         <div class="protocol-section">
           <el-checkbox v-model="agreeProtocol" label="agree">
             {{ t('wechatLoginDialog.protocol') }}
-            <el-link type="primary" href="https://static.dajiala.com:9224/static/HTMLPage/UserAgreement.html" target="_blank">《用户协议》</el-link>
-            和
-            <el-link type="primary" href="https://static.dajiala.com:9224/static/HTMLPage/ProtectionInform.html" target="_blank">《个人信息保护政策》</el-link>
+            <el-link type="primary" href="https://static.dajiala.com:9224/static/HTMLPage/UserAgreement.html" target="_blank">{{ t('wechatLoginDialog.agreement.userAgreement') }}</el-link>
+            {{ '&' }}
+            <el-link type="primary" href="https://static.dajiala.com:9224/static/HTMLPage/ProtectionInform.html" target="_blank">{{ t('wechatLoginDialog.agreement.privacyPolicy') }}</el-link>
           </el-checkbox>
         </div>
       </div>
@@ -213,7 +213,6 @@ watch(dialogVisible, (newVal) => {
 
 .protocol-section {
   margin-top: 16px;
-  padding: 0 20px;
 }
 
 .protocol-section .el-checkbox {

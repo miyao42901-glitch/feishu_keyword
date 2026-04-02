@@ -290,6 +290,10 @@
       "agreeProtocol": "请先阅读并同意协议",
       "loginFailed": "登录失败",
       "networkError": "网络错误，请稍后重试"
+    },
+    "agreement": {
+      "userAgreement": "用户协议",
+      "privacyPolicy": "个人信息保护政策"
     }
   },
   "rechargeDialog": {
@@ -338,6 +342,10 @@
       "qrcodeFailed": "生成二维码失败，请稍后重试",
       "loginSuccess": "登录成功",
       "loginTimeout": "登录超时，请重新扫码"
+    },
+    "agreement": {
+      "userAgreement": "用户协议",
+      "privacyPolicy": "个人信息保护政策"
     }
   },
   "utils": {
