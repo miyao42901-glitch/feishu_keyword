@@ -1,0 +1,10 @@
+.ghForm .el-form-item__label {
+  font-size: 16px;
+  color: var(--el-text-color-primary);
+}
+.ghForm .el-form-item__content, .ghForm .el-button {
+  font-size: 16px;
+}
+.ghForm .el-form-item:last-child {
+  margin-bottom: 0;
+}

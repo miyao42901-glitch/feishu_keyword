@@ -28,6 +28,7 @@
   import RechargeDialog from './RechargeDialog.vue'
   import WechatLoginDialog from './WechatLoginDialog.vue'
   import axios from 'axios'
+  import '@/assets/form-styles.css'
 
   export default {
     components: {
@@ -323,21 +324,22 @@
 
 <template>
   <div class="form-container">
-    <el-form ref="formRef" class="form" :model="formData">
+    <el-form ref="formRef" :model="formData">
       <div class="title-section">{{ t('form.title') }}</div>
 
       <el-card class="card-item" shadow="hover">
-          
-        <el-form-item v-if="alertList[0]" label-width="null">
-          <el-alert
-            type="primary"
-            @close="() => alertList[0] = null"
-          >
-            {{ t('form.alert.guide.text') }}<a href="https://lcnnrhjmwxym.feishu.cn/wiki/OruzwbB6nigLMek8zxFcbKwmnXg" target="_blank">{{ t('form.alert.guide.urlText') }}</a>
-          </el-alert>
-        </el-form-item>
         
-        <el-form label-width="60px" label-position="left">
+        <el-form class="ghForm" label-position="left" label-width="auto">
+          
+          <el-form-item v-if="alertList[0]" label-width="null">
+            <el-alert
+              type="primary"
+              @close="() => alertList[0] = null"
+            >
+              {{ t('form.alert.guide.text') }}<a href="https://lcnnrhjmwxym.feishu.cn/wiki/OruzwbB6nigLMek8zxFcbKwmnXg" target="_blank">{{ t('form.alert.guide.urlText') }}</a>
+            </el-alert>
+          </el-form-item>
+
           <el-form-item 
             :label="t('form.fields.username')"
             v-if="formData.isLogin"
@@ -513,16 +515,6 @@
 </template>
 
 <style scoped>
-  .form :deep(.el-form-item__label) {
-    font-size: 16px;
-    color: var(--el-text-color-primary);
-  }
-  .form :deep(.el-form-item__content), .form :deep(.el-link), .form :deep(.el-button) {
-    font-size: 16px;
-  }
-  .form :deep(.el-form-item:last-child) {
-    margin-bottom: 0;
-  }
   .title-section {
     font-size: 20px;
     padding-left: 45px;

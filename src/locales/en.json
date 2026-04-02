@@ -43,7 +43,7 @@
     },
     "alerts": {
       "template": "Please generate an empty template or select an existing table",
-      "duplicate": "For duplicate data issues, it is recommended to use the [Delete Duplicate Data] plugin to handle duplicate data"
+      "duplicate": "For duplicate data issues, it is recommended to use the [Delete Duplicate Records] plugin to handle duplicate data"
     },
     "form": {
       "generateTemplate": "Generate empty table template",
@@ -133,7 +133,7 @@
     },
     "alerts": {
       "template": "Please generate an empty template or select an existing table",
-      "duplicate": "For duplicate data issues, it is recommended to use the [Delete Duplicate Data] plugin to handle duplicate data"
+      "duplicate": "For duplicate data issues, it is recommended to use the [Delete Duplicate Records] plugin to handle duplicate data"
     },
     "form": {
       "generateTemplate": "Generate empty table template",
@@ -203,7 +203,7 @@
     },
     "alerts": {
       "template": "Please generate an empty template or select an existing table",
-      "duplicate": "For duplicate data issues, it is recommended to use the [Delete Duplicate Data] plugin to handle duplicate data"
+      "duplicate": "For duplicate data issues, it is recommended to use the [Delete Duplicate Records] plugin to handle duplicate data"
     },
     "form": {
       "generateTemplate": "Generate empty table template",

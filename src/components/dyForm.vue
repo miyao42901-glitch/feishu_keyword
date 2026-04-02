@@ -17,6 +17,7 @@
   import pluginAPI from '@/utils/request'
   import { writeToTable, updateTable, getMaxCreateTimeByUser } from '@/utils/tableHelper'
   import TableSelect from './TableSelect.vue'
+  import '@/assets/form-styles.css'
 
   export default {
     components: {
@@ -527,9 +528,9 @@
 </script>
 
 <template>
-  <el-form class="ghForm" label-position="left" label-width="120px">   
+  <el-form class="ghForm" label-position="left" label-width="auto">   
 
-    <el-form-item v-if="alterShow[0]" label-width="null">
+    <el-form-item v-if="alterShow[0]" label-width="null" >
       <el-alert
         :title="alertList[0].title"
         type="primary"
@@ -689,14 +690,4 @@
 </template>
 
 <style scoped>
-  .ghForm :deep(.el-form-item__label) {
-    font-size: 16px;
-    color: var(--el-text-color-primary);
-  }
-  .ghForm :deep(.el-form-item__content), .ghForm :deep(.el-button) {
-    font-size: 16px;
-  }
-  .ghForm :deep(.el-form-item:last-child) {
-    margin-bottom: 0;
-  }
 </style>
