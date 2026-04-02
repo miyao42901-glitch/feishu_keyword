@@ -1,0 +1,348 @@
+{
+  "title": "タイトル",
+  "dyForm": {
+    "userFields": {
+      "nickname": "ユーザー名",
+      "sec_uid": "ユーザーID",
+      "max_follower_count": "最大フォロワー数",
+      "mplatform_followers_count": "現在のフォロワー数",
+      "following_count": "フォロー数",
+      "signature": "プロフィール",
+      "total_favorited": "合計いいね数",
+      "last_get_time": "ユーザーデータ更新時間",
+      "get_interaction_flag": "インタラクションデータ取得フラグ",
+      "interaction_fail_reason": "インタラクションデータ取得失敗理由",
+      "get_vedio_flag": "動画データ取得フラグ",
+      "vedio_fail_reason": "動画データ取得失敗理由"
+    },
+    "videoFields": {
+      "caption": "動画タイトル",
+      "dy_link": "動画作成者",
+      "aweme_id": "動画ID",
+      "vedio_url": "動画URL",
+      "create_time": "動画公開時間",
+      "digg_count": "いいね数",
+      "comment_count": "コメント数",
+      "share_count": "シェア数",
+      "collect_count": "コレクション数",
+      "last_get_time": "インタラクションデータ更新時間",
+      "get_interaction_flag": "インタラクションデータ取得フラグ",
+      "interaction_fail_reason": "インタラクションデータ取得失敗理由"
+    },
+    "options": {
+      "interaction": {
+        "unknow": "インタラクションデータ未取得",
+        "fail": "前回のインタラクションデータ取得に失敗",
+        "success": "前回のインタラクションデータ取得に成功"
+      },
+      "video": {
+        "unknow": "動画データ未取得",
+        "fail": "前回の動画データ取得に失敗",
+        "success": "前回の動画データ取得に成功"
+      }
+    },
+    "alerts": {
+      "template": "空のテンプレートを生成するか、既存のテーブルを選択してください",
+      "duplicate": "データ重複の問題については、「重複データ削除」プラグインを使用して重複データを処理することをお勧めします"
+    },
+    "form": {
+      "generateTemplate": "空のテーブルテンプレートを生成",
+      "userTable": "抖音アカウントテーブル",
+      "userId": "抖音ユーザーID",
+      "userIdPlaceholder": "抖音ユーザーIDを入力してください",
+      "shareLink": "プロフィール共有リンク",
+      "shareLinkPlaceholder": "プロフィール共有リンクを入力してください",
+      "addUser": "抖音アカウントを追加",
+      "updateUser": "抖音アカウントデータを更新",
+      "videoTable": "動画データテーブル",
+      "dateLimit": "日付制限",
+      "dateLimitPlaceholder": "日付制限を選択してください",
+      "today": "今日",
+      "days": "日以内",
+      "allInDate": "日付範囲内のすべてを取得",
+      "newInDate": "日付範囲内の新規を取得",
+      "getVideos": "{days}日間に公開された動画を取得",
+      "updateVideoInteraction": "動画インタラクション情報を更新"
+    },
+    "tooltips": {
+      "generateTemplate": "関連付けられた空のテンプレートのペアを生成します：抖音アカウントテーブルと動画テーブル。動画テーブルの「動画作成者」フィールドを変更して、関連する抖音アカウントテーブルを設定します",
+      "addUser": "ログイン、抖音アカウントIDまたは名刺共有リンク、抖音アカウントテーブルが必要です",
+      "updateUser": "ログイン、抖音アカウントテーブルが必要です",
+      "getVideos": "ログイン、抖音アカウントテーブル、抖音動画テーブルが必要です",
+      "updateVideoInteraction": "ログイン、抖音動画テーブルが必要です"
+    },
+    "messages": {
+      "addUserSuccess": "抖音アカウントの追加が完了しました、コスト：{price}",
+      "updateUserSuccess": "抖音アカウントのインタラクションデータの取得が完了しました、合計{total}件の抖音アカウントデータを処理、{success}件の抖音アカウントデータの処理に成功、コスト：{price}",
+      "getVideosSuccess": "抖音アカウントの動画データの取得が完了しました、合計{total}件の抖音アカウントデータを処理、{success}件の抖音アカウントデータの処理に成功、{new}件の動画データを追加、コスト：{price}",
+      "updateVideoSuccess": "動画インタラクションデータの取得が完了しました、合計{total}件の動画データを処理、{success}件の動画データの処理に成功、コスト：{price}",
+      "operationFailed": "操作に失敗：{error}",
+      "unknownError": "不明なエラー"
+    }
+  },
+  "ghForm": {
+    "userFields": {
+      "name": "WeChat公式アカウント名",
+      "biz": "公式アカウントID（base64）",
+      "desc": "公式アカウント説明",
+      "get_article_flag": "記事データ取得フラグ",
+      "fail_reason": "取得失敗理由"
+    },
+    "articleFields": {
+      "title": "記事タイトル",
+      "gh_link": "公式アカウント",
+      "url": "記事リンク",
+      "post_time": "公開時間",
+      "digest": "記事要約",
+      "original": "オリジナルタイプ",
+      "item_show_type": "コンテンツタイプ",
+      "read": "閲覧数",
+      "zan": "いいね数",
+      "looking": "視聴数",
+      "share_num": "シェア数",
+      "collect_num": "コレクション数",
+      "comment_count": "コメント数",
+      "last_get_time": "インタラクションデータ更新時間",
+      "get_interaction_flag": "インタラクションデータ取得フラグ",
+      "fail_reason": "取得失敗理由"
+    },
+    "options": {
+      "article": {
+        "unknow": "記事データ未取得",
+        "fail": "前回の記事データ取得に失敗",
+        "success": "前回の記事データ取得に成功"
+      },
+      "interaction": {
+        "unknow": "インタラクションデータ未取得",
+        "fail": "前回のインタラクションデータ取得に失敗",
+        "success": "前回のインタラクションデータ取得に成功"
+      },
+      "original": {
+        "0": "オリジナル未宣言",
+        "1": "オリジナル",
+        "2": "転載"
+      },
+      "item_show_type": {
+        "0": "画像とテキスト",
+        "5": "動画のみ",
+        "7": "音楽のみ",
+        "8": "画像のみ",
+        "10": "テキストのみ",
+        "11": "その他"
+      }
+    },
+    "alerts": {
+      "template": "空のテンプレートを生成するか、既存のテーブルを選択してください",
+      "duplicate": "データ重複の問題については、「重複データ削除」プラグインを使用して重複データを処理することをお勧めします"
+    },
+    "form": {
+      "generateTemplate": "空のテーブルテンプレートを生成",
+      "ghTable": "WeChat公式アカウントテーブル",
+      "ghName": "公式アカウント名",
+      "ghNamePlaceholder": "公式アカウント名またはWeChat IDを入力してください",
+      "addGhAccount": "公式アカウントを追加",
+      "articleTable": "記事データテーブル",
+      "dateLimit": "日付制限",
+      "dateLimitPlaceholder": "日付制限を選択してください",
+      "today": "今日",
+      "days": "日以内",
+      "allInDate": "日付範囲内のすべてを取得",
+      "newInDate": "日付範囲内の新規を取得",
+      "getArticles": "{days}日間に公開された記事を取得",
+      "updateArticleInteraction": "記事インタラクション情報を更新"
+    },
+    "tooltips": {
+      "generateTemplate": "関連付けられた空のテンプレートのペアを生成します：公式アカウントテーブルと記事テーブル。記事テーブルの公式アカウントフィールドを変更して、関連する公式アカウントテーブルを設定します",
+      "addGhAccount": "ログイン、公式アカウント名、公式アカウントテーブルが必要です",
+      "getArticles": "ログイン、公式アカウントテーブル、記事テーブルが必要です",
+      "updateArticleInteraction": "ログイン、記事テーブルが必要です"
+    },
+    "messages": {
+      "addGhAccountSuccess": "公式アカウントデータの追加が完了しました、コスト：0.5",
+      "getArticlesSuccess": "公式アカウントの記事データの取得が完了しました、合計{total}件の公式アカウントデータを処理、{success}件の公式アカウントデータの処理に成功、{new}件の記事データを追加、コスト：{price}",
+      "updateArticleSuccess": "記事インタラクションデータの取得が完了しました、合計{total}件の記事データを処理、{success}件の記事データの処理に成功、コスト：{price}",
+      "operationFailed": "操作に失敗：{error}",
+      "unknownError": "不明なエラー"
+    }
+  },
+  "v2Form": {
+    "userFields": {
+      "nickname": "WeChatチャンネルニックネーム",
+      "username": "チャンネルID",
+      "signature": "プロフィール",
+      "get_work_flag": "動画データ取得フラグ",
+      "fail_reason": "取得失敗理由"
+    },
+    "workFields": {
+      "title": "動画タイトル",
+      "user_link": "WeChatチャンネル",
+      "object_id": "動画ID",
+      "export_id": "エクスポートID",
+      "publish_time": "動画公開時間",
+      "video_play_len": "動画再生時間",
+      "like_count": "いいね数",
+      "fav_count": "お気に入り数",
+      "forward_count": "転送数",
+      "comment_count": "コメント数",
+      "download_url": "動画ダウンロードURL",
+      "last_get_time": "インタラクションデータ更新時間",
+      "get_interaction_flag": "インタラクションデータ取得フラグ",
+      "fail_reason": "取得失敗理由"
+    },
+    "options": {
+      "work": {
+        "unknow": "動画データ未取得",
+        "fail": "前回の動画データ取得に失敗",
+        "success": "前回の動画データ取得に成功"
+      },
+      "interaction": {
+        "unknow": "インタラクションデータ未取得",
+        "fail": "前回のインタラクションデータ取得に失敗",
+        "success": "前回のインタラクションデータ取得に成功"
+      }
+    },
+    "alerts": {
+      "template": "空のテンプレートを生成するか、既存のテーブルを選択してください",
+      "duplicate": "データ重複の問題については、「重複データ削除」プラグインを使用して重複データを処理することをお勧めします"
+    },
+    "form": {
+      "generateTemplate": "空のテーブルテンプレートを生成",
+      "userTable": "WeChatチャンネルテーブル",
+      "v2Name": "チャンネル名",
+      "v2NamePlaceholder": "チャンネル名を入力してください",
+      "addUser": "WeChatチャンネルを追加",
+      "workTable": "動画データテーブル",
+      "dateLimit": "日付制限",
+      "dateLimitPlaceholder": "日付制限を選択してください",
+      "today": "今日",
+      "days": "日以内",
+      "allInDate": "日付範囲内のすべてを取得",
+      "newInDate": "日付範囲内の新規を取得",
+      "getWorks": "{days}日間に公開された動画を取得",
+      "updateWorkInteraction": "動画インタラクション情報を更新",
+      "updateWorkInteractionWithDownload": "動画インタラクション情報を更新（ダウンロードリンク付き）"
+    },
+    "tooltips": {
+      "generateTemplate": "関連付けられた空のテンプレートのペアを生成します：WeChatチャンネルユーザーテーブルと動画テーブル。動画テーブルの「WeChatチャンネル」フィールドを変更して、関連するユーザーテーブルを設定します",
+      "addUser": "ログイン、チャンネル名、アカウントテーブルが必要です",
+      "getWorks": "ログイン、アカウントテーブル、動画テーブルが必要です",
+      "updateWorkInteraction": "ログイン、動画テーブルが必要です"
+    },
+    "messages": {
+      "addUserSuccess": "WeChatチャンネルデータの追加が完了しました、コスト：{price}",
+      "getWorksSuccess": "動画データの取得が完了しました、合計{total}件のチャンネルデータを処理、{success}件のチャンネルデータの処理に成功、{new}件の動画データを追加、コスト：{price}",
+      "updateWorkSuccess": "インタラクションデータの取得が完了しました、合計{total}件の動画データを処理、{success}件の動画データの処理に成功、コスト：{price}",
+      "operationFailed": "操作に失敗：{error}",
+      "unknownError": "不明なエラー"
+    }
+  },
+  "form": {
+    "title": "究極のデータアシスタント",
+    "alert": {
+      "guide": {
+        "text": "詳細はこちらを参照",
+        "urlText": "使用ガイド"
+      }
+    },
+    "fields": {
+      "username": "ユーザー名",
+      "balance": "残高"
+    },
+    "buttons": {
+      "refreshBalance": "残高を更新",
+      "logout": "ログアウト",
+      "recharge": "チャージ",
+      "learnMore": "詳細を知る",
+      "wechatLogin": "WeChat QRコードで登録/ログイン",
+      "passwordLogin": "アカウントパスワードでログイン"
+    },
+    "tabs": {
+      "douyin": "抖音",
+      "wechatChannel": "WeChatチャンネル",
+      "wechat": "WeChat公式アカウント"
+    },
+    "loading": "操作中です、しばらくお待ちください...",
+    "messages": {
+      "loginFirst": "まずログインしてください",
+      "loginFailed": "ログインに失敗しました、もう一度お試しくださいまたは管理者にお問い合わせください",
+      "rechargeSuccess": "CNY {amount}のチャージが成功しました、CNY {gift}のボーナス",
+      "autoLoginFailed": "自動ログインに失敗しました、再度ログインしてください"
+    }
+  },
+  "loginDialog": {
+    "title": "アカウントログイン",
+    "fields": {
+      "username": "ユーザー名",
+      "password": "パスワード"
+    },
+    "placeholders": {
+      "username": "ユーザー名を入力してください",
+      "password": "パスワードを入力してください"
+    },
+    "protocol": "利用規約に同意しました",
+    "buttons": {
+      "cancel": "キャンセル",
+      "login": "ログイン"
+    },
+    "messages": {
+      "requiredUsername": "ユーザー名を入力してください",
+      "requiredPassword": "パスワードを入力してください",
+      "agreeProtocol": "まず利用規約に同意してください",
+      "loginFailed": "ログインに失敗しました",
+      "networkError": "ネットワークエラー、後でもう一度お試しください"
+    }
+  },
+  "rechargeDialog": {
+    "title": "チャージ",
+    "fields": {
+      "amount": "チャージ金額"
+    },
+    "placeholders": {
+      "amount": "チャージ金額を入力してください"
+    },
+    "gift": "ボーナス：CNY {giftAmount}",
+    "noGift": "ボーナスなし",
+    "giftDesc": "ボーナスCNY {giftAmount}",
+    "amountDesc": "CNY {amount}",
+    "buttons": {
+      "cancel": "キャンセル",
+      "recharge": "チャージ"
+    },
+    "messages": {
+      "requiredAmount": "チャージ金額を入力してください",
+      "minAmount": "チャージ金額はCNY 5以上にする必要があります",
+      "loginFirst": "まずログインしてください",
+      "rechargeFailed": "チャージに失敗しました、後でもう一度お試しください",
+      "timeout": "タイムアウト"
+    },
+    "confirm": {
+      "message": "CNY {amount}をチャージすることを確認しますか？",
+      "title": "チャージ確認",
+      "confirm": "確認",
+      "cancel": "キャンセル"
+    }
+  },
+  "tableSelect": {
+    "placeholder": "テーブルを選択してください"
+  },
+  "wechatLoginDialog": {
+    "title": "WeChat QRコードログイン",
+    "protocol": "利用規約に同意しました",
+    "agreeProtocol": "まず利用規約に同意してください",
+    "tip": "WeChatを使用してQRコードをスキャンしてログインしてください",
+    "loading": "QRコードを生成中...",
+    "buttons": {
+      "cancel": "キャンセル"
+    },
+    "messages": {
+      "qrcodeFailed": "QRコードの生成に失敗しました、後でもう一度お試しください",
+      "loginSuccess": "ログインに成功しました",
+      "loginTimeout": "ログインタイムアウト、再度コードをスキャンしてください"
+    }
+  },
+  "utils": {
+    "networkError": "ネットワーク接続エラー",
+    "writeFailed": "書き込みに失敗しました",
+    "updateFailed": "更新に失敗しました"
+  }
+}

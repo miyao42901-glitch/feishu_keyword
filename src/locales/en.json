@@ -1,3 +1,348 @@
 {
-  "title":"title"
+  "title": "Title",
+  "dyForm": {
+    "userFields": {
+      "nickname": "Username",
+      "sec_uid": "User ID",
+      "max_follower_count": "Max Followers",
+      "mplatform_followers_count": "Current Followers",
+      "following_count": "Following Count",
+      "signature": "Bio",
+      "total_favorited": "Total Likes",
+      "last_get_time": "User Data Update Time",
+      "get_interaction_flag": "Interaction Data Flag",
+      "interaction_fail_reason": "Interaction Data Failure Reason",
+      "get_vedio_flag": "Video Data Flag",
+      "vedio_fail_reason": "Video Data Failure Reason"
+    },
+    "videoFields": {
+      "caption": "Video Title",
+      "dy_link": "Video Author",
+      "aweme_id": "Video ID",
+      "vedio_url": "Video URL",
+      "create_time": "Video Publish Time",
+      "digg_count": "Like Count",
+      "comment_count": "Comment Count",
+      "share_count": "Share Count",
+      "collect_count": "Collect Count",
+      "last_get_time": "Interaction Data Update Time",
+      "get_interaction_flag": "Interaction Data Flag",
+      "interaction_fail_reason": "Interaction Data Failure Reason"
+    },
+    "options": {
+      "interaction": {
+        "unknow": "Interaction data not fetched",
+        "fail": "Last interaction data fetch failed",
+        "success": "Last interaction data fetch succeeded"
+      },
+      "video": {
+        "unknow": "Video data not fetched",
+        "fail": "Last video data fetch failed",
+        "success": "Last video data fetch succeeded"
+      }
+    },
+    "alerts": {
+      "template": "Please generate an empty template or select an existing table",
+      "duplicate": "For duplicate data issues, it is recommended to use the [Delete Duplicate Data] plugin to handle duplicate data"
+    },
+    "form": {
+      "generateTemplate": "Generate empty table template",
+      "userTable": "Douyin Account Table",
+      "userId": "Douyin User ID",
+      "userIdPlaceholder": "Please enter Douyin user ID",
+      "shareLink": "Profile Share Link",
+      "shareLinkPlaceholder": "Please enter profile share link",
+      "addUser": "Add Douyin Account",
+      "updateUser": "Update Douyin Account Data",
+      "videoTable": "Video Data Table",
+      "dateLimit": "Date Limit",
+      "dateLimitPlaceholder": "Please select date limit",
+      "today": "Today",
+      "days": "days",
+      "allInDate": "Get all in date range",
+      "newInDate": "Get new in date range",
+      "getVideos": "Get videos published in {days} days",
+      "updateVideoInteraction": "Update video interaction information"
+    },
+    "tooltips": {
+      "generateTemplate": "Generate a pair of associated empty templates: Douyin account table and video table. Modify the [Video Author] field in the video table to set the associated Douyin account table",
+      "addUser": "Requires login, Douyin account ID or business card share link, Douyin account table",
+      "updateUser": "Requires login, Douyin account table",
+      "getVideos": "Requires login, Douyin account table, Douyin video table",
+      "updateVideoInteraction": "Requires login, Douyin video table"
+    },
+    "messages": {
+      "addUserSuccess": "Douyin account added successfully, cost: {price}",
+      "updateUserSuccess": "Douyin account interaction data obtained successfully, total {total} Douyin account data processed, {success} Douyin account data processed successfully, cost: {price}",
+      "getVideosSuccess": "Douyin account video data obtained successfully, total {total} Douyin account data processed, {success} Douyin account data processed successfully, {new} new video data added, cost: {price}",
+      "updateVideoSuccess": "Video interaction data obtained successfully, total {total} video data processed, {success} video data processed successfully, cost: {price}",
+      "operationFailed": "Operation failed: {error}",
+      "unknownError": "Unknown error"
+    }
+  },
+  "ghForm": {
+    "userFields": {
+      "name": "WeChat Official Account Name",
+      "biz": "Official Account ID (base64)",
+      "desc": "Official Account Description",
+      "get_article_flag": "Article Data Flag",
+      "fail_reason": "Failure Reason"
+    },
+    "articleFields": {
+      "title": "Article Title",
+      "gh_link": "Official Account",
+      "url": "Article Link",
+      "post_time": "Publish Time",
+      "digest": "Article Summary",
+      "original": "Original Type",
+      "item_show_type": "Content Type",
+      "read": "Reads",
+      "zan": "Likes",
+      "looking": "Watching",
+      "share_num": "Share Count",
+      "collect_num": "Collect Count",
+      "comment_count": "Comment Count",
+      "last_get_time": "Interaction Data Update Time",
+      "get_interaction_flag": "Interaction Data Flag",
+      "fail_reason": "Failure Reason"
+    },
+    "options": {
+      "article": {
+        "unknow": "Article data not fetched",
+        "fail": "Last article data fetch failed",
+        "success": "Last article data fetch succeeded"
+      },
+      "interaction": {
+        "unknow": "Interaction data not fetched",
+        "fail": "Last interaction data fetch failed",
+        "success": "Last interaction data fetch succeeded"
+      },
+      "original": {
+        "0": "Not declared original",
+        "1": "Original",
+        "2": "Repost"
+      },
+      "item_show_type": {
+        "0": "Image-text",
+        "5": "Video only",
+        "7": "Music only",
+        "8": "Image only",
+        "10": "Text only",
+        "11": "Others"
+      }
+    },
+    "alerts": {
+      "template": "Please generate an empty template or select an existing table",
+      "duplicate": "For duplicate data issues, it is recommended to use the [Delete Duplicate Data] plugin to handle duplicate data"
+    },
+    "form": {
+      "generateTemplate": "Generate empty table template",
+      "ghTable": "WeChat Official Account Table",
+      "ghName": "Official Account Name",
+      "ghNamePlaceholder": "Please enter official account name or WeChat ID",
+      "addGhAccount": "Add Official Account",
+      "articleTable": "Article Data Table",
+      "dateLimit": "Date Limit",
+      "dateLimitPlaceholder": "Please select date limit",
+      "today": "Today",
+      "days": "days",
+      "allInDate": "Get all in date range",
+      "newInDate": "Get new in date range",
+      "getArticles": "Get articles published in {days} days",
+      "updateArticleInteraction": "Update article interaction information"
+    },
+    "tooltips": {
+      "generateTemplate": "Generate a pair of associated empty templates: Official account table and article table. Modify the official account field in the article table to set the associated official account table",
+      "addGhAccount": "Requires login, official account name, official account table",
+      "getArticles": "Requires login, official account table, article table",
+      "updateArticleInteraction": "Requires login, article table"
+    },
+    "messages": {
+      "addGhAccountSuccess": "Official account data added successfully, cost: 0.5",
+      "getArticlesSuccess": "Official account article data obtained successfully, total {total} official account data processed, {success} official account data processed successfully, {new} new article data added, cost: {price}",
+      "updateArticleSuccess": "Article interaction data obtained successfully, total {total} article data processed, {success} article data processed successfully, cost: {price}",
+      "operationFailed": "Operation failed: {error}",
+      "unknownError": "Unknown error"
+    }
+  },
+  "v2Form": {
+    "userFields": {
+      "nickname": "WeChat Channel Nickname",
+      "username": "Channel ID",
+      "signature": "Bio",
+      "get_work_flag": "Video Data Flag",
+      "fail_reason": "Failure Reason"
+    },
+    "workFields": {
+      "title": "Video Title",
+      "user_link": "WeChat Channel",
+      "object_id": "Video ID",
+      "export_id": "Export ID",
+      "publish_time": "Video Publish Time",
+      "video_play_len": "Video Duration",
+      "like_count": "Like Count",
+      "fav_count": "Favorite Count",
+      "forward_count": "Forward Count",
+      "comment_count": "Comment Count",
+      "download_url": "Video Download URL",
+      "last_get_time": "Interaction Data Update Time",
+      "get_interaction_flag": "Interaction Data Flag",
+      "fail_reason": "Failure Reason"
+    },
+    "options": {
+      "work": {
+        "unknow": "Video data not fetched",
+        "fail": "Last video data fetch failed",
+        "success": "Last video data fetch succeeded"
+      },
+      "interaction": {
+        "unknow": "Interaction data not fetched",
+        "fail": "Last interaction data fetch failed",
+        "success": "Last interaction data fetch succeeded"
+      }
+    },
+    "alerts": {
+      "template": "Please generate an empty template or select an existing table",
+      "duplicate": "For duplicate data issues, it is recommended to use the [Delete Duplicate Data] plugin to handle duplicate data"
+    },
+    "form": {
+      "generateTemplate": "Generate empty table template",
+      "userTable": "WeChat Channel Table",
+      "v2Name": "Channel Name",
+      "v2NamePlaceholder": "Please enter channel name",
+      "addUser": "Add WeChat Channel",
+      "workTable": "Video Data Table",
+      "dateLimit": "Date Limit",
+      "dateLimitPlaceholder": "Please select date limit",
+      "today": "Today",
+      "days": "days",
+      "allInDate": "Get all in date range",
+      "newInDate": "Get new in date range",
+      "getWorks": "Get videos published in {days} days",
+      "updateWorkInteraction": "Update video interaction information",
+      "updateWorkInteractionWithDownload": "Update video interaction information (with download link)"
+    },
+    "tooltips": {
+      "generateTemplate": "Generate a pair of associated empty templates: WeChat Channel user table and video table. Modify the [WeChat Channel] field in the video table to set the associated user table",
+      "addUser": "Requires login, channel name, account table",
+      "getWorks": "Requires login, account table, video table",
+      "updateWorkInteraction": "Requires login, video table"
+    },
+    "messages": {
+      "addUserSuccess": "WeChat Channel data added successfully, cost: {price}",
+      "getWorksSuccess": "Video data obtained successfully, total {total} channel data processed, {success} channel data processed successfully, {new} new video data added, cost: {price}",
+      "updateWorkSuccess": "Interaction data obtained successfully, total {total} video data processed, {success} video data processed successfully, cost: {price}",
+      "operationFailed": "Operation failed: {error}",
+      "unknownError": "Unknown error"
+    }
+  },
+  "form": {
+    "title": "Extreme Data Assistant",
+    "alert": {
+      "guide": {
+        "text": "For details, please check",
+        "urlText": "User Guide"
+      }
+    },
+    "fields": {
+      "username": "Username",
+      "balance": "Balance"
+    },
+    "buttons": {
+      "refreshBalance": "Refresh Balance",
+      "logout": "Logout",
+      "recharge": "Recharge",
+      "learnMore": "Learn More",
+      "wechatLogin": "WeChat QR Code Register/Login",
+      "passwordLogin": "Account Password Login"
+    },
+    "tabs": {
+      "douyin": "Douyin",
+      "wechatChannel": "WeChat Channel",
+      "wechat": "Wechat Official Account"
+    },
+    "loading": "Operation in progress, please wait...",
+    "messages": {
+      "loginFirst": "Please login first",
+      "loginFailed": "Login failed, please try again or contact administrator",
+      "rechargeSuccess": "Recharge of CNY {amount} successful, CNY {gift} bonus",
+      "autoLoginFailed": "Auto login failed, please login again"
+    }
+  },
+  "loginDialog": {
+    "title": "Account Login",
+    "fields": {
+      "username": "Username",
+      "password": "Password"
+    },
+    "placeholders": {
+      "username": "Please enter username",
+      "password": "Please enter password"
+    },
+    "protocol": "I have read and agree to",
+    "buttons": {
+      "cancel": "Cancel",
+      "login": "Login"
+    },
+    "messages": {
+      "requiredUsername": "Please enter username",
+      "requiredPassword": "Please enter password",
+      "agreeProtocol": "Please read and agree to the agreement first",
+      "loginFailed": "Login failed",
+      "networkError": "Network error, please try again later"
+    }
+  },
+  "rechargeDialog": {
+    "title": "Recharge",
+    "fields": {
+      "amount": "Recharge Amount"
+    },
+    "placeholders": {
+      "amount": "Please enter recharge amount"
+    },
+    "gift": "Bonus: CNY {giftAmount}",
+    "noGift": "No bonus",
+    "giftDesc": "Bonus CNY {giftAmount}",
+    "amountDesc": "CNY {amount}",
+    "buttons": {
+      "cancel": "Cancel",
+      "recharge": "Recharge"
+    },
+    "messages": {
+      "requiredAmount": "Please enter recharge amount",
+      "minAmount": "Recharge amount cannot be less than CNY 5",
+      "loginFirst": "Please login first",
+      "rechargeFailed": "Recharge failed, please try again later",
+      "timeout": "Timeout"
+    },
+    "confirm": {
+      "message": "Confirm recharge of CNY {amount}?",
+      "title": "Recharge Confirmation",
+      "confirm": "Confirm",
+      "cancel": "Cancel"
+    }
+  },
+  "tableSelect": {
+    "placeholder": "Please select table"
+  },
+  "wechatLoginDialog": {
+    "title": "WeChat QR Code Login",
+    "protocol": "I have read and agree to",
+    "agreeProtocol": "Please read and agree to the agreement first",
+    "tip": "Please use WeChat to scan the QR code to login",
+    "loading": "Generating QR code...",
+    "buttons": {
+      "cancel": "Cancel"
+    },
+    "messages": {
+      "qrcodeFailed": "Failed to generate QR code, please try again later",
+      "loginSuccess": "Login successful",
+      "loginTimeout": "Login timeout, please scan the code again"
+    }
+  },
+  "utils": {
+    "networkError": "Network connection error",
+    "writeFailed": "Write failed",
+    "updateFailed": "Update failed"
+  }
 }

@@ -471,7 +471,7 @@
           <el-tab-pane :label="t('form.tabs.douyin')">
             <DyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
-          <el-tab-pane :label="t('form.tabs.video号')">
+          <el-tab-pane :label="t('form.tabs.wechatChannel')">
             <V2Form :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
           <el-tab-pane :label="t('form.tabs.wechat')">
