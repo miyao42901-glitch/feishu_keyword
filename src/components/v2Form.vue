@@ -214,7 +214,7 @@
           for (const user_record of recordIdList){
             const userRecord = await userTable.getRecordById(user_record);
             const v2_name = userRecord.fields[fieldMap[user_fields.username.label].id][0]
-
+            
             let user_cut_time = min_time
             if (timeCut){
               user_cut_time = await getMaxCreateTimeByUser(
@@ -257,8 +257,11 @@
               last_buffer = res.data.last_buffer
               totalCost += res.data.cost
               lastRemainMoney = res.data.remain_money
+              
+              //过滤时间范围之外的置顶视频，防止提前退出循环
+              const preFilteringData = res.data.object.filter(item => !(item.sticky_time) || getTimeFromStr(item.publish_time) > user_cut_time)
 
-              const dataList = res.data.object
+              const dataList = preFilteringData
               .filter(item => getTimeFromStr(item.publish_time) > user_cut_time)
               .map(item => ({
                 object_id: item.object_id,
@@ -297,7 +300,7 @@
                 }
               };
 
-              if (dataList.length === 0 || dataList.length < res.data.object.length || res.data.continue_flag === 0){
+              if (dataList.length === 0 || dataList.length < preFilteringData.length || res.data.continue_flag === 0){
                 break
               }
             }
