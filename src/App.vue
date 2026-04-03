@@ -23,7 +23,7 @@ useTheme()
   }
   code {
     font-size: 0.875em;
-    color: #d63384;
+    color: var(--el-color-primary);
     word-wrap: break-word;
   }
 </style>

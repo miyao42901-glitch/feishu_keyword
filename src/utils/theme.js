@@ -7,40 +7,7 @@ const globalTheme = ref('');
 // 主题样式定义
 const themeStyles = {
   LIGHT: {
-    // 主题色
-    '--el-color-primary': 'rgb(20, 86, 240)',
-    '--el-color-primary-light-3': 'rgb(54, 104, 245)',
-    '--el-color-primary-light-5': 'rgb(88, 122, 247)',
-    '--el-color-primary-light-7': 'rgb(122, 140, 249)',
-    '--el-color-primary-light-8': 'rgb(139, 151, 250)',
-    '--el-color-primary-light-9': 'rgb(191, 198, 253)',
-    '--el-color-primary-dark-2': 'rgb(17, 74, 209)',
-    
-    // 背景色
-    '--el-bg-color': '#fff',
-    '--el-bg-color-page': '#f2f3f5',
-    '--el-bg-color-overlay': '#fff',
-    
-    // 边框色
-    '--el-border-color': '#dcdfe6',
-    '--el-border-color-light': '#e4e7ed',
-    '--el-border-color-lighter': '#dee0e3',
-    '--el-border-color-extra-light': '#f2f6fc',
-    
-    // 文本色
-    '--el-text-color-primary': '#303133',
-    '--el-text-color-regular': '#606266',
-    '--el-text-color-secondary': '#909399',
-    '--el-text-color-placeholder': '#c0c4cc',
-    
-    // 卡片样式
-    '--el-card-bg-color': '#fff',
-    '--el-card-border-color': '#ebeef5',
-    
-    // 加载遮罩
-    '--el-overlay-color': 'rgba(255, 255, 255, 0.8)',
-    '--el-overlay-color-light': 'rgba(255, 255, 255, 0.9)',
-    '--el-overlay-color-dark': 'rgba(0, 0, 0, 0.8)',
+    //使用默认主题色
   },
   DARK: {
     // 主题色
@@ -87,7 +54,7 @@ const setThemeColor = (themeValue) => {
 
   if (currentThemeStyles) {
     // 清除所有已设置的主题变量
-    Object.keys(themeStyles.LIGHT).forEach(property => {
+    Object.keys(themeStyles.DARK).forEach(property => {
       el.style.removeProperty(property);
     });
 
