@@ -298,13 +298,13 @@ watch(dialogVisible, (newVal) => {
 
 .desc {
   font-size: 12px;
-  color: #666;
+  color: var(--el-text-color-regular);
 }
 
 .gift-info {
   margin-top: 8px;
   font-size: 14px;
-  color: #f56c6c;
+  color: var(--el-color-danger);
   font-weight: 500;
 }
 

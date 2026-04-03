@@ -190,7 +190,7 @@ watch(dialogVisible, (newVal) => {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(255, 255, 255, 0.8);
+  background-color: var(--el-overlay-color);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -198,7 +198,7 @@ watch(dialogVisible, (newVal) => {
 }
 
 .blur-overlay p {
-  color: #666;
+  color: var(--el-text-color-regular);
   font-size: 14px;
   text-align: center;
   margin: 0;
@@ -207,7 +207,7 @@ watch(dialogVisible, (newVal) => {
 
 .qrcode-tip {
   font-size: 14px;
-  color: #666;
+  color: var(--el-text-color-regular);
   margin: 0 0 16px 0;
 }
 
@@ -217,7 +217,7 @@ watch(dialogVisible, (newVal) => {
 
 .protocol-section .el-checkbox {
   font-size: 12px;
-  color: #666;
+  color: var(--el-text-color-regular);
 }
 
 .protocol-section .el-link {
@@ -233,7 +233,7 @@ watch(dialogVisible, (newVal) => {
 
 .loading-icon {
   font-size: 48px;
-  color: #409EFF;
+  color: var(--el-color-primary);
   animation: rotate 1s linear infinite;
 }
 

@@ -1,5 +1,9 @@
 <script setup>
 import Form from './components/Form.vue'
+import { useTheme } from './utils/theme'
+
+// 使用主题钩子
+useTheme()
 </script>
 
 <template>

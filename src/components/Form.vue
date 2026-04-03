@@ -541,7 +541,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(255, 255, 255, 0.8);
+    background-color: var(--el-overlay-color);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -552,16 +552,17 @@
   .loading-content {
     text-align: center;
     padding: 30px;
-    background-color: white;
+    background-color: var(--el-bg-color);
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--el-border-color);
   }
   
   .loading-spinner {
     width: 40px;
     height: 40px;
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid #3498db;
+    border: 4px solid var(--el-border-color-lighter);
+    border-top: 4px solid var(--el-color-primary);
     border-radius: 50%;
     animation: spin 1s linear infinite;
     margin: 0 auto 16px;
@@ -575,6 +576,6 @@
   .loading-content p {
     margin: 0;
     font-size: 16px;
-    color: #606266;
+    color: var(--el-text-color-regular);
   }
 </style>

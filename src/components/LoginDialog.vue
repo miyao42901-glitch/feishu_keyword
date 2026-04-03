@@ -158,7 +158,7 @@ watch(dialogVisible, (newVal) => {
 
 .protocol-section .el-checkbox {
   font-size: 12px;
-  color: #666;
+  color: var(--el-text-color-regular);
 }
 
 .protocol-section .el-link {
