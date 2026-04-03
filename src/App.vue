@@ -16,6 +16,7 @@ useTheme()
 <style scoped>
   main {
     padding: 1rem;
+    background-color: var(--el-bg-color);
   }
   h4 {
     font-size: calc(1.275rem + 0.3vw);

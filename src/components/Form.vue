@@ -517,6 +517,7 @@
 <style scoped>
   .title-section {
     font-size: 20px;
+    color: var(--el-text-color-primary);
     padding-left: 45px;
     padding-bottom: 10px;
     margin-bottom: 10px;
@@ -533,6 +534,7 @@
   .form-container {
     position: relative;
     min-height: 400px;
+    background-color: var(--el-bg-color);
   }
   
   .loading-overlay {
