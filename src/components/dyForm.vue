@@ -143,14 +143,14 @@
             null,
             [],
             dyUserFields(),
-            timestamp + '抖音账号'
+            timestamp + t('dyForm.template.userTable')
           );
           if (res1.success) {
             const res2 = await writeToTable(
               null,
               [],
               dyVedioFields(res1.data.tableId),
-              timestamp + '抖音视频'
+              timestamp + t('dyForm.template.workTable')
             );
             if (res2.success) {
               dyData.value.userTableId = res1.data.tableId

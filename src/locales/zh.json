@@ -78,6 +78,10 @@
       "updateVideoSuccess": "获取视频互动数据完成，共操作{total}条视频数据，成功操作{success}条视频数据，消耗：{price}",
       "operationFailed": "操作失败: {error}",
       "unknownError": "未知错误"
+    },
+    "template": {
+      "userTable": "抖音账号",
+      "workTable": "抖音视频"
     }
   },
   "ghForm": {
@@ -163,6 +167,10 @@
       "updateArticleSuccess": "获取文章互动数据完成，共操作{total}条文章数据，成功操作{success}条文章数据，消耗：{price}",
       "operationFailed": "操作失败: {error}",
       "unknownError": "未知错误"
+    },
+    "template": {
+      "userTable": "公众号账号",
+      "workTable": "公众号文章"
     }
   },
   "v2Form": {
@@ -234,6 +242,10 @@
       "updateWorkSuccess": "获取互动数据完成，共操作{total}条视频数据，成功操作{success}条视频数据，消耗：{price}",
       "operationFailed": "操作失败: {error}",
       "unknownError": "未知错误"
+    },
+    "template": {
+      "userTable": "视频号账号",
+      "workTable": "视频号视频"
     }
   },
   "ksForm": {
@@ -316,6 +328,10 @@
       "updateWorkSuccess": "获取视频互动数据完成，共操作{total}条视频数据，成功操作{success}条视频数据，消耗：{price}",
       "operationFailed": "操作失败: {error}",
       "unknownError": "未知错误"
+    },
+    "template": {
+      "userTable": "快手账号",
+      "workTable": "快手数据"
     }
   },
   "form": {

@@ -147,14 +147,14 @@
             null,
             [],
             ghAccountFields(),
-            timestamp + '公众号账号'
+            timestamp + t('ghForm.template.userTable')
           );
           if (res1.success) {
             const res2 = await writeToTable(
               null,
               [],
               ghArticleFields(res1.data.tableId),
-              timestamp + '公众号文章'
+              timestamp + t('ghForm.template.workTable')
             );
             if (res2.success) {
               ghData.value.selectedGhTableId = res1.data.tableId

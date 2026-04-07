@@ -140,14 +140,14 @@
             null,
             [],
             userFields(),
-            timestamp + '快手账号'
+            timestamp + t('ksForm.template.userTable')
           );
           if (res1.success) {
             const res2 = await writeToTable(
               null,
               [],
               workFields(res1.data.tableId),
-              timestamp + '快手视频'
+              timestamp + t('ksForm.template.workTable')
             );
             if (res2.success) {
               paneData.value.userTableId = res1.data.tableId

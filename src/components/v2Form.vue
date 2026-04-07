@@ -124,14 +124,14 @@
             null,
             [],
             userFields(),
-            timestamp + '视频号账号'
+            timestamp + t('v2Form.template.userTable')
           );
           if (res1.success) {
             const res2 = await writeToTable(
               null,
               [],
               workFields(res1.data.tableId),
-              timestamp + '视频号视频'
+              timestamp + t('v2Form.template.workTable')
             );
             if (res2.success) {
               paneData.value.userTableId = res1.data.tableId
