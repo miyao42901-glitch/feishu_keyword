@@ -23,6 +23,7 @@
   import DyForm from './dyForm.vue'
   // import XhsForm from './xhsForm.vue'
   import V2Form from './v2Form.vue'
+  import KsForm from './ksForm.vue'
   import SensitiveText from './sensitiveText.vue'
   import LoginDialog from './LoginDialog.vue'
   import RechargeDialog from './RechargeDialog.vue'
@@ -478,6 +479,9 @@
           </el-tab-pane>
           <el-tab-pane :label="t('form.tabs.wechat')">
             <GhForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+          </el-tab-pane>
+          <el-tab-pane :label="t('form.tabs.kuaishou')">
+            <KsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
         </el-tabs>
       </el-card>

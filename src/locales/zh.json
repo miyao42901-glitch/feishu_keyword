@@ -236,6 +236,88 @@
       "unknownError": "未知错误"
     }
   },
+  "ksForm": {
+    "userFields": {
+      "user_name": "快手用户名",
+      "user_id": "快手用户id",
+      "eid": "标识id",
+      "kwaiId": "快手号",
+      "user_text": "简介",
+      "fan": "粉丝数",
+      "follow": "关注数",
+      "photo": "作品数",
+      "cityName": "城市",
+      "shareLink": "主页分享链接",
+      "last_get_time": "用户数据更新时间",
+      "get_interaction_flag": "获取互动数标志",
+      "interaction_fail_reason": "获取互动数失败原因",
+      "get_work_flag": "获取视频标志",
+      "work_fail_reason": "获取视频失败原因"
+    },
+    "workFields": {
+      "caption": "视频标题",
+      "user_link": "视频作者",
+      "photo_id": "视频id",
+      "eid": "标识id",
+      "like_count": "点赞数",
+      "view_count": "浏览量",
+      "forward_count": "收藏数",
+      "comment_count": "评论数",
+      "vedio_url": "视频地址",
+      "timestamp": "视频发布时间",
+      "last_get_time": "互动数据更新时间",
+      "get_interaction_flag": "获取互动数标志",
+      "interaction_fail_reason": "获取互动数失败原因"
+    },
+    "options": {
+      "interaction": {
+        "unknow": "未获取过互动数",
+        "fail": "上次获取互动数失败",
+        "success": "上次获取互动数成功"
+      },
+      "work": {
+        "unknow": "未获取过视频",
+        "fail": "上次获取视频失败",
+        "success": "上次获取视频成功"
+      }
+    },
+    "alerts": {
+      "template": "请生成空模板或者选择已有数据表",
+      "duplicate": "对于数据重复的问题，推荐使用插件【删除重复数据】处理重复数据"
+    },
+    "form": {
+      "generateTemplate": "生成数据表空模板",
+      "userTable": "快手用户数据表",
+      "shareLink": "主页分享链接",
+      "shareLinkPlaceholder": "请输入主页分享链接",
+      "addUser": "添加快手账号",
+      "updateUser": "更新快手账号数据",
+      "workTable": "视频数据表",
+      "dateLimit": "日期限制",
+      "dateLimitPlaceholder": "请选择日期限制",
+      "today": "今日",
+      "days": "天内",
+      "allInDate": "获取日期内全部",
+      "newInDate": "获取日期内新增",
+      "getWorks": "获取{days}发布视频",
+      "updateWorkInteraction": "更新视频互动信息"
+    },
+    "tooltips": {
+      "generateTemplate": "生成一对关联的快手账号数据表空模板、快手视频数据表空模板，修改快手视频数据表的【视频作者】字段可以设置关联的快手账号数据表",
+      "addUser": "需要登录、快手账号id或名片分享链接、快手账号数据表",
+      "updateUser": "需要登录、快手账号数据表",
+      "getWorks": "需要登录、快手账号数据表、快手视频数据表",
+      "updateWorkInteraction": "需要登录、快手视频数据表"
+    },
+    "messages": {
+      "addUserSuccess": "新增快手账号完成，消耗：{price}",
+      "updateUserSuccess": "获取快手账号互动数据完成，共操作{total}条快手账号数据，成功操作{success}条快手账号数据，消耗：{price}",
+      "getWorksSuccess": "获取快手账号视频数据完成，共操作{total}条快手账号数据，成功操作{success}条快手账号数据，新增{new}条视频数据，消耗：{price}",
+      "updateWorkSuccess": "获取视频互动数据完成，共操作{total}条视频数据，成功操作{success}条视频数据，消耗：{price}",
+      "operationFailed": "操作失败: {error}",
+      "unknownError": "未知错误"
+    }
+  },
   "form": {
     "title": "极致了数据助手",
     "alert": {
@@ -259,7 +341,8 @@
     "tabs": {
       "douyin": "抖音",
       "wechatChannel": "视频号",
-      "wechat": "公众号"
+      "wechat": "公众号",
+      "kuaishou": "快手"
     },
     "loading": "操作进行中，请稍候...",
     "messages": {
