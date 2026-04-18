@@ -77,7 +77,8 @@
       "getVideosSuccess": "获取抖音账号视频数据完成，共操作{total}条抖音账号数据，成功操作{success}条抖音账号数据，新增{new}条视频数据，消耗：{price}",
       "updateVideoSuccess": "获取视频互动数据完成，共操作{total}条视频数据，成功操作{success}条视频数据，消耗：{price}",
       "operationFailed": "操作失败: {error}",
-      "unknownError": "未知错误"
+      "unknownError": "未知错误",
+      "invalidSecUid": "抖音用户id格式不正确，请在抖音主页URL中取 /user/ 之后至 ? 之前的内容（个人用户76位，认证用户55位）"
     },
     "template": {
       "userTable": "抖音账号",

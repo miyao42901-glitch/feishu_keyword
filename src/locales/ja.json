@@ -77,7 +77,8 @@
       "getVideosSuccess": "抖音アカウントの動画データの取得が完了しました、合計{total}件の抖音アカウントデータを処理、{success}件の抖音アカウントデータの処理に成功、{new}件の動画データを追加、コスト：{price}",
       "updateVideoSuccess": "動画インタラクションデータの取得が完了しました、合計{total}件の動画データを処理、{success}件の動画データの処理に成功、コスト：{price}",
       "operationFailed": "操作に失敗：{error}",
-      "unknownError": "不明なエラー"
+      "unknownError": "不明なエラー",
+      "invalidSecUid": "抖音ユーザーIDの形式が正しくありません。抖音プロフィールURLの /user/ 以降かつ ? より前の部分を貼り付けてください（個人ユーザー76文字、認証ユーザー55文字）"
     }
   },
   "ghForm": {

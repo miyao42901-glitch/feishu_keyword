@@ -77,7 +77,8 @@
       "getVideosSuccess": "Douyin account video data obtained successfully, total {total} Douyin account data processed, {success} Douyin account data processed successfully, {new} new video data added, cost: {price}",
       "updateVideoSuccess": "Video interaction data obtained successfully, total {total} video data processed, {success} video data processed successfully, cost: {price}",
       "operationFailed": "Operation failed: {error}",
-      "unknownError": "Unknown error"
+      "unknownError": "Unknown error",
+      "invalidSecUid": "Invalid Douyin user ID format. Please copy the part between /user/ and ? in the Douyin profile URL (76 chars for personal users, 55 chars for verified users)"
     }
   },
   "ghForm": {
