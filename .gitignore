@@ -30,3 +30,6 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+
+# 发布载体目录（构建产物会被同步到 dajialaFeishuPlugin/dist）
+dajialaFeishuPlugin/
