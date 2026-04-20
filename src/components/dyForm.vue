@@ -133,6 +133,20 @@
         useTimeCut: true,
       })
 
+      // 从抖音主页 URL 或直接的 sec_user_id 中提取出合法的 sec_user_id
+      // 认证用户 55 位，个人用户 76 位
+      function extractSecUid(input) {
+        if (input == null) return '';
+        const trimmed = String(input).trim();
+        if (!trimmed) return '';
+        const m = trimmed.match(/\/user\/([^?#\s/]+)/);
+        return m ? m[1] : trimmed;
+      }
+
+      function isValidSecUid(secUid) {
+        return typeof secUid === 'string' && (secUid.length === 55 || secUid.length === 76);
+      }
+
       const addTableTemplate = async() => {
         if (props.isLocked) return;
         emit('update:isLocked', true);
@@ -171,9 +185,22 @@
         emit('update:isLocked', true);
 
         try{
+          const rawSecUid = dyData.value.sec_user_id;
+          const secUid = extractSecUid(rawSecUid);
+          // 仅在用户填了 sec_user_id 但格式不对时拦截；若只填了 share_text 则交给后端解析
+          if (rawSecUid && !isValidSecUid(secUid)) {
+            props.formData.message = t('dyForm.messages.operationFailed', { error: t('dyForm.messages.invalidSecUid') });
+            props.formData.messageType = 'error';
+            return;
+          }
+          // 回填规范化后的 sec_user_id，便于用户看到实际发送的值
+          if (secUid && secUid !== rawSecUid) {
+            dyData.value.sec_user_id = secUid;
+          }
+
           const get_time = Date.now()
           const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_data?key=${props.formData.key}`, {
-              sec_user_id: dyData.value.sec_user_id,
+              sec_user_id: secUid,
               share_text: dyData.value.share_text,
           })
 
@@ -229,12 +256,24 @@
             const sec_user_id = userRecord.fields[fieldMap[user_fields.sec_uid.label].id][0]
             const get_time = Date.now()
 
-            const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_data?key=${props.formData.key}`, {
-                sec_user_id: sec_user_id.text,
-            })
+            const secUid = extractSecUid(sec_user_id?.text)
 
             // 构建 updateTable 所需的格式
             const updateItem = { recordId: user_recordId, data: {} };
+
+            if (!isValidSecUid(secUid)) {
+              updateItem.data = {
+                get_interaction_flag: 'fail',
+                interaction_fail_reason: t('dyForm.messages.invalidSecUid'),
+              }
+              totalInteract.push(updateItem);
+              continue;
+            }
+
+            const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_data?key=${props.formData.key}`, {
+                sec_user_id: secUid,
+            })
+
             if (res && res.data && res.data.code === 0) {
               updateItem.data = {
                 ...res.data.data.user, 
@@ -310,6 +349,18 @@
             const userRecord = await userTable.getRecordById(user_record);
             const sec_user_id = userRecord.fields[fieldMap[user_fields.sec_uid.label].id][0]
 
+            const secUid = extractSecUid(sec_user_id?.text)
+            if (!isValidSecUid(secUid)) {
+              totalLastTime[user_record] = {
+                recordId: user_record,
+                data: {
+                  get_vedio_flag: 'fail',
+                  vedio_fail_reason: t('dyForm.messages.invalidSecUid'),
+                }
+              };
+              continue;
+            }
+
             let user_cut_time = min_time
             if (timeCut){
               user_cut_time = await getMaxCreateTimeByUser(
@@ -331,7 +382,7 @@
               i += 1
               const get_time = Date.now()
               const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_post?key=${props.formData.key}`, {
-                  sec_user_id: sec_user_id.text,
+                  sec_user_id: secUid,
                   max_cursor: max_cursor,
               })
 

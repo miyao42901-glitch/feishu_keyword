@@ -262,13 +262,14 @@
       async function handleLoginSuccess(data) {
         isLocked.value = true;
         try {
-          if (!data.data.accessToken) {
+          const token = data?.data?.access_token ?? data?.data?.accessToken;
+          if (!token) {
             formData.value.message = t('form.messages.loginFailed');
             formData.value.messageType = 'error';
           }
           else {
-            localStorage.setItem('user_access_token', data.data.accessToken);
-            const result = await getUserDetail(data.data.accessToken);
+            localStorage.setItem('user_access_token', token);
+            const result = await getUserDetail(token);
             if (!result) {
               formData.value.message = t('form.messages.loginFailed');
               formData.value.messageType = 'error';
