@@ -237,6 +237,92 @@
       "unknownError": "Unknown error"
     }
   },
+  "ksForm": {
+    "userFields": {
+      "user_name": "Kuaishou Username",
+      "user_id": "Kuaishou User ID",
+      "eid": "Identification ID",
+      "kwaiId": "Kuaishou ID",
+      "user_text": "Bio",
+      "fan": "Follower Count",
+      "follow": "Following Count",
+      "photo": "Work Count",
+      "cityName": "City",
+      "shareLink": "Profile Share Link",
+      "last_get_time": "User Data Update Time",
+      "get_interaction_flag": "Interaction Data Flag",
+      "interaction_fail_reason": "Interaction Data Failure Reason",
+      "get_work_flag": "Video Data Flag",
+      "work_fail_reason": "Video Data Failure Reason"
+    },
+    "workFields": {
+      "caption": "Video Title",
+      "user_link": "Video Author",
+      "photo_id": "Video ID",
+      "eid": "Identification ID",
+      "like_count": "Like Count",
+      "view_count": "View Count",
+      "forward_count": "Collect Count",
+      "comment_count": "Comment Count",
+      "vedio_url": "Video URL",
+      "timestamp": "Video Publish Time",
+      "last_get_time": "Interaction Data Update Time",
+      "get_interaction_flag": "Interaction Data Flag",
+      "interaction_fail_reason": "Interaction Data Failure Reason"
+    },
+    "options": {
+      "interaction": {
+        "unknow": "Interaction data not fetched",
+        "fail": "Last interaction data fetch failed",
+        "success": "Last interaction data fetch succeeded"
+      },
+      "work": {
+        "unknow": "Video data not fetched",
+        "fail": "Last video data fetch failed",
+        "success": "Last video data fetch succeeded"
+      }
+    },
+    "alerts": {
+      "template": "Please generate an empty template or select an existing table",
+      "duplicate": "For duplicate data issues, it is recommended to use the [Delete Duplicate Records] plugin to handle duplicate data"
+    },
+    "form": {
+      "generateTemplate": "Generate empty table template",
+      "userTable": "Kuaishou User Table",
+      "shareLink": "Profile Share Link",
+      "shareLinkPlaceholder": "Please enter profile share link",
+      "addUser": "Add Kuaishou Account",
+      "updateUser": "Update Kuaishou Account Data",
+      "workTable": "Video Data Table",
+      "dateLimit": "Date Limit",
+      "dateLimitPlaceholder": "Please select date limit",
+      "today": "Today",
+      "days": "days",
+      "allInDate": "Get all in date range",
+      "newInDate": "Get new in date range",
+      "getWorks": "Get videos published in {days} days",
+      "updateWorkInteraction": "Update video interaction information"
+    },
+    "tooltips": {
+      "generateTemplate": "Generate a pair of associated empty templates: Kuaishou account table and Kuaishou video table. Modify the [Video Author] field in the Kuaishou video table to set the associated Kuaishou account table",
+      "addUser": "Requires login, Kuaishou account ID or business card share link, Kuaishou account table",
+      "updateUser": "Requires login, Kuaishou account table",
+      "getWorks": "Requires login, Kuaishou account table, Kuaishou video table",
+      "updateWorkInteraction": "Requires login, Kuaishou video table"
+    },
+    "messages": {
+      "addUserSuccess": "Kuaishou account added successfully, cost: {price}",
+      "updateUserSuccess": "Kuaishou account interaction data obtained successfully, total {total} Kuaishou account data processed, {success} Kuaishou account data processed successfully, cost: {price}",
+      "getWorksSuccess": "Kuaishou account video data obtained successfully, total {total} Kuaishou account data processed, {success} Kuaishou account data processed successfully, {new} new video data added, cost: {price}",
+      "updateWorkSuccess": "Video interaction data obtained successfully, total {total} video data processed, {success} video data processed successfully, cost: {price}",
+      "operationFailed": "Operation failed: {error}",
+      "unknownError": "Unknown error"
+    },
+    "template": {
+      "userTable": "Kuaishou Account",
+      "workTable": "Kuaishou Data"
+    }
+  },
   "form": {
     "title": "JiZhiLa Data Assistant",
     "alert": {
@@ -260,7 +346,8 @@
     "tabs": {
       "douyin": "Douyin",
       "wechatChannel": "WeChat Channel",
-      "wechat": "Wechat Official Account"
+      "wechat": "Wechat Official Account",
+      "kuaishou": "Kuaishou"
     },
     "loading": "Operation in progress, please wait...",
     "messages": {
