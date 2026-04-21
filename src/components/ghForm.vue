@@ -13,6 +13,7 @@
     ElAlert,
   } from 'element-plus';
   import pluginAPI from '@/utils/request'
+  import axios from 'axios'
   import { writeToTable, updateTable, getMaxCreateTimeByUser } from '@/utils/tableHelper'
   import TableSelect from './TableSelect.vue'
   import '@/assets/form-styles.css'
@@ -175,9 +176,16 @@
         emit('update:isLocked', true);
 
         try{
-          const res = await pluginAPI.post('/fbmain/monitor/v3/avatar_type', {
-            name: ghData.value.ghSearchValue,
-            key: props.formData.key,
+          // const res = await pluginAPI.post('/fbmain/monitor/v3/avatar_type', {
+          //   name: ghData.value.ghSearchValue,
+          //   key: props.formData.key,
+          // })
+          const res = await pluginAPI.post('/plugin_forward', {
+            url: '/fbmain/monitor/v3/avatar_type',
+            body: {
+              name: ghData.value.ghSearchValue,
+              key: props.formData.key,
+            }
           })
 
           if (res && res.data && res.data.code === 0) {
@@ -248,9 +256,17 @@
             // let new_cut_time = Math.max(ac_cut_time, Date.now())
             let new_cut_time = ac_cut_time
             if (searchDays === 1){
-              const res = await pluginAPI.post('/fbmain/monitor/v3/post_condition', {
-                biz: ac_biz.text,
-                key: props.formData.key,
+              // const res = await pluginAPI.post('/fbmain/monitor/v3/post_condition', {
+              //   biz: ac_biz.text,
+              //   key: props.formData.key,
+              // })
+
+              const res = await pluginAPI.post('/plugin_forward', {
+                url: '/fbmain/monitor/v3/post_condition',
+                body: {
+                  biz: ac_biz.text,
+                  key: props.formData.key,
+                }
               })
               
               if (!(res && res.data && res.data.code === 0)) {
@@ -301,10 +317,19 @@
               let i = 0
               while(true){
                 i += 1
-                const res = await pluginAPI.post('/fbmain/monitor/v3/post_history', {
-                  biz: ac_biz.text,
-                  key: props.formData.key,
-                  page: i
+                // const res = await pluginAPI.post('/fbmain/monitor/v3/post_history', {
+                //   biz: ac_biz.text,
+                //   key: props.formData.key,
+                //   page: i
+                // })
+
+                const res = await pluginAPI.post('/plugin_forward', {
+                  url: '/fbmain/monitor/v3/post_history',
+                  body: {
+                    biz: ac_biz.text,
+                    key: props.formData.key,
+                    page: i
+                  }
                 })
 
                 if (!(res && res.data && res.data.code === 0)) {
@@ -416,9 +441,17 @@
             const articleRecord = await articleTable.getRecordById(ar_recordId);
             const ar_url = articleRecord.fields[fieldMap[ar_fields.url.label].id][0]
             const get_time = Date.now()
-            const res = await pluginAPI.post('/fbmain/monitor/v3/read_zan_pro', {
-              url: ar_url.text,
-              key: props.formData.key,
+            // const res = await pluginAPI.post('/fbmain/monitor/v3/read_zan_pro', {
+            //   url: ar_url.text,
+            //   key: props.formData.key,
+            // })
+            
+            const res = await pluginAPI.post('/plugin_forward', {
+              url: '/fbmain/monitor/v3/read_zan_pro',
+              body: {
+                url: ar_url.text,
+                key: props.formData.key,
+              }
             })
             
             // 构建 updateTable 所需的格式

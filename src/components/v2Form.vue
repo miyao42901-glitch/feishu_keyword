@@ -153,10 +153,19 @@
 
         try{
           const get_time = Date.now()
-          const res = await pluginAPI.post(`/fbmain/monitor/v3/wxvideo`, {
-            keywords: paneData.value.v2_name,
-            type: 6,
-            key: props.formData.key,
+          // const res = await pluginAPI.post(`/fbmain/monitor/v3/wxvideo`, {
+          //   keywords: paneData.value.v2_name,
+          //   type: 6,
+          //   key: props.formData.key,
+          // })
+
+          const res = await pluginAPI.post('/plugin_forward', {
+            url: '/fbmain/monitor/v3/wxvideo',
+            body: {
+              keywords: paneData.value.v2_name,
+              type: 6,
+              key: props.formData.key,
+            }
           })
 
           if (res && res.data && res.data.code === 0) {
@@ -236,11 +245,21 @@
               i += 1
               const get_time = Date.now()
 
-              const res = await pluginAPI.post(`/fbmain/monitor/v3/wxvideo`, {
-                v2_name: v2_name.text,
-                type: 1,
-                last_buffer: last_buffer,
-                key: props.formData.key,
+              // const res = await pluginAPI.post(`/fbmain/monitor/v3/wxvideo`, {
+              //   v2_name: v2_name.text,
+              //   type: 1,
+              //   last_buffer: last_buffer,
+              //   key: props.formData.key,
+              // })
+
+              const res = await pluginAPI.post('/plugin_forward', {
+                url: '/fbmain/monitor/v3/wxvideo',
+                body: {
+                  v2_name: v2_name.text,
+                  type: 1,
+                  last_buffer: last_buffer,
+                  key: props.formData.key,
+                }
               })
 
               if (!(res && res.data && res.data.code === 0)) {
@@ -363,10 +382,19 @@
             const object_id = workRecord.fields[fieldMap[work_fields.object_id.label].id][0]
             const get_time = Date.now()
 
-            const res = await pluginAPI.post(`/fbmain/monitor/v3/wxvideo`, {
-              object_id: object_id.text,
-              key: props.formData.key,
-              type: type,
+            // const res = await pluginAPI.post(`/fbmain/monitor/v3/wxvideo`, {
+            //   object_id: object_id.text,
+            //   key: props.formData.key,
+            //   type: type,
+            // })
+
+            const res = await pluginAPI.post('/plugin_forward', {
+              url: '/fbmain/monitor/v3/wxvideo',
+              body: {
+                object_id: object_id.text,
+                key: props.formData.key,
+                type: type,
+              }
             })
             
             // 构建 updateTable 所需的格式

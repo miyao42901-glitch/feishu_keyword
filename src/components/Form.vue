@@ -18,7 +18,6 @@
     ElTabPane,
     ElMessageBox,
   } from 'element-plus';
-  import pluginAPI from '@/utils/request'
   import GhForm from './ghForm.vue'
   import DyForm from './dyForm.vue'
   // import XhsForm from './xhsForm.vue'
@@ -206,7 +205,7 @@
       async function getRemainMoney() {
         let result = false;
         try {
-          const res = await pluginAPI.post('/fbmain/monitor/v3/get_remain_money', {
+          const res = await axios.post('https://www.dajiala.com/fbmain/monitor/v3/get_remain_money', {
             key: formData.value.key,
           });
           if (res && res.data && res.data.code === 0) {

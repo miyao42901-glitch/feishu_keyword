@@ -237,6 +237,92 @@
       "unknownError": "不明なエラー"
     }
   },
+  "ksForm": {
+    "userFields": {
+      "user_name": "快手ユーザー名",
+      "user_id": "快手ユーザーID",
+      "eid": "識別ID",
+      "kwaiId": "快手ID",
+      "user_text": "プロフィール",
+      "fan": "フォロワー数",
+      "follow": "フォロー数",
+      "photo": "作品数",
+      "cityName": "都市",
+      "shareLink": "プロフィール共有リンク",
+      "last_get_time": "ユーザーデータ更新時間",
+      "get_interaction_flag": "インタラクションデータ取得フラグ",
+      "interaction_fail_reason": "インタラクションデータ取得失敗理由",
+      "get_work_flag": "動画データ取得フラグ",
+      "work_fail_reason": "動画データ取得失敗理由"
+    },
+    "workFields": {
+      "caption": "動画タイトル",
+      "user_link": "動画作成者",
+      "photo_id": "動画ID",
+      "eid": "識別ID",
+      "like_count": "いいね数",
+      "view_count": "閲覧数",
+      "forward_count": "コレクション数",
+      "comment_count": "コメント数",
+      "vedio_url": "動画URL",
+      "timestamp": "動画公開時間",
+      "last_get_time": "インタラクションデータ更新時間",
+      "get_interaction_flag": "インタラクションデータ取得フラグ",
+      "interaction_fail_reason": "インタラクションデータ取得失敗理由"
+    },
+    "options": {
+      "interaction": {
+        "unknow": "インタラクションデータ未取得",
+        "fail": "前回のインタラクションデータ取得に失敗",
+        "success": "前回のインタラクションデータ取得に成功"
+      },
+      "work": {
+        "unknow": "動画データ未取得",
+        "fail": "前回の動画データ取得に失敗",
+        "success": "前回の動画データ取得に成功"
+      }
+    },
+    "alerts": {
+      "template": "空のテンプレートを生成するか、既存のテーブルを選択してください",
+      "duplicate": "データ重複の問題については、「重複レコードの削除」プラグインを使用して重複データを処理することをお勧めします"
+    },
+    "form": {
+      "generateTemplate": "空のテーブルテンプレートを生成",
+      "userTable": "快手ユーザーテーブル",
+      "shareLink": "プロフィール共有リンク",
+      "shareLinkPlaceholder": "プロフィール共有リンクを入力してください",
+      "addUser": "快手アカウントを追加",
+      "updateUser": "快手アカウントデータを更新",
+      "workTable": "動画データテーブル",
+      "dateLimit": "日付制限",
+      "dateLimitPlaceholder": "日付制限を選択してください",
+      "today": "今日",
+      "days": "日以内",
+      "allInDate": "日付範囲内のすべてを取得",
+      "newInDate": "日付範囲内の新規を取得",
+      "getWorks": "{days}日間に公開された動画を取得",
+      "updateWorkInteraction": "動画インタラクション情報を更新"
+    },
+    "tooltips": {
+      "generateTemplate": "関連付けられた空のテンプレートのペアを生成します：快手アカウントテーブルと快手動画テーブル。快手動画テーブルの「動画作成者」フィールドを変更して、関連する快手アカウントテーブルを設定します",
+      "addUser": "ログイン、快手アカウントIDまたは名刺共有リンク、快手アカウントテーブルが必要です",
+      "updateUser": "ログイン、快手アカウントテーブルが必要です",
+      "getWorks": "ログイン、快手アカウントテーブル、快手動画テーブルが必要です",
+      "updateWorkInteraction": "ログイン、快手動画テーブルが必要です"
+    },
+    "messages": {
+      "addUserSuccess": "快手アカウントの追加が完了しました、コスト：{price}",
+      "updateUserSuccess": "快手アカウントのインタラクションデータの取得が完了しました、合計{total}件の快手アカウントデータを処理、{success}件の快手アカウントデータの処理に成功、コスト：{price}",
+      "getWorksSuccess": "快手アカウントの動画データの取得が完了しました、合計{total}件の快手アカウントデータを処理、{success}件の快手アカウントデータの処理に成功、{new}件の動画データを追加、コスト：{price}",
+      "updateWorkSuccess": "動画インタラクションデータの取得が完了しました、合計{total}件の動画データを処理、{success}件の動画データの処理に成功、コスト：{price}",
+      "operationFailed": "操作に失敗：{error}",
+      "unknownError": "不明なエラー"
+    },
+    "template": {
+      "userTable": "快手アカウント",
+      "workTable": "快手データ"
+    }
+  },
   "form": {
     "title": "JiZhiLaデータアシスタント",
     "alert": {
@@ -260,7 +346,8 @@
     "tabs": {
       "douyin": "抖音",
       "wechatChannel": "WeChatチャンネル",
-      "wechat": "WeChat公式アカウント"
+      "wechat": "WeChat公式アカウント",
+      "kuaishou": "快手"
     },
     "loading": "操作中です、しばらくお待ちください...",
     "messages": {

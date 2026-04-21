@@ -169,9 +169,17 @@
 
         try{
           const get_time = Date.now()
-          const res = await pluginAPI.post(`/fbmain/monitor/v3/ks_user_data_v2`, {
-            share_text: paneData.value.shareLink,
-            key: props.formData.key,
+          // const res = await pluginAPI.post(`/fbmain/monitor/v3/ks_user_data_v2`, {
+          //   share_text: paneData.value.shareLink,
+          //   key: props.formData.key,
+          // })
+
+          const res = await pluginAPI.post('/plugin_forward', {
+            url: '/fbmain/monitor/v3/ks_user_data_v2',
+            body: {
+              share_text: paneData.value.shareLink,
+              key: props.formData.key,
+            }
           })
 
           if (res && res.data && res.data.code === 0) {
@@ -229,9 +237,17 @@
             const share_link = userRecord.fields[fieldMap[user_fields.shareLink.label].id][0]
             const get_time = Date.now()
 
-            const res = await pluginAPI.post(`/fbmain/monitor/v3/ks_user_data_v2`, {
+            // const res = await pluginAPI.post(`/fbmain/monitor/v3/ks_user_data_v2`, {
+            //     share_text: share_link.text,
+            //     key: props.formData.key,
+            // })
+
+            const res = await pluginAPI.post('/plugin_forward', {
+              url: '/fbmain/monitor/v3/ks_user_data_v2',
+              body: {
                 share_text: share_link.text,
                 key: props.formData.key,
+              }
             })
 
             // 构建 updateTable 所需的格式
@@ -331,10 +347,19 @@
               i += 1
               const get_time = Date.now()
 
-              const res = await pluginAPI.post(`/fbmain/monitor/v3/ks_user_post_v1`, {
-                uid: user_id.text,
-                pcursor: last_buffer,
-                key: props.formData.key,
+              // const res = await pluginAPI.post(`/fbmain/monitor/v3/ks_user_post_v1`, {
+              //   uid: user_id.text,
+              //   pcursor: last_buffer,
+              //   key: props.formData.key,
+              // })
+
+              const res = await pluginAPI.post('/plugin_forward', {
+                url: '/fbmain/monitor/v3/ks_user_post_v1',
+                body: {
+                  uid: user_id.text,
+                  pcursor: last_buffer,
+                  key: props.formData.key,
+                }
               })
 
               if (!(res && res.data && res.data.code === 0)) {
@@ -458,9 +483,17 @@
             const eid = workRecord.fields[fieldMap[work_fields.eid.label].id][0]
             const get_time = Date.now()
 
-            const res = await pluginAPI.post(`/fbmain/monitor/v3/ks_video_detail`, {
-              share_text: "https://www.kuaishou.com/short-video/" + eid.text,
-              key: props.formData.key,
+            // const res = await pluginAPI.post(`/fbmain/monitor/v3/ks_video_detail`, {
+            //   share_text: "https://www.kuaishou.com/short-video/" + eid.text,
+            //   key: props.formData.key,
+            // })
+
+            const res = await pluginAPI.post('/plugin_forward', {
+              url: '/fbmain/monitor/v3/ks_video_detail',
+              body: {
+                share_text: "https://www.kuaishou.com/short-video/" + eid.text,
+                key: props.formData.key,
+              }
             })
             
             // 构建 updateTable 所需的格式

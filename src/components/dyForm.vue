@@ -199,9 +199,19 @@
           }
 
           const get_time = Date.now()
-          const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_data?key=${props.formData.key}`, {
+          // const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_data?key=${props.formData.key}`, {
+          //     sec_user_id: secUid,
+          //     share_text: dyData.value.share_text,
+          // })
+          const res = await pluginAPI.post('/plugin_forward', {
+            url: '/fbmain/monitor/v3/douyin_user_data',
+            body: {
               sec_user_id: secUid,
               share_text: dyData.value.share_text,
+            },
+            params: {
+              key: props.formData.key,
+            }
           })
 
           if (res && res.data && res.data.code === 0) {
@@ -270,8 +280,18 @@
               continue;
             }
 
-            const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_data?key=${props.formData.key}`, {
+            // const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_data?key=${props.formData.key}`, {
+            //     sec_user_id: secUid,
+            // })
+
+            const res = await pluginAPI.post('/plugin_forward', {
+              url: '/fbmain/monitor/v3/douyin_user_data',
+              body: {
                 sec_user_id: secUid,
+              },
+              params: {
+                key: props.formData.key,
+              }
             })
 
             if (res && res.data && res.data.code === 0) {
@@ -381,9 +401,20 @@
             while(true){
               i += 1
               const get_time = Date.now()
-              const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_post?key=${props.formData.key}`, {
+              // const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_post?key=${props.formData.key}`, {
+              //     sec_user_id: secUid,
+              //     max_cursor: max_cursor,
+              // })
+
+              const res = await pluginAPI.post('/plugin_forward', {
+                url: '/fbmain/monitor/v3/douyin_user_post',
+                body: {
                   sec_user_id: secUid,
                   max_cursor: max_cursor,
+                },
+                params: {
+                  key: props.formData.key,
+                }
               })
 
               if (!(res && res.data && res.data.code === 0)) {
@@ -509,8 +540,18 @@
             const aweme_id = articleRecord.fields[fieldMap[vedio_fields.aweme_id.label].id][0]
             const get_time = Date.now()
 
-            const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_aweme_detail?key=${props.formData.key}`, {
+            // const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_aweme_detail?key=${props.formData.key}`, {
+            //     aweme_id: aweme_id.text,
+            // })
+
+            const res = await pluginAPI.post('/plugin_forward', {
+              url: '/fbmain/monitor/v3/douyin_aweme_detail',
+              body: {
                 aweme_id: aweme_id.text,
+              },
+              params: {
+                key: props.formData.key,
+              }
             })
 
             // 构建 updateTable 所需的格式
