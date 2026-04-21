@@ -4,7 +4,7 @@ import axios from 'axios'
 const pluginAPI = axios.create({
   // baseURL: 'api',
   // baseURL: 'https://api.yddm.com', // 设置baseURL
-  baseURL: 'http://127.0.0.1:8181/public',
+  baseURL: 'https://feishu.jzl.com/api/v1/public',
   timeout: 10000, // 请求超时时间
 })
 
