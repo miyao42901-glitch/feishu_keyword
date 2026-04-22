@@ -7,7 +7,8 @@
     :close-on-press-escape="false"
   >
     <div class="wechat-login-container">
-      <div class="qrcode-section" v-if="qrcodeImage">
+      <!-- 二维码登录部分 -->
+      <div class="qrcode-section" v-if="qrcodeImage && !showRegisterForm">
         <div :class="['qrcode-wrapper', { 'blur': !agreeProtocol }]">
           <img :src="qrcodeImage" alt="微信登录二维码" class="qrcode-image" />
           <div v-if="!agreeProtocol" class="blur-overlay">
@@ -24,7 +25,22 @@
           </el-checkbox>
         </div>
       </div>
-      <div class="loading-section" v-else>
+      <!-- 注册表单部分 -->
+      <div class="register-section" v-if="showRegisterForm">
+        <el-form :model="registerForm" :rules="registerRules" ref="registerFormRef" label-width="80px">
+          <el-form-item label="手机号" prop="phone">
+            <el-input v-model="registerForm.phone" placeholder="请输入手机号" />
+          </el-form-item>
+          <el-form-item label="密码" prop="password">
+            <el-input v-model="registerForm.password" type="password" placeholder="请输入密码" />
+          </el-form-item>
+          <el-form-item label="确认密码" prop="confirmPassword">
+            <el-input v-model="registerForm.confirmPassword" type="password" placeholder="请确认密码" />
+          </el-form-item>
+        </el-form>
+      </div>
+      <!-- 加载部分 -->
+      <div class="loading-section" v-else-if="!qrcodeImage && !showRegisterForm">
         <el-icon class="loading-icon"><i-ep-loading /></el-icon>
         <p>{{ t('wechatLoginDialog.loading') }}</p>
       </div>
@@ -32,6 +48,7 @@
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="handleCancel">{{ t('wechatLoginDialog.buttons.cancel') }}</el-button>
+        <el-button type="primary" @click="handleRegister" v-if="showRegisterForm">注册</el-button>
       </span>
     </template>
   </el-dialog>
@@ -39,7 +56,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElForm, ElFormItem, ElInput } from 'element-plus'
 import axios from 'axios'
 import { useI18n } from 'vue-i18n'
 
@@ -58,8 +75,39 @@ const dialogVisible = ref(props.visible)
 const qrcodeImage = ref('')
 const checkInterval = ref(null)
 const agreeProtocol = ref(true)
+const showRegisterForm = ref(false)
+const registerFormRef = ref(null)
 const loginForm = ref({
   token: ''
+})
+const registerForm = ref({
+  phone: '',
+  password: '',
+  confirmPassword: '',
+  token: ''
+})
+const registerRules = ref({
+  phone: [
+    { required: true, message: '请输入手机号', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, message: '密码长度不能少于8位', trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { required: true, message: '请确认密码', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (value !== registerForm.value.password) {
+          callback(new Error('两次输入密码不一致'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ]
 })
 
 // 生成二维码
@@ -105,10 +153,18 @@ const startCheckLoginStatus = () => {
       })
       
       if (res.data && res.data.error_code === 0) {
-        clearInterval(checkInterval.value)
-        ElMessage.success(t('wechatLoginDialog.messages.loginSuccess'))
-        emit('login-success', res.data)
-        dialogVisible.value = false
+        if (res.data.data.type === 0) {
+          // 需要注册
+          clearInterval(checkInterval.value)
+          showRegisterForm.value = true
+          registerForm.value.token = res.data.data.accessToken
+        } else {
+          // 登录成功
+          clearInterval(checkInterval.value)
+          ElMessage.success(t('wechatLoginDialog.messages.loginSuccess'))
+          emit('login-success', res.data)
+          dialogVisible.value = false
+        }
       }
     } catch (error) {
       console.error('检测登录状态失败:', error)
@@ -121,6 +177,36 @@ const startCheckLoginStatus = () => {
     dialogVisible.value = false
   }
   }, 2000) // 每2秒检测一次
+}
+
+// 处理注册
+const handleRegister = async () => {
+  if (!registerFormRef.value) return
+  
+  try {
+    await registerFormRef.value.validate()
+    
+    const res = await axios.post('https://www.dajiala.com/fbmain/account/v1/register', {
+      accessToken: registerForm.value.token,
+      phone: registerForm.value.phone,
+      password: registerForm.value.password,
+      confirm: registerForm.value.confirmPassword,
+      bd_vid: '',
+      code: ''
+    })
+    
+    if (res.data && res.data.error_code === 0) {
+      ElMessage.success('注册成功')
+      ElMessage.success(t('wechatLoginDialog.messages.loginSuccess'))
+      emit('login-success', {data: {accessToken: registerForm.value.token}})
+      dialogVisible.value = false
+    } else {
+      ElMessage.error(res.data.error_msg || '注册失败')
+    }
+  } catch (error) {
+    console.error('注册失败:', error)
+    ElMessage.error('注册失败，请稍后重试')
+  }
 }
 
 // 取消登录
@@ -136,10 +222,18 @@ import { watch } from 'vue'
 watch(() => props.visible, (newVal) => {
   dialogVisible.value = newVal
   if (newVal) {
+    showRegisterForm.value = false
+    registerForm.value = {
+      phone: '',
+      password: '',
+      confirmPassword: '',
+      token: ''
+    }
     generateQrcode()
   } else {
     // 对话框关闭时清理
     qrcodeImage.value = ''
+    showRegisterForm.value = false
     if (checkInterval.value) {
       clearInterval(checkInterval.value)
     }
@@ -245,5 +339,19 @@ watch(dialogVisible, (newVal) => {
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
+}
+
+.register-section {
+  width: 100%;
+  max-width: 400px;
+  padding: 20px 0;
+}
+
+.register-section .el-form {
+  width: 100%;
+}
+
+.register-section .el-form-item {
+  margin-bottom: 16px;
 }
 </style>
