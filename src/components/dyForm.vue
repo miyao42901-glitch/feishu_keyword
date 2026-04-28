@@ -432,7 +432,10 @@
               totalCost += res.data.price
               lastRemainMoney = res.data.remain_money
 
-              const dataList = res.data.data.aweme_list
+              // 过滤掉时间范围外的置顶视频
+              const preFilteringData = res.data.data.aweme_list.filter(item => item.is_top != 1 || item.create_time * 1000 > user_cut_time)
+
+              const dataList = preFilteringData
               .filter(item => item.create_time * 1000 > user_cut_time)
               .map(item => ({
                 digg_count: item.statistics.digg_count,
@@ -470,7 +473,7 @@
                 }
               };
 
-              if (dataList.length === 0 || dataList.length < res.data.data.aweme_list.length){
+              if (dataList.length === 0 || dataList.length < preFilteringData.length){
                 break
               }
             }
