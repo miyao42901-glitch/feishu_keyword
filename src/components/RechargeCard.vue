@@ -1,11 +1,16 @@
 <template>
-  <el-dialog
-    v-model="dialogVisible"
-    :title="t('rechargeDialog.title')"
-    width="90%"
-    :close-on-click-modal="false"
-    :close-on-press-escape="false"
-  >
+  <el-card class="recharge-card" shadow="hover">
+    <div class="card-header">
+      <h3>{{ t('rechargeDialog.title') }}</h3>
+      <el-button 
+        type="text" 
+        @click="handleClose"
+        class="close-btn"
+      >
+        <i class="el-icon-close" />
+      </el-button>
+    </div>
+    
     <el-form :model="rechargeForm" :rules="rules" ref="rechargeFormRef">
       <el-alert
         v-if="errorMessage"
@@ -46,13 +51,12 @@
         </div>
       </el-form-item>
     </el-form>
-    <template #footer>
-      <span class="dialog-footer">
-        <el-button @click="dialogVisible = false">{{ t('rechargeDialog.buttons.cancel') }}</el-button>
-        <el-button type="primary" @click="handleRecharge" :loading="loading">{{ t('rechargeDialog.buttons.recharge') }}</el-button>
-      </span>
-    </template>
-  </el-dialog>
+    
+    <div class="card-footer">
+      <el-button @click="handleClose">{{ t('rechargeDialog.buttons.cancel') }}</el-button>
+      <el-button type="primary" @click="handleRecharge" :loading="loading">{{ t('rechargeDialog.buttons.recharge') }}</el-button>
+    </div>
+  </el-card>
 </template>
 
 <script setup>
@@ -63,16 +67,9 @@ import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n();
 
-const props = defineProps({
-  visible: {
-    type: Boolean,
-    default: false
-  }
-})
+const emit = defineEmits(['recharge', 'close'])
 
-const emit = defineEmits(['update:visible', 'recharge'])
-
-const dialogVisible = ref(props.visible)
+const dialogVisible = ref(true)
 const rechargeForm = ref({
   amount: 5
 })
@@ -94,12 +91,12 @@ const presetAmounts = [
   { amount: 100000, gift: 30000 }
 ]
 
-const rules = {
+const rules = computed(() => ({
   amount: [
     { required: true, message: t('rechargeDialog.messages.requiredAmount'), trigger: 'blur' },
     { type: 'number', min: 5, message: t('rechargeDialog.messages.minAmount'), trigger: 'blur' }
   ]
-}
+}))
 
 const clearError = () => {
   errorMessage.value = ''
@@ -136,6 +133,10 @@ const giftAmount = computed(() => {
   }
   return 0
 })
+
+const handleClose = () => {
+  emit('close')
+}
 
 const checkPaymentStatus = async(order_no, accessToken) => {
   let count = 0
@@ -210,7 +211,7 @@ const handleRecharge = async () => {
               const isPaid = await checkPaymentStatus(order_no, accessToken)
               if(isPaid){
                 emit('recharge', { amount: rechargeForm.value.amount, gift: giftAmount.value })
-                dialogVisible.value = false
+                emit('close')
               }
             }else{
               errorMessage.value = res_info.data.msg
@@ -234,22 +235,10 @@ const handleRecharge = async () => {
   })
 }
 
-// 监听visible变化
-import { watch } from 'vue'
-watch(() => props.visible, (newVal) => {
-  dialogVisible.value = newVal
-  // 当对话框关闭时重置表单
-  if (!newVal && rechargeFormRef.value) {
-    rechargeFormRef.value.resetFields()
-    errorMessage.value = ''
-  }
-})
-
-// 当对话框关闭时通知父组件
-watch(dialogVisible, (newVal) => {
-  emit('update:visible', newVal)
-  // 当对话框关闭时重置表单
-  if (!newVal && rechargeFormRef.value) {
+// 组件销毁时清理
+import { onUnmounted } from 'vue'
+onUnmounted(() => {
+  if (rechargeFormRef.value) {
     rechargeFormRef.value.resetFields()
     errorMessage.value = ''
   }
@@ -257,10 +246,37 @@ watch(dialogVisible, (newVal) => {
 </script>
 
 <style scoped>
-.dialog-footer {
+.recharge-card {
+  margin: 10px 0;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--el-border-color);
+}
+
+.card-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.close-btn {
+  padding: 0;
+  font-size: 20px;
+}
+
+.card-footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--el-border-color);
 }
 
 .preset-amounts {

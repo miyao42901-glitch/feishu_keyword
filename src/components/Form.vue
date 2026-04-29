@@ -25,7 +25,7 @@
   import KsForm from './ksForm.vue'
   import SensitiveText from './sensitiveText.vue'
   import LoginDialog from './LoginDialog.vue'
-  import RechargeDialog from './RechargeDialog.vue'
+  import RechargeCard from './RechargeCard.vue'
   import WechatLoginDialog from './WechatLoginDialog.vue'
   import axios from 'axios'
   import '@/assets/form-styles.css'
@@ -50,9 +50,10 @@
       DyForm,
       // XhsForm,
       V2Form,
+      KsForm,
       SensitiveText,
       LoginDialog,
-      RechargeDialog,
+      RechargeCard,
       WechatLoginDialog,
     },
     setup() {
@@ -73,7 +74,7 @@
 
       const isLocked = ref(false);
       const loginDialogVisible = ref(false);
-      const rechargeDialogVisible = ref(false)
+      const showRechargeCard = ref(false)
       const wechatLoginDialogVisible = ref(false);
 
       const isShow = ref(false);
@@ -238,7 +239,7 @@
             formData.value.messageType = 'error';
           }
           else {
-            rechargeDialogVisible.value = true;
+            showRechargeCard.value = true;
           }
         }
         finally {
@@ -305,7 +306,7 @@
         formData,
         isLocked,
         isShow,
-        rechargeDialogVisible,
+        showRechargeCard,
         loginDialogVisible,
         wechatLoginDialogVisible,
         refreshBalance,
@@ -468,8 +469,14 @@
         </el-form>
       </el-card>
 
+    <!-- 充值卡片 -->
+    <RechargeCard
+      v-if="showRechargeCard"
+      @recharge="handleRecharge"
+      @close="showRechargeCard = false"
+    />
 
-      <el-card class="card-item" shadow="hover">
+      <el-card v-show="!showRechargeCard" class="card-item" shadow="hover">
         <el-tabs :disabled="isLocked">
           <el-tab-pane :label="t('form.tabs.douyin')">
             <DyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
@@ -504,11 +511,6 @@
       @login-success="handleLoginSuccess"
     />
 
-    <!-- 充值对话框 -->
-    <RechargeDialog
-      v-model:visible="rechargeDialogVisible"
-      @recharge="handleRecharge"
-    />
 
     <!-- 微信登录对话框 -->
     <WechatLoginDialog
