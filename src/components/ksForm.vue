@@ -130,6 +130,35 @@
         useTimeCut: true,
       })
 
+      // 监听 workTableId 变化，自动检测关联的主表
+      const handleWorkTableChange = async (newWorkTableId) => {
+        if (!newWorkTableId) return;
+        paneData.value.userTableId = null;
+        try {
+          const workTable = await bitable.base.getTable(newWorkTableId);
+          const fieldList = await workTable.getFieldList();
+          const work_fields = workFields();
+          
+          // 查找名为 user_link 的 SingleLink 字段
+          for (const field of fieldList) {
+            const fieldName = await field.getName();
+            const fieldType = await field.getType();
+            // 只匹配 user_link 字段
+            if (fieldType === FieldType.SingleLink && fieldName === work_fields.user_link.label) {
+              const fieldMeta = await field.getMeta();
+              const property = fieldMeta.property;
+              if (property && property.tableId) {
+                // 找到关联的主表，自动设置
+                paneData.value.userTableId = property.tableId;
+                return;
+              }
+            }
+          }
+        } catch (error) {
+          console.error('自动检测主表失败:', error);
+        }
+      }
+
       const addTableTemplate = async() => {
         if (props.isLocked) return;
         emit('update:isLocked', true);
@@ -150,7 +179,7 @@
               timestamp + t('ksForm.template.workTable')
             );
             if (res2.success) {
-              paneData.value.userTableId = res1.data.tableId
+              // paneData.value.userTableId = res1.data.tableId
               paneData.value.workTableId = res2.data.tableId
             }
           }
@@ -550,6 +579,7 @@
         updateUser,
         getRecentWorks,
         getWorksInteract,
+        handleWorkTableChange,
         t,
       };
     },
@@ -642,7 +672,7 @@
     <el-form-item 
       :label="t('ksForm.form.workTable')"
     >
-      <TableSelect v-model="paneData.workTableId" />
+      <TableSelect v-model="paneData.workTableId" @change="handleWorkTableChange" />
     </el-form-item>
 
     <el-form-item :label="t('ksForm.form.dateLimit')">

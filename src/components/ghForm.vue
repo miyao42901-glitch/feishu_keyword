@@ -138,6 +138,35 @@
         useTimeCut: true,
       })
 
+      // 监听 workTableId 变化，自动检测关联的主表
+      const handleWorkTableChange = async (newWorkTableId) => {
+        if (!newWorkTableId) return;
+        ghData.value.selectedGhTableId = null;
+        try {
+          const workTable = await bitable.base.getTable(newWorkTableId);
+          const fieldList = await workTable.getFieldList();
+          const work_fields = ghArticleFields();
+          
+          // 查找名为 gh_link 的 SingleLink 字段
+          for (const field of fieldList) {
+            const fieldName = await field.getName();
+            const fieldType = await field.getType();
+            // 只匹配 gh_link 字段
+            if (fieldType === FieldType.SingleLink && fieldName === work_fields.gh_link.label) {
+              const fieldMeta = await field.getMeta();
+              const property = fieldMeta.property;
+              if (property && property.tableId) {
+                // 找到关联的主表，自动设置
+                ghData.value.selectedGhTableId = property.tableId;
+                return;
+              }
+            }
+          }
+        } catch (error) {
+          console.error('自动检测主表失败:', error);
+        }
+      }
+
       const addTableTemplate = async() => {
         if (props.isLocked) return;
         emit('update:isLocked', true);
@@ -158,7 +187,7 @@
               timestamp + t('ghForm.template.workTable')
             );
             if (res2.success) {
-              ghData.value.selectedGhTableId = res1.data.tableId
+              // ghData.value.selectedGhTableId = res1.data.tableId
               ghData.value.selectedArticleTableId = res2.data.tableId
             }
           }
@@ -508,6 +537,7 @@
         addGhAccount,
         getRecentArticles,
         getArticleInteract,
+        handleWorkTableChange,
         t,
       };
     },
@@ -580,7 +610,7 @@
     <el-form-item 
       :label="t('ghForm.form.articleTable')"
     >
-      <TableSelect v-model="ghData.selectedArticleTableId" />
+      <TableSelect v-model="ghData.selectedArticleTableId" @change="handleWorkTableChange" />
     </el-form-item>
     
     <el-form-item :label="t('ghForm.form.dateLimit')">

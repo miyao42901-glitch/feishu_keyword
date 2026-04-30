@@ -18,7 +18,7 @@
         default: null
       }
     },
-    emits: ['update:modelValue'],
+    emits: ['update:modelValue', 'change'],
     setup(props, { emit }) {
       const { t } = useI18n();
       const tableDataList = ref([]);
@@ -33,6 +33,7 @@
       // 监听本地数据变化
       watch(selectedTableId, async (newValue) => {
         syncData();
+        emit('change', newValue);
       });
 
       // 监听父组件数据变化
