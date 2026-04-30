@@ -13,6 +13,7 @@
       "get_interaction_flag": "获取互动数标志",
       "interaction_fail_reason": "获取互动数失败原因",
       "get_vedio_flag": "获取视频标志",
+      "get_work_flag": "获取视频标志",
       "vedio_fail_reason": "获取视频失败原因"
     },
     "videoFields": {
@@ -55,6 +56,7 @@
       "addUser": "添加抖音账号",
       "updateUser": "更新抖音账号数据",
       "videoTable": "视频数据表",
+      "workTable": "视频数据表",
       "dateLimit": "日期限制",
       "dateLimitPlaceholder": "请选择日期限制",
       "today": "今日",
@@ -62,20 +64,26 @@
       "allInDate": "获取日期内全部",
       "newInDate": "获取日期内新增",
       "getVideos": "获取{days}发布视频",
-      "updateVideoInteraction": "更新视频互动信息"
+      "getWorks": "获取{days}发布视频",
+      "updateVideoInteraction": "更新视频互动信息",
+      "updateWorkInteraction": "更新视频互动信息"
     },
     "tooltips": {
       "generateTemplate": "生成一对关联的抖音账号数据表空模板、视频数据表空模板，修改视频数据表的【视频作者】字段可以设置关联的抖音账号数据表",
       "addUser": "需要登录、抖音账号id或名片分享链接、抖音账号数据表",
       "updateUser": "需要登录、抖音账号数据表",
       "getVideos": "需要登录、抖音账号数据表、抖音视频数据表",
-      "updateVideoInteraction": "需要登录、抖音视频数据表"
+      "getWorks": "需要登录、抖音账号数据表、抖音视频数据表",
+      "updateVideoInteraction": "需要登录、抖音视频数据表",
+      "updateWorkInteraction": "需要登录、抖音视频数据表"
     },
     "messages": {
       "addUserSuccess": "新增抖音账号完成，消耗：{price}",
       "updateUserSuccess": "获取抖音账号互动数据完成，共操作{total}条抖音账号数据，成功操作{success}条抖音账号数据，消耗：{price}",
       "getVideosSuccess": "获取抖音账号视频数据完成，共操作{total}条抖音账号数据，成功操作{success}条抖音账号数据，新增{new}条视频数据，消耗：{price}",
       "updateVideoSuccess": "获取视频互动数据完成，共操作{total}条视频数据，成功操作{success}条视频数据，消耗：{price}",
+      "getWorksSuccess": "获取抖音账号视频数据完成，共操作{total}条抖音账号数据，成功操作{success}条抖音账号数据，新增{new}条视频数据，消耗：{price}",
+      "updateWorkSuccess": "获取视频互动数据完成，共操作{total}条视频数据，成功操作{success}条视频数据，消耗：{price}",
       "operationFailed": "操作失败: {error}",
       "unknownError": "未知错误",
       "invalidSecUid": "抖音用户id格式不正确，请在抖音主页URL中取 /user/ 之后至 ? 之前的内容（个人用户76位，认证用户55位）"
@@ -91,6 +99,7 @@
       "biz": "公众号标识(base64)",
       "desc": "公众号描述",
       "get_article_flag": "获取文章标志",
+      "get_work_flag": "获取文章标志",
       "fail_reason": "获取失败原因"
     },
     "articleFields": {
@@ -143,10 +152,13 @@
     "form": {
       "generateTemplate": "生成数据表空模板",
       "ghTable": "公众号数据表",
+      "userTable": "公众号数据表",
       "ghName": "公众号名称",
       "ghNamePlaceholder": "请输入公众号名称或微信id",
       "addGhAccount": "添加公众号",
+      "addUser": "添加公众号",
       "articleTable": "文章数据表",
+      "workTable": "文章数据表",
       "dateLimit": "日期限制",
       "dateLimitPlaceholder": "请选择日期限制",
       "today": "今日",
@@ -154,18 +166,26 @@
       "allInDate": "获取日期内全部",
       "newInDate": "获取日期内新增",
       "getArticles": "获取{days}发文",
-      "updateArticleInteraction": "更新文章互动信息"
+      "getWorks": "获取{days}发文",
+      "updateArticleInteraction": "更新文章互动信息",
+      "updateWorkInteraction": "更新文章互动信息"
     },
     "tooltips": {
       "generateTemplate": "生成一对关联的公众号数据表空模板、文章数据表空模板，修改文章数据表的公众号字段可以设置关联的公众号数据表",
       "addGhAccount": "需要登录、公众号名称、公众号数据表",
+      "addUser": "需要登录、公众号名称、公众号数据表",
       "getArticles": "需要登录、公众号数据表、文章数据表",
-      "updateArticleInteraction": "需要登录、文章数据表"
+      "getWorks": "需要登录、公众号数据表、文章数据表",
+      "updateArticleInteraction": "需要登录、文章数据表",
+      "updateWorkInteraction": "需要登录、文章数据表"
     },
     "messages": {
       "addGhAccountSuccess": "新增公众号数据完成，消耗：0.5",
+      "addUserSuccess": "新增公众号数据完成，消耗：0.5",
       "getArticlesSuccess": "获取公众号文章数据完成，共操作{total}条公众号数据，成功操作{success}条公众号数据，新增{new}条文章数据，消耗：{price}",
       "updateArticleSuccess": "获取文章互动数据完成，共操作{total}条文章数据，成功操作{success}条文章数据，消耗：{price}",
+      "getWorksSuccess": "获取公众号文章数据完成，共操作{total}条公众号数据，成功操作{success}条公众号数据，新增{new}条文章数据，消耗：{price}",
+      "updateWorkSuccess": "获取文章互动数据完成，共操作{total}条文章数据，成功操作{success}条文章数据，消耗：{price}",
       "operationFailed": "操作失败: {error}",
       "unknownError": "未知错误"
     },

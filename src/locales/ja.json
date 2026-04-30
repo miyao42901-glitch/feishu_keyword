@@ -13,6 +13,7 @@
       "get_interaction_flag": "インタラクションデータ取得フラグ",
       "interaction_fail_reason": "インタラクションデータ取得失敗理由",
       "get_vedio_flag": "動画データ取得フラグ",
+      "get_work_flag": "動画データ取得フラグ",
       "vedio_fail_reason": "動画データ取得失敗理由"
     },
     "videoFields": {
@@ -55,6 +56,7 @@
       "addUser": "抖音アカウントを追加",
       "updateUser": "抖音アカウントデータを更新",
       "videoTable": "動画データテーブル",
+      "workTable": "動画データテーブル",
       "dateLimit": "日付制限",
       "dateLimitPlaceholder": "日付制限を選択してください",
       "today": "今日",
@@ -62,20 +64,26 @@
       "allInDate": "日付範囲内のすべてを取得",
       "newInDate": "日付範囲内の新規を取得",
       "getVideos": "{days}日間に公開された動画を取得",
-      "updateVideoInteraction": "動画インタラクション情報を更新"
+      "getWorks": "{days}日間に公開された動画を取得",
+      "updateVideoInteraction": "動画インタラクション情報を更新",
+      "updateWorkInteraction": "動画インタラクション情報を更新"
     },
     "tooltips": {
       "generateTemplate": "関連付けられた空のテンプレートのペアを生成します：抖音アカウントテーブルと動画テーブル。動画テーブルの「動画作成者」フィールドを変更して、関連する抖音アカウントテーブルを設定します",
       "addUser": "ログイン、抖音アカウントIDまたは名刺共有リンク、抖音アカウントテーブルが必要です",
       "updateUser": "ログイン、抖音アカウントテーブルが必要です",
       "getVideos": "ログイン、抖音アカウントテーブル、抖音動画テーブルが必要です",
-      "updateVideoInteraction": "ログイン、抖音動画テーブルが必要です"
+      "getWorks": "ログイン、抖音アカウントテーブル、抖音動画テーブルが必要です",
+      "updateVideoInteraction": "ログイン、抖音動画テーブルが必要です",
+      "updateWorkInteraction": "ログイン、抖音動画テーブルが必要です"
     },
     "messages": {
       "addUserSuccess": "抖音アカウントの追加が完了しました、コスト：{price}",
       "updateUserSuccess": "抖音アカウントのインタラクションデータの取得が完了しました、合計{total}件の抖音アカウントデータを処理、{success}件の抖音アカウントデータの処理に成功、コスト：{price}",
       "getVideosSuccess": "抖音アカウントの動画データの取得が完了しました、合計{total}件の抖音アカウントデータを処理、{success}件の抖音アカウントデータの処理に成功、{new}件の動画データを追加、コスト：{price}",
       "updateVideoSuccess": "動画インタラクションデータの取得が完了しました、合計{total}件の動画データを処理、{success}件の動画データの処理に成功、コスト：{price}",
+      "getWorksSuccess": "抖音アカウントの動画データの取得が完了しました、合計{total}件の抖音アカウントデータを処理、{success}件の抖音アカウントデータの処理に成功、{new}件の動画データを追加、コスト：{price}",
+      "updateWorkSuccess": "動画インタラクションデータの取得が完了しました、合計{total}件の動画データを処理、{success}件の動画データの処理に成功、コスト：{price}",
       "operationFailed": "操作に失敗：{error}",
       "unknownError": "不明なエラー",
       "invalidSecUid": "抖音ユーザーIDの形式が正しくありません。抖音プロフィールURLの /user/ 以降かつ ? より前の部分を貼り付けてください（個人ユーザー76文字、認証ユーザー55文字）"
@@ -87,6 +95,7 @@
       "biz": "公式アカウントID（base64）",
       "desc": "公式アカウント説明",
       "get_article_flag": "記事データ取得フラグ",
+      "get_work_flag": "記事データ取得フラグ",
       "fail_reason": "取得失敗理由"
     },
     "articleFields": {
@@ -139,10 +148,13 @@
     "form": {
       "generateTemplate": "空のテーブルテンプレートを生成",
       "ghTable": "WeChat公式アカウントテーブル",
+      "userTable": "WeChat公式アカウントテーブル",
       "ghName": "公式アカウント名",
       "ghNamePlaceholder": "公式アカウント名またはWeChat IDを入力してください",
       "addGhAccount": "公式アカウントを追加",
+      "addUser": "公式アカウントを追加",
       "articleTable": "記事データテーブル",
+      "workTable": "記事データテーブル",
       "dateLimit": "日付制限",
       "dateLimitPlaceholder": "日付制限を選択してください",
       "today": "今日",
@@ -150,18 +162,26 @@
       "allInDate": "日付範囲内のすべてを取得",
       "newInDate": "日付範囲内の新規を取得",
       "getArticles": "{days}日間に公開された記事を取得",
-      "updateArticleInteraction": "記事インタラクション情報を更新"
+      "getWorks": "{days}日間に公開された記事を取得",
+      "updateArticleInteraction": "記事インタラクション情報を更新",
+      "updateWorkInteraction": "記事インタラクション情報を更新"
     },
     "tooltips": {
       "generateTemplate": "関連付けられた空のテンプレートのペアを生成します：公式アカウントテーブルと記事テーブル。記事テーブルの公式アカウントフィールドを変更して、関連する公式アカウントテーブルを設定します",
       "addGhAccount": "ログイン、公式アカウント名、公式アカウントテーブルが必要です",
+      "addUser": "ログイン、公式アカウント名、公式アカウントテーブルが必要です",
       "getArticles": "ログイン、公式アカウントテーブル、記事テーブルが必要です",
-      "updateArticleInteraction": "ログイン、記事テーブルが必要です"
+      "getWorks": "ログイン、公式アカウントテーブル、記事テーブルが必要です",
+      "updateArticleInteraction": "ログイン、記事テーブルが必要です",
+      "updateWorkInteraction": "ログイン、記事テーブルが必要です"
     },
     "messages": {
       "addGhAccountSuccess": "公式アカウントデータの追加が完了しました、コスト：0.5",
+      "addUserSuccess": "公式アカウントデータの追加が完了しました、コスト：0.5",
       "getArticlesSuccess": "公式アカウントの記事データの取得が完了しました、合計{total}件の公式アカウントデータを処理、{success}件の公式アカウントデータの処理に成功、{new}件の記事データを追加、コスト：{price}",
       "updateArticleSuccess": "記事インタラクションデータの取得が完了しました、合計{total}件の記事データを処理、{success}件の記事データの処理に成功、コスト：{price}",
+      "getWorksSuccess": "公式アカウントの記事データの取得が完了しました、合計{total}件の公式アカウントデータを処理、{success}件の公式アカウントデータの処理に成功、{new}件の記事データを追加、コスト：{price}",
+      "updateWorkSuccess": "記事インタラクションデータの取得が完了しました、合計{total}件の記事データを処理、{success}件の記事データの処理に成功、コスト：{price}",
       "operationFailed": "操作に失敗：{error}",
       "unknownError": "不明なエラー"
     }

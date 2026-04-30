@@ -23,6 +23,12 @@
   // import XhsForm from './xhsForm.vue'
   import V2Form from './v2Form.vue'
   import KsForm from './ksForm.vue'
+
+  import NewGhForm from './NewGhForm.vue'
+  import NewKsForm from './NewKsForm.vue'
+  import NewV2Form from './NewV2Form.vue'
+  import NewDyForm from './NewDyForm.vue'
+
   import SensitiveText from './sensitiveText.vue'
   import LoginDialog from './LoginDialog.vue'
   import RechargeCard from './RechargeCard.vue'
@@ -51,6 +57,12 @@
       // XhsForm,
       V2Form,
       KsForm,
+
+      NewGhForm,
+      NewKsForm,
+      NewV2Form,
+      NewDyForm,
+
       SensitiveText,
       LoginDialog,
       RechargeCard,
@@ -476,7 +488,7 @@
       @close="showRechargeCard = false"
     />
 
-      <el-card v-show="!showRechargeCard" class="card-item" shadow="hover">
+      <!-- <el-card v-show="!showRechargeCard" class="card-item" shadow="hover">
         <el-tabs :disabled="isLocked">
           <el-tab-pane :label="t('form.tabs.douyin')">
             <DyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
@@ -489,6 +501,23 @@
           </el-tab-pane>
           <el-tab-pane :label="t('form.tabs.kuaishou')">
             <KsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+          </el-tab-pane>
+        </el-tabs>
+      </el-card> -->
+
+      <el-card v-show="!showRechargeCard" class="card-item" shadow="hover">
+        <el-tabs :disabled="isLocked">
+          <el-tab-pane :label="t('form.tabs.douyin')">
+            <NewDyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+          </el-tab-pane>
+          <el-tab-pane :label="t('form.tabs.wechatChannel')">
+            <NewV2Form :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+          </el-tab-pane>
+          <el-tab-pane :label="t('form.tabs.wechat')">
+            <NewGhForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+          </el-tab-pane>
+          <el-tab-pane :label="t('form.tabs.kuaishou')">
+            <NewKsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
         </el-tabs>
       </el-card>

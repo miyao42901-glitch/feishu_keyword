@@ -13,6 +13,7 @@
       "get_interaction_flag": "Interaction Data Flag",
       "interaction_fail_reason": "Interaction Data Failure Reason",
       "get_vedio_flag": "Video Data Flag",
+      "get_work_flag": "Video Data Flag",
       "vedio_fail_reason": "Video Data Failure Reason"
     },
     "videoFields": {
@@ -55,6 +56,7 @@
       "addUser": "Add Douyin Account",
       "updateUser": "Update Douyin Account Data",
       "videoTable": "Video Data Table",
+      "workTable": "Video Data Table",
       "dateLimit": "Date Limit",
       "dateLimitPlaceholder": "Please select date limit",
       "today": "Today",
@@ -62,20 +64,26 @@
       "allInDate": "Get all in date range",
       "newInDate": "Get new in date range",
       "getVideos": "Get videos published in {days} days",
-      "updateVideoInteraction": "Update video interaction information"
+      "getWorks": "Get videos published in {days} days",
+      "updateVideoInteraction": "Update video interaction information",
+      "updateWorkInteraction": "Update video interaction information"
     },
     "tooltips": {
       "generateTemplate": "Generate a pair of associated empty templates: Douyin account table and video table. Modify the [Video Author] field in the video table to set the associated Douyin account table",
       "addUser": "Requires login, Douyin account ID or business card share link, Douyin account table",
       "updateUser": "Requires login, Douyin account table",
       "getVideos": "Requires login, Douyin account table, Douyin video table",
-      "updateVideoInteraction": "Requires login, Douyin video table"
+      "getWorks": "Requires login, Douyin account table, Douyin video table",
+      "updateVideoInteraction": "Requires login, Douyin video table",
+      "updateWorkInteraction": "Requires login, Douyin video table"
     },
     "messages": {
       "addUserSuccess": "Douyin account added successfully, cost: {price}",
       "updateUserSuccess": "Douyin account interaction data obtained successfully, total {total} Douyin account data processed, {success} Douyin account data processed successfully, cost: {price}",
       "getVideosSuccess": "Douyin account video data obtained successfully, total {total} Douyin account data processed, {success} Douyin account data processed successfully, {new} new video data added, cost: {price}",
       "updateVideoSuccess": "Video interaction data obtained successfully, total {total} video data processed, {success} video data processed successfully, cost: {price}",
+      "getWorksSuccess": "Douyin account video data obtained successfully, total {total} Douyin account data processed, {success} Douyin account data processed successfully, {new} new video data added, cost: {price}",
+      "updateWorkSuccess": "Video interaction data obtained successfully, total {total} video data processed, {success} video data processed successfully, cost: {price}",
       "operationFailed": "Operation failed: {error}",
       "unknownError": "Unknown error",
       "invalidSecUid": "Invalid Douyin user ID format. Please copy the part between /user/ and ? in the Douyin profile URL (76 chars for personal users, 55 chars for verified users)"
@@ -87,6 +95,7 @@
       "biz": "Official Account ID (base64)",
       "desc": "Official Account Description",
       "get_article_flag": "Article Data Flag",
+      "get_work_flag": "Article Data Flag",
       "fail_reason": "Failure Reason"
     },
     "articleFields": {
@@ -139,10 +148,13 @@
     "form": {
       "generateTemplate": "Generate empty table template",
       "ghTable": "WeChat Official Account Table",
+      "userTable": "WeChat Official Account Table",
       "ghName": "Official Account Name",
       "ghNamePlaceholder": "Please enter official account name or WeChat ID",
       "addGhAccount": "Add Official Account",
+      "addUser": "Add Official Account",
       "articleTable": "Article Data Table",
+      "workTable": "Article Data Table",
       "dateLimit": "Date Limit",
       "dateLimitPlaceholder": "Please select date limit",
       "today": "Today",
@@ -150,18 +162,26 @@
       "allInDate": "Get all in date range",
       "newInDate": "Get new in date range",
       "getArticles": "Get articles published in {days} days",
-      "updateArticleInteraction": "Update article interaction information"
+      "getWorks": "Get articles published in {days} days",
+      "updateArticleInteraction": "Update article interaction information",
+      "updateWorkInteraction": "Update article interaction information"
     },
     "tooltips": {
       "generateTemplate": "Generate a pair of associated empty templates: Official account table and article table. Modify the official account field in the article table to set the associated official account table",
       "addGhAccount": "Requires login, official account name, official account table",
+      "addUser": "Requires login, official account name, official account table",
       "getArticles": "Requires login, official account table, article table",
-      "updateArticleInteraction": "Requires login, article table"
+      "getWorks": "Requires login, official account table, article table",
+      "updateArticleInteraction": "Requires login, article table",
+      "updateWorkInteraction": "Requires login, article table"
     },
     "messages": {
       "addGhAccountSuccess": "Official account data added successfully, cost: 0.5",
+      "addUserSuccess": "Official account data added successfully, cost: 0.5",
       "getArticlesSuccess": "Official account article data obtained successfully, total {total} official account data processed, {success} official account data processed successfully, {new} new article data added, cost: {price}",
       "updateArticleSuccess": "Article interaction data obtained successfully, total {total} article data processed, {success} article data processed successfully, cost: {price}",
+      "getWorksSuccess": "Official account article data obtained successfully, total {total} official account data processed, {success} official account data processed successfully, {new} new article data added, cost: {price}",
+      "updateWorkSuccess": "Article interaction data obtained successfully, total {total} article data processed, {success} article data processed successfully, cost: {price}",
       "operationFailed": "Operation failed: {error}",
       "unknownError": "Unknown error"
     }
