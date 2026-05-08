@@ -16,11 +16,14 @@
       modelValue: {
         type: String,
         default: null
+      },
+      placeholder: {
+        type: String,
+        default: '请选择数据表'
       }
     },
     emits: ['update:modelValue', 'change'],
     setup(props, { emit }) {
-      const { t } = useI18n();
       const tableDataList = ref([]);
       const isLoading = ref(false);
       const selectedTableId = ref(props.modelValue);
@@ -64,7 +67,6 @@
         tableDataList,
         isLoading,
         loadTableList,
-        t,
       };
     },
   };
@@ -74,7 +76,7 @@
   <div class="table-select">
     <el-select
       v-model="selectedTableId"
-      :placeholder="t('tableSelect.placeholder')"
+      :placeholder="placeholder"
       style="width: 100%;"
       @visible-change="loadTableList"
       :loading="isLoading"

@@ -28,45 +28,47 @@ export const writeToTable = async (tableId, dataList, fieldsConfig, tableName = 
     
     // 获取表格实例
     const table = await bitable.base.getTable(targetTableId);
-    
+
     let fieldList = await table.getFieldList();
 
-    // 设置索引字段
-    let primaryField = null;
-    let primaryFieldConfig = null
-    for (const field of fieldList) {
-      const fieldMeta = await field.getMeta();
-      if (fieldMeta.isPrimary) {
-        primaryField = field;
-        break;
-      }
-    }
-    for (const fieldConfigValue of Object.values(fieldsConfig)){
-      if (fieldConfigValue.isPrimary){
-        primaryFieldConfig = fieldConfigValue;
-        break;
-      }
-    }
-    
-    // 处理索引字段
-    if (primaryField && primaryFieldConfig) {
-      const primaryFieldName = await primaryField.getName();
-      if (primaryFieldName !== primaryFieldConfig.label) {
-        // 删除table中与primaryFieldConfig同名的字段（如果有）
-        for (const field of fieldList) {
-          const fieldName = await field.getName();
-          if (fieldName === primaryFieldConfig.label) {
-            await table.deleteField(field.id);
-            console.log(`删除与索引字段配置同名的字段: ${fieldName}`);
-            break;
-          }
+    // 新建表格需要设置索引字段    
+    if (tableId === null){
+      let primaryField = null;
+      let primaryFieldConfig = null
+      for (const field of fieldList) {
+        const fieldMeta = await field.getMeta();
+        if (fieldMeta.isPrimary) {
+          primaryField = field;
+          break;
         }
-        
       }
-        // 使用setField方法覆盖table中的索引字段设置
-        const fieldCell = buildFieldConfig(primaryFieldConfig);
-        await table.setField(primaryField.id, fieldCell);
-        console.log(`覆盖索引字段设置: ${primaryFieldName} -> ${primaryFieldConfig.label}`);
+      for (const fieldConfigValue of Object.values(fieldsConfig)){
+        if (fieldConfigValue.isPrimary){
+          primaryFieldConfig = fieldConfigValue;
+          break;
+        }
+      }
+      
+      // 处理索引字段
+      if (primaryField && primaryFieldConfig) {
+        const primaryFieldName = await primaryField.getName();
+        if (primaryFieldName !== primaryFieldConfig.label) {
+          // 删除table中与primaryFieldConfig同名的字段（如果有）
+          for (const field of fieldList) {
+            const fieldName = await field.getName();
+            if (fieldName === primaryFieldConfig.label) {
+              await table.deleteField(field.id);
+              console.log(`删除与索引字段配置同名的字段: ${fieldName}`);
+              break;
+            }
+          }
+          
+        }
+          // 使用setField方法覆盖table中的索引字段设置
+          const fieldCell = buildFieldConfig(primaryFieldConfig);
+          await table.setField(primaryField.id, fieldCell);
+          console.log(`覆盖索引字段设置: ${primaryFieldName} -> ${primaryFieldConfig.label}`);
+      }
     }
     
     // 补全表格字段
@@ -108,15 +110,15 @@ export const writeToTable = async (tableId, dataList, fieldsConfig, tableName = 
         };
       }));
       
-      console.log('准备写入的记录:', records);
+      // console.log('准备写入的记录:', records);
       
       // 写入数据
       const batchResult = await table.addRecords(records);
       allRecordIds.push(...batchResult);
-      console.log(`批次 ${Math.floor(i / batchSize) + 1} 写入成功，新增记录数: ${batchResult.length}`);
+      // console.log(`批次 ${Math.floor(i / batchSize) + 1} 写入成功，新增记录数: ${batchResult.length}`);
     }
     
-    console.log('全部数据写入成功，总记录数:', allRecordIds.length);
+    // console.log('全部数据写入成功，总记录数:', allRecordIds.length);
     return {
       success: true,
       data: {
@@ -248,15 +250,15 @@ export const updateTable = async (tableId, dataList, fieldsConfig) => {
         };
       }));
       
-      console.log('准备更新的记录:', records);
+      // console.log('准备更新的记录:', records);
       
       // 更新数据
       await table.setRecords(records);
       allRecordIds.push(...records.map(record => record.recordId));
-      console.log(`批次 ${Math.floor(i / batchSize) + 1} 更新成功，更新记录数: ${records.length}`);
+      // console.log(`批次 ${Math.floor(i / batchSize) + 1} 更新成功，更新记录数: ${records.length}`);
     }
     
-    console.log('全部数据更新成功，总记录数:', allRecordIds.length);
+    // console.log('全部数据更新成功，总记录数:', allRecordIds.length);
     return {
       success: true,
       data: {
@@ -342,10 +344,66 @@ export const getMaxCreateTimeByUser = async (videoTableId, userRecordId, fieldsC
   }
 };
 
+/**
+ * @param {string} tableId - 表格ID
+ * @param {string} fieldName - 字段名称
+ * @param {object} fieldValue - 字段值
+ */
+export const getFirstRecordByField = async (tableId, fieldName, fieldValue) => {
+  try {
+    // 获取表格实例
+    const table = await bitable.base.getTable(tableId);
+    
+    // 获取字段id
+    const fieldList = await table.getFieldList();
+    const fieldMap = {};
+    
+    for (const field of fieldList) {
+      const fieldName = await field.getName();
+      fieldMap[fieldName] = field;
+    }
+    
+    const fieldId = fieldMap[fieldName].id;
+    if (!fieldId) {
+      console.error('字段不存在:', fieldName);
+      return [null, null];
+    }
+    
+    // 使用filter参数直接获取第一个记录
+    const records = await table.getRecordsByPage({
+      pageSize: 1,
+      filter: {
+        conditions: [
+          {
+            fieldId: fieldId,
+            operator: FilterOperator.Is,
+            value: fieldValue
+          }
+        ],
+        conjunction: FilterConjunction.And,
+      }
+    });
+
+    if (records.records && records.records.length > 0) {
+      if (records.records[0]) {
+        return [records.records[0], fieldMap];
+      }
+    }
+    else {
+      return [null, null];
+    }
+
+  } catch (error) {
+    console.error('获取record失败:', error);
+    return [null, null];
+  }
+};
+
 export default {
   writeToTable,
   updateTable,
   buildFieldConfig,
   getCellValue,
   getMaxCreateTimeByUser,
+  getFirstRecordByField,
 };

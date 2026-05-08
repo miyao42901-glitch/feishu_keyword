@@ -29,6 +29,8 @@
   import NewV2Form from './NewV2Form.vue'
   import NewDyForm from './NewDyForm.vue'
 
+  import PDyForm from '@/paneForms/dyForm.vue'
+
   import SensitiveText from './sensitiveText.vue'
   import LoginDialog from './LoginDialog.vue'
   import RechargeCard from './RechargeCard.vue'
@@ -62,6 +64,8 @@
       NewKsForm,
       NewV2Form,
       NewDyForm,
+
+      PDyForm,
 
       SensitiveText,
       LoginDialog,
@@ -488,7 +492,7 @@
       @close="showRechargeCard = false"
     />
 
-      <!-- <el-card v-show="!showRechargeCard" class="card-item" shadow="hover">
+      <el-card v-show="!showRechargeCard" class="card-item" shadow="hover">
         <el-tabs :disabled="isLocked">
           <el-tab-pane :label="t('form.tabs.douyin')">
             <DyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
@@ -502,10 +506,13 @@
           <el-tab-pane :label="t('form.tabs.kuaishou')">
             <KsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
+          <el-tab-pane :label="t('form.tabs.douyin')">
+            <PDyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+          </el-tab-pane>
         </el-tabs>
-      </el-card> -->
+      </el-card>
 
-      <el-card v-show="!showRechargeCard" class="card-item" shadow="hover">
+      <!-- <el-card v-show="!showRechargeCard" class="card-item" shadow="hover">
         <el-tabs :disabled="isLocked">
           <el-tab-pane :label="t('form.tabs.douyin')">
             <NewDyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
@@ -520,7 +527,7 @@
             <NewKsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
         </el-tabs>
-      </el-card>
+      </el-card> -->
       
       <!-- <p>{{ formData }}</p>
       <p>{{ isLocked }}</p> -->
