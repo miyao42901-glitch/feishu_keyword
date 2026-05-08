@@ -4,13 +4,13 @@
 
 ## 开始写代码之前
 
-1. 阅读 **`docs/README.md`** 索引，再读与本次任务相关的 **`DEVELOPMENT.md` / `API.md` / `DATABASE.md`**。  
-2. Cursor 已配置 **`.cursor/rules/dev-standards.mdc`**（`alwaysApply: true`），助手应自动结合上述文档行动。
+1. 阅读 **`docs/README.md`**，按任务选择 **`docs/server/README.md`**（改后端）或 **`docs/feishu/README.md`**（改前端），再读 **`DEVELOPMENT.md`** 及相关的 **`API.md` / `DATABASE.md`**。  
+2. 若存在 **`.cursor/rules/dev-standards.mdc`**（`alwaysApply: true`），助手应结合上述文档行动。
 
 ## 项目入口
 
-- 后端：`server/`，入口 `app.main:app`，API 前缀 `/api`。  
-- 前端：`feishu/`，Vue 3 + Vite。
+- 后端：`server/` → 技术栈与索引见 **`docs/server/README.md`**，入口 `app.main:app`，API 前缀 `/api`。  
+- 前端：`feishu/` → 技术栈与索引见 **`docs/feishu/README.md`**。
 
 ## 密钥
 

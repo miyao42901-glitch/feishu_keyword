@@ -1,5 +1,14 @@
 # 开发规则与工程约定
 
+## 适用范围
+
+| 项 | 说明 |
+|----|------|
+| **对应范围** | **全仓库**（根目录、`server/`、`feishu/`、`docs/` 等） |
+| **按目录查阅** | 后端专项：[docs/server/README.md](./server/README.md) · 前端专项：[docs/feishu/README.md](./feishu/README.md) |
+
+---
+
 ## 1. 仓库与子项目
 
 | 目录 | 技术栈 | 说明 |

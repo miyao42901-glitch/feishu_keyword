@@ -1,5 +1,12 @@
 # 数据库与 ORM 约定
 
+## 适用范围
+
+| 项 | 说明 |
+|----|------|
+| **对应代码目录** | 仓库根目录下的 **`server/`**（SQLAlchemy 模型、`DATABASE_URL` 配置） |
+| **相关文档** | [server 技术栈与文档索引](./server/README.md) · [HTTP 接口规范](./API.md) · [工程约定](./DEVELOPMENT.md) |
+
 本文档描述**逻辑库、连接配置、表与字段**；与线上一致时以 MySQL 实际结构为准，修改表后请同步更新本文档与 `server/app/models/`。
 
 ---
