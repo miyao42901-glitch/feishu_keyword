@@ -33,7 +33,7 @@ feishu_keyword/
 │   │   ├── main.py           # FastAPI 应用入口
 │   │   └── api/              # 路由与接口实现
 │   └── .venv/                # 本地虚拟环境（勿提交，见各目录 .gitignore）
-└── docs/                     # 项目文档（设计说明、接口约定等，可按需补充）
+└── docs/                     # 开发规则、接口与数据库约定（入口 docs/README.md）
 ```
 
 说明：`feishu` 与 `server` 可分别独立安装依赖与启动；具体启动命令以各子目录内配置为准。
