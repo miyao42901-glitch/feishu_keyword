@@ -25,14 +25,19 @@ def list_monitoring_plans(
     db: Session = Depends(get_db),
 ) -> ApiResponse[List[MonitoringPlanOut]]:
     """
-    分页返回监控方案列表。
+    分页查询监控方案列表（表 `monitoring_plans`）。
+
+    路径：`GET /api/monitoring-plans`。
 
     Args:
         skip: 偏移量，默认 0。
-        limit: 每页条数，默认取配置 `DEFAULT_LIST_LIMIT`，且受全局上限约束。
+        limit: 每页条数，默认 `DEFAULT_LIST_LIMIT`，服务端裁剪不超过 `MAX_LIST_LIMIT`。
 
     Returns:
-        `MonitoringPlanOut` 数组，无数据时为空数组。
+        统一信封：`code=0` 时 `data` 为 `MonitoringPlanOut` 数组（可能为空数组）。
+
+    Note:
+        与 OpenAPI `/docs` 中本接口说明一致；响应外层见 `docs/API.md` 第五节。
     """
     rows = fetch_plans(db, skip=skip, limit=limit)
     items = [MonitoringPlanOut.model_validate(r) for r in rows]

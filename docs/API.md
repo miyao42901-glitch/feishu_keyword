@@ -82,3 +82,18 @@ HTTP 状态码仍遵循语义（如 404、422、503），**客户端应以响应
 ### 健康检查说明
 
 `GET /api/health` 成功时，原 `status`、`service`、`database` 等字段位于 **`data`** 内，外层仍有 `code`、`message`。
+
+---
+
+## 9. 代码位置与接口注释约定
+
+| 类别 | 路径 | 注释要求 |
+|------|------|----------|
+| 路由聚合 | `server/app/api/router.py` | 模块 docstring 维护子路由一览表；新增路由时同步更新 |
+| 业务路由 | `server/app/api/routers/*.py` | 每个 **HTTP 处理函数** 使用中文 docstring：**路径**、**Args**、**Returns**（成功时 `data` 形态）、必要时 **Raises** |
+| 依赖注入 | `server/app/api/deps.py` | `get_db` 等说明生命周期与使用方式 |
+| 全局异常 | `server/app/api/exception_handlers.py` | 各 handler 说明何时触发、HTTP 状态与 `data` 形态 |
+| 请求/响应模型 | `server/app/schemas/*.py` | 与对外 JSON 相关的 Model 注明对应路由与字段含义 |
+| 前端封装 | `feishu/src/lib/api.ts` | 文件头说明统一响应与 `apiFetch` 行为；每个 **导出函数** 使用 JSDoc（路径语义、`@param`、`@returns`、`@throws`） |
+
+**文档与代码同步**：新增或变更路径、`data` 形状时，须同时更新本节或上文相关表格及路由 docstring，避免 OpenAPI、`docs/API.md` 与实现不一致。

@@ -1,5 +1,10 @@
 """
-飞书插件任务配置：列表、详情、创建、更新。
+飞书插件任务配置 HTTP 接口。
+
+路径均挂在 `/api` 下（见 `app.api.router`）。读写表 `feishu_task_configs`，
+成功响应为统一信封 `ApiResponse`（`docs/API.md` 第五节）；数据库异常映射为 HTTP 503 + 业务码。
+
+对应前端封装：`feishu/src/lib/api.ts`（`listFeishuTaskConfigs` 等）。
 """
 
 from __future__ import annotations
@@ -34,6 +39,7 @@ _DB_HINT = (
 
 
 def _detail_from_sqlalchemy(exc: SQLAlchemyError) -> str:
+    """将 SQLAlchemy 异常压缩为适合放入 HTTP `detail` / 统一 `message` 的短文案（含建表提示）。"""
     inner = getattr(exc, "orig", None)
     raw = str(inner).strip() if inner is not None else str(exc).strip()
     logger.warning("feishu_task_configs DB error: %s", raw)
@@ -48,7 +54,22 @@ def list_feishu_task_configs(
     limit: int = DEFAULT_LIST_LIMIT,
     db: Session = Depends(get_db),
 ) -> ApiResponse[List[FeishuTaskConfigListItemOut]]:
-    """分页查询任务配置列表（按 id 倒序）。"""
+    """
+    分页查询任务配置列表。
+
+    路径：`GET /api/feishu-task-configs`。
+
+    Args:
+        skip: 偏移量，默认 0。
+        limit: 每页条数，默认 `DEFAULT_LIST_LIMIT`，服务端裁剪不超过 `MAX_LIST_LIMIT`。
+        db: 请求级会话，由 `get_db` 注入。
+
+    Returns:
+        `code=0` 时 `data` 为列表项数组（`id`、`plan_name`、`updated_at`），按 `id` 降序。
+
+    Raises:
+        HTTPException: 503 — 数据库错误，`detail` 含排查说明与 MySQL 摘要。
+    """
     try:
         rows = feishu_task_config_service.list_feishu_task_configs(db, skip=skip, limit=limit)
         items = [FeishuTaskConfigListItemOut.model_validate(r) for r in rows]
@@ -62,7 +83,21 @@ def list_feishu_task_configs(
 def get_feishu_task_config(
     config_id: int, db: Session = Depends(get_db)
 ) -> ApiResponse[FeishuTaskConfigDetailOut]:
-    """按 id 查询单条任务配置（含 config JSON）。"""
+    """
+    按主键查询单条任务配置（含完整 `config` 对象）。
+
+    路径：`GET /api/feishu-task-configs/{config_id}`。
+
+    Args:
+        config_id: `feishu_task_configs.id`。
+        db: 请求级会话。
+
+    Returns:
+        `code=0` 时 `data` 为 `FeishuTaskConfigDetailOut`（含 `config` 字典）。
+
+    Raises:
+        HTTPException: 404 — 记录不存在；503 — 数据库错误。
+    """
     try:
         row = feishu_task_config_service.get_feishu_task_config(db, config_id)
     except SQLAlchemyError as e:
@@ -84,7 +119,21 @@ def get_feishu_task_config(
 def create_feishu_task_config(
     body: FeishuTaskConfigUpsertBody, db: Session = Depends(get_db)
 ) -> ApiResponse[FeishuTaskConfigIdOut]:
-    """新建一条任务配置。"""
+    """
+    新建一条任务配置（插入一行，`config` 序列化为 `config_json`）。
+
+    路径：`POST /api/feishu-task-configs`。
+
+    Args:
+        body: 请求体 `FeishuTaskConfigUpsertBody`，字段 `config` 为前端表单快照。
+        db: 请求级会话。
+
+    Returns:
+        `code=0` 时 `data` 为 `{ "id": 新主键 }`。
+
+    Raises:
+        HTTPException: 503 — 数据库错误（常见：表未创建）。
+    """
     try:
         row = feishu_task_config_service.create_feishu_task_config(db, config=body.config)
         return ApiResponse.success(data=FeishuTaskConfigIdOut(id=row.id), message="保存成功")
@@ -99,7 +148,22 @@ def update_feishu_task_config(
     body: FeishuTaskConfigUpsertBody,
     db: Session = Depends(get_db),
 ) -> ApiResponse[FeishuTaskConfigIdOut]:
-    """全量更新指定 id 的任务配置。"""
+    """
+    全量更新指定 id 的任务配置（覆盖 `plan_name` 与 `config_json`）。
+
+    路径：`PUT /api/feishu-task-configs/{config_id}`。
+
+    Args:
+        config_id: 要更新的主键。
+        body: 与创建相同，`config` 为完整快照。
+        db: 请求级会话。
+
+    Returns:
+        `code=0` 时 `data` 为 `{ "id": config_id }`。
+
+    Raises:
+        HTTPException: 404 — 记录不存在；503 — 数据库错误。
+    """
     try:
         row = feishu_task_config_service.update_feishu_task_config(db, config_id, config=body.config)
     except SQLAlchemyError as e:

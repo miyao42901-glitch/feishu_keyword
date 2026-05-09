@@ -46,6 +46,8 @@
 
 **接口响应格式**：`server/` 对外 JSON 统一为 **`{ code, message, data }`**（成功 `code=0`），详见 **[API.md](./API.md)** 第五节；实现涉及 `schemas/api_response.py`、`api/exception_handlers.py`。
 
+**接口注释**：`app/api/routers/` 下每个路由处理函数须中文说明路径、参数与 `data`；`schemas/` 与 **`feishu/src/lib/api.ts`** 的 JSDoc 与 **[API.md](./API.md) 第九节** 对齐。
+
 ## 4. 注释
 
 模块 / 类 / 公开函数使用中文说明职责；避免无意义注释。

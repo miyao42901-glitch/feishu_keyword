@@ -1,5 +1,7 @@
 """
 将 Starlette/FastAPI 异常转换为统一 `{ code, message, data }` 响应。
+
+在 `app.main` 中注册：`HTTPException`、校验错误、未捕获异常。
 """
 
 from __future__ import annotations
@@ -7,11 +9,13 @@ from __future__ import annotations
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.schemas.api_response import ApiResponse, BizCode, default_message_for_code, http_status_to_biz_code
 
 
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """将路由中 `raise HTTPException(...)` 转为统一 JSON 响应体（保留原 HTTP 状态码）。"""
     biz = http_status_to_biz_code(exc.status_code)
     detail = exc.detail
     if isinstance(detail, str) and detail.strip():
@@ -25,6 +29,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """请求体验证失败（422）：`data.errors` 为 FastAPI 校验明细列表。"""
     body = ApiResponse(
         code=BizCode.BAD_REQUEST,
         message="请求参数校验失败",

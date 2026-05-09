@@ -17,8 +17,16 @@ def health() -> ApiResponse[dict]:
     """
     服务存活探测，并附带数据库配置与连通状态。
 
+    路径：`GET /api/health`。
+
     Returns:
-        包含 `status`、`service` 以及 `database` 子对象（configured / reachable / error）的字典。
+        统一信封 `ApiResponse`：`code=0` 时 `data` 为字典，含：
+        - `status`：固定 `"ok"` 表示进程可用；
+        - `service`：服务名 `"feishu_keyword"`；
+        - `database`：`configured` 是否配置了 `DATABASE_URL`；若已配置则含 `reachable`、失败时可选 `error` 文案。
+
+    Note:
+        外层仍为 `{ code, message, data }`，见 `docs/API.md` 第五节。
     """
     out: dict = {"status": "ok", "service": "feishu_keyword"}
     ok, err = check_database()

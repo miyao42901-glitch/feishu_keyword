@@ -67,3 +67,8 @@ cd server
 ## 代码分层（摘要）
 
 详见 [DEVELOPMENT.md](../DEVELOPMENT.md) 第二节：`app/main.py` → `api/router.py` → `api/routers/` → `services/` → `models/` / `schemas/`。
+
+## 接口实现与注释
+
+- 各 **`app/api/routers/*.py`** 内处理函数须写**中文 docstring**（路径、参数、成功 `data`、常见错误），与 **[HTTP 接口规范 §9](../API.md#9-代码位置与接口注释约定)** 一致。
+- 前端直连封装见 **`feishu/src/lib/api.ts`**（JSDoc 与后端路径对应）。

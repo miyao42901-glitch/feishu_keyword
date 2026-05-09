@@ -15,7 +15,9 @@ from app.db import SessionLocal
 
 def get_db() -> Generator[Session, None, None]:
     """
-    为每个 HTTP 请求提供一个 SQLAlchemy `Session`。
+    为每个 HTTP 请求提供一个 SQLAlchemy `Session`（路由中 `Depends(get_db)`）。
+
+    请求结束自动 `close()`，避免连接泄漏；业务层在同一 `Session` 内提交事务。
 
     Yields:
         绑定到全局引擎的数据库会话。

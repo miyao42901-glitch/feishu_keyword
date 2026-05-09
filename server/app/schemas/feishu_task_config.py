@@ -13,7 +13,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class FeishuTaskConfigUpsertBody(BaseModel):
-    """创建或全量更新时的请求体。"""
+    """
+    创建（POST）或全量更新（PUT）时的 JSON 请求体。
+
+    对应路由：`POST|PUT /api/feishu-task-configs`（及带 id 的 PUT）。
+    """
 
     config: dict[str, Any] = Field(
         ...,
@@ -22,13 +26,13 @@ class FeishuTaskConfigUpsertBody(BaseModel):
 
 
 class FeishuTaskConfigIdOut(BaseModel):
-    """写入成功后返回主键。"""
+    """写入成功后，统一响应 `data` 内仅含新 id 或已更新 id。"""
 
     id: int
 
 
 class FeishuTaskConfigListItemOut(BaseModel):
-    """列表项。"""
+    """列表接口 `GET /api/feishu-task-configs` 单条 `data` 元素（ORM 行映射）。"""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -38,7 +42,7 @@ class FeishuTaskConfigListItemOut(BaseModel):
 
 
 class FeishuTaskConfigDetailOut(BaseModel):
-    """详情（含完整 config）。"""
+    """详情接口 `GET /api/feishu-task-configs/{id}` 的 `data` 载荷。"""
 
     model_config = ConfigDict(from_attributes=True)
 
