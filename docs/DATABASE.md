@@ -50,10 +50,11 @@ mysql+pymysql://root:@127.0.0.1:3306/feishu_keyword?charset=utf8mb4
 
 ---
 
-## 3. 表一览（当前共 21 张）
+## 3. 表一览（当前共 22 张）
 
 | 表名 | 说明 |
 |------|------|
+| `feishu_task_configs` | 飞书插件任务配置快照（整单 JSON） |
 | `monitoring_plans` | 监控方案主数据 |
 | `keyword_versions` | 关键词配置历史版本 |
 | `source_configs` | 信源（含/排除）与抓取配置 |
@@ -387,6 +388,18 @@ mysql+pymysql://root:@127.0.0.1:3306/feishu_keyword?charset=utf8mb4
 | `last_view_time` | datetime | 最近打开时间 |
 | `created_at` | timestamp | 创建时间 |
 | `updated_at` | timestamp | 更新时间 |
+
+### 4.22 `feishu_task_configs`（飞书插件任务配置）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | int, PK, AI | 主键 |
+| `plan_name` | varchar(200) | 方案名称（列表展示，可与 `config_json` 内 `planName` 同步） |
+| `config_json` | longtext | 前端表单完整 JSON（关键词、过滤、信源、数据沉淀等） |
+| `created_at` | timestamp | 创建时间 |
+| `updated_at` | timestamp | 更新时间 |
+
+建表脚本见 **`server/scripts/create_feishu_task_configs.sql`**；也可用 **`server/scripts/ensure_feishu_task_configs_table.py`**（读取 `DATABASE_URL` 执行等价 DDL）。
 
 ---
 

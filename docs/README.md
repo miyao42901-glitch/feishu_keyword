@@ -15,7 +15,7 @@
 | 文档 | 内容 | 主要对应目录 |
 |------|------|----------------|
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | 仓库结构、分层职责、注释与提交、环境与安全 | 全仓库 |
-| [API.md](./API.md) | REST 路径、HTTP 语义、请求/响应与分页约定 | `server/` |
+| [API.md](./API.md) | REST 路径、HTTP 语义、分页、**统一响应 `code` / `message` / `data`** | `server/`；前端联调时必读第五节 |
 | [DATABASE.md](./DATABASE.md) | 库名、`DATABASE_URL`、全表字段说明、ORM 与变更清单 | `server/` |
 
 **新开会话或接手开发时**：先根据要改的目录打开 **server** 或 **feishu** 索引，再读 [DEVELOPMENT.md](./DEVELOPMENT.md) 与相关专项文档；根目录 [`AGENTS.md`](../AGENTS.md) 为协作总入口。

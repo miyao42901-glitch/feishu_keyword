@@ -1,16 +1,19 @@
 """
 健康检查与运行状态接口。
+
+响应统一为 `{ code, message, data }`，成功时 `code=0`。
 """
 
 from fastapi import APIRouter
 
 from app.db import check_database
+from app.schemas.api_response import ApiResponse
 
 router = APIRouter()
 
 
 @router.get("/health")
-def health() -> dict:
+def health() -> ApiResponse[dict]:
     """
     服务存活探测，并附带数据库配置与连通状态。
 
@@ -27,4 +30,4 @@ def health() -> dict:
             "reachable": ok,
             **({"error": err} if err else {}),
         }
-    return out
+    return ApiResponse.success(data=out, message="服务正常")

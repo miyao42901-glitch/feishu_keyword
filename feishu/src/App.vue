@@ -1,3 +1,53 @@
+<script setup lang="ts">
+import { ref } from 'vue'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
+import AccountMemberView from '@/views/AccountMemberView.vue'
+import TasksView from '@/views/TasksView.vue'
+
+const activeTab = ref<'tasks' | 'account'>('tasks')
+</script>
+
 <template>
-  <div class="min-h-screen" />
+  <el-config-provider :locale="zhCn">
+  <div class="flex h-screen min-h-0 flex-col bg-slate-50">
+    <div class="grid shrink-0 grid-cols-2 border-b border-slate-200 bg-slate-50">
+      <button
+        type="button"
+        class="flex justify-center py-3 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40"
+        @click="activeTab = 'tasks'"
+      >
+        <span
+          class="inline-block border-b-2 pb-0.5 transition-colors"
+          :class="
+            activeTab === 'tasks'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-600 hover:text-slate-800'
+          "
+        >
+          任务
+        </span>
+      </button>
+      <button
+        type="button"
+        class="flex justify-center py-3 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40"
+        @click="activeTab = 'account'"
+      >
+        <span
+          class="inline-block border-b-2 pb-0.5 transition-colors"
+          :class="
+            activeTab === 'account'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-600 hover:text-slate-800'
+          "
+        >
+          账号会员
+        </span>
+      </button>
+    </div>
+    <main class="min-h-0 flex-1 overflow-auto bg-white p-4">
+      <TasksView v-if="activeTab === 'tasks'" />
+      <AccountMemberView v-else />
+    </main>
+  </div>
+  </el-config-provider>
 </template>

@@ -29,9 +29,25 @@
 
 | 文档 | 说明 |
 |------|------|
-| [HTTP 接口规范](../API.md) | `/api` 前缀、REST 命名、分页、响应约定 |
+| [HTTP 接口规范](../API.md) | `/api` 前缀、REST 命名、分页、**统一响应 `code` / `message` / `data`**（详见该文档 §5）、响应约定 |
 | [数据库与 ORM](../DATABASE.md) | 库名、表字段、`DATABASE_URL`、变更清单 |
 | [工程约定](../DEVELOPMENT.md) | 分层目录、`get_db`、Git 与注释 |
+
+---
+
+## 统一 API 响应（`code` / `message` / `data`）
+
+业务接口与健康检查均返回同一外层 JSON：
+
+| 字段 | 说明 |
+|------|------|
+| `code` | `0` 成功；非 `0` 为业务错误码（见 `app/schemas/api_response.py` 中 `BizCode`） |
+| `message` | 给人阅读的说明（成功 / 失败文案） |
+| `data` | 成功时为载荷；失败时多为 `null`（校验失败时可能含 `errors`） |
+
+HTTP 状态码（404、422、503 等）仍保留语义；**客户端建议以响应体内的 `code` 分支**。全局异常由 `app/api/exception_handlers.py` 转为上述格式。
+
+**权威说明与错误码表**：见 **[HTTP 接口规范](../API.md)** 文档第五节「统一响应体」。
 
 ---
 
@@ -43,7 +59,7 @@ cd server
 .\.venv\Scripts\uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-- 健康检查：`GET http://127.0.0.1:8000/api/health`
+- 健康检查：`GET http://127.0.0.1:8000/api/health`，成功示例：`code=0`，原状态字段在 **`data`** 内。
 - OpenAPI：`http://127.0.0.1:8000/docs`
 
 ---

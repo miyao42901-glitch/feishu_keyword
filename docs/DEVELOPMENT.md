@@ -18,7 +18,19 @@
 
 库名、表与字段以 **[DATABASE.md](./DATABASE.md)** 为准。
 
-## 2. 后端分层（`server/app`）
+## 2. 前端复杂页面与私有组件（`feishu/src/views`）
+
+配置区块较多的页面拆为**目录 + `index.vue` + 私有子组件**：
+
+| 约定 | 说明 |
+|------|------|
+| 入口 | **`SomeFeature/index.vue`**：表单/状态、校验、`api` 提交、编排子组件 |
+| 私有组件 | **`SomeFeature/components/*.vue`**：仅该功能使用，不放全局 `src/components/` |
+| 同目录模块 | 可选 **`types.ts`、`constants.ts`**：本页与子组件共享类型与常量 |
+
+示例：**新建任务** → `views/TaskCreateForm/index.vue`，各配置块在 **`views/TaskCreateForm/components/`**。组件名与注释细则见 **[component-style.md](./feishu/component-style.md)**。
+
+## 3. 后端分层（`server/app`）
 
 | 层级 | 路径 | 职责 |
 |------|------|------|
@@ -32,22 +44,29 @@
 | 配置常量 | `core/config.py` | 非敏感常量 |
 | 数据库引擎 | `db.py` | `DATABASE_URL`、引擎、健康检查 |
 
-## 3. 注释
+**接口响应格式**：`server/` 对外 JSON 统一为 **`{ code, message, data }`**（成功 `code=0`），详见 **[API.md](./API.md)** 第五节；实现涉及 `schemas/api_response.py`、`api/exception_handlers.py`。
+
+## 4. 注释
 
 模块 / 类 / 公开函数使用中文说明职责；避免无意义注释。
 
-## 4. 环境与密钥
+## 5. 环境与密钥
 
 - `server/.env` 配置 `DATABASE_URL`，详见 [DATABASE.md](./DATABASE.md)。
 - 勿提交 `.env`；模板见 `server/.env.example`。
 
-## 5. 运行（后端）
+## 6. 运行（后端）
 
 ```powershell
 cd server
 .\.venv\Scripts\uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-## 6. Git
+## 7. Git
 
 提交聚焦需求；说明「改了什么、为何」。不擅自扩大范围。
+
+## 8. 构建与验证
+
+- **不要求**在每次完成开发任务后固定执行前端生产构建（如 `feishu/` 下 `npm run build`）或等价的全量打包校验；以任务说明、提测、CI 或协作方明确要求为准。
+- 需要确认产物、排查构建错误、或用户/流程明确要求验证时，再执行对应构建或测试命令。

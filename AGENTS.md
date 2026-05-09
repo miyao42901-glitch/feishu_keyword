@@ -4,7 +4,7 @@
 
 ## 开始写代码之前
 
-1. 阅读 **`docs/README.md`**，按任务选择 **`docs/server/README.md`**（改后端）或 **`docs/feishu/README.md`**（改前端），再读 **`DEVELOPMENT.md`** 及相关的 **`API.md` / `DATABASE.md`**。  
+1. 阅读 **`docs/README.md`**，按任务选择 **`docs/server/README.md`**（改后端）或 **`docs/feishu/README.md`**（改前端），再读 **`DEVELOPMENT.md`** 及相关的 **`API.md` / `DATABASE.md`**。联调 HTTP 时须遵守 **`docs/API.md`** 中 **统一响应 `code` / `message` / `data`**（第五节）。  
 2. 若存在 **`.cursor/rules/dev-standards.mdc`**（`alwaysApply: true`），助手应结合上述文档行动。
 
 ## 项目入口

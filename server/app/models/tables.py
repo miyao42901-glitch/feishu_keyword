@@ -38,6 +38,20 @@ class MonitoringPlan(Base):
     )
 
 
+class FeishuTaskConfig(Base):
+    """飞书插件任务配置：整单 JSON 快照，供列表与编辑回显。"""
+
+    __tablename__ = "feishu_task_configs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_name: Mapped[Optional[str]] = mapped_column(String(200))
+    config_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
+    )
+
+
 class KeywordVersion(Base):
     """关键词配置历史版本：支持按方案回溯与回滚。"""
 
