@@ -1,5 +1,5 @@
 """
-数据库访问层：引擎、会话工厂、连通性探测。
+数据库访问层：引擎与会话工厂。
 
 职责：
 - 从 `server/.env` 加载 `DATABASE_URL`，创建 SQLAlchemy `Engine` 与 `sessionmaker`；
@@ -13,10 +13,10 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 # 无论从哪个工作目录启动，都加载 server/.env
@@ -35,22 +35,3 @@ if DATABASE_URL:
         pool_recycle=3600,
     )
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
-def check_database() -> Tuple[bool, Optional[str]]:
-    """
-    探测当前配置的 MySQL 是否可连接。
-
-    Returns:
-        (True, None) 表示连接成功；
-        (False, 'not_configured') 表示未设置 `DATABASE_URL`；
-        (False, 错误信息字符串) 表示连接失败（密码错误、服务未启动等）。
-    """
-    if engine is None:
-        return False, "not_configured"
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        return True, None
-    except Exception as exc:  # noqa: BLE001 — 健康检查需要把原因返回给调用方
-        return False, str(exc)

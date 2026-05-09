@@ -33,7 +33,8 @@ export interface TaskCreateFormModel {
   /** API 调用认证，必填 */
   authCode: string
   keywords: string[]
-  excludeKeywords: string
+  /** 排除词：与 `keywords` 同为字符串数组入库 */
+  excludeKeywords: string[]
   heatLikeMin: number
   heatCommentMin: number
   heatFavoriteMin: number

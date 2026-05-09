@@ -34,7 +34,7 @@ function onKeywordTextareaEnter(evt: KeyboardEvent | Event) {
 <template>
   <div>
     <div
-      class="keyword-editor rounded-md border border-slate-200 bg-white px-2 py-2 transition-shadow focus-within:border-indigo-400 focus-within:ring-1 focus-within:ring-indigo-400/30"
+      class="keyword-editor w-full rounded-md border border-slate-200 bg-white px-2 py-2 transition-shadow focus-within:border-indigo-400 focus-within:ring-1 focus-within:ring-indigo-400/30"
     >
       <div class="flex min-h-8 flex-wrap gap-2 pb-1">
         <el-tag v-for="(kw, i) in form.keywords" :key="kw + '-' + i" closable type="info" @close="removeKeyword(i)">
@@ -43,7 +43,7 @@ function onKeywordTextareaEnter(evt: KeyboardEvent | Event) {
       </div>
       <el-input
         :model-value="keywordDraft"
-        class="keyword-editor-textarea"
+        class="keyword-editor-textarea !w-full"
         type="textarea"
         :autosize="{ minRows: 3, maxRows: 12 }"
         resize="none"

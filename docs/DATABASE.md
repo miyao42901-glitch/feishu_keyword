@@ -410,13 +410,7 @@ mysql+pymysql://root:@127.0.0.1:3306/feishu_keyword?charset=utf8mb4
 
 ---
 
-## 6. 健康检查
-
-- `check_database()`（`app.db`）仅执行连通性探测（如 `SELECT 1`），**不**承载业务查询。
-
----
-
-## 7. 变更检查清单
+## 6. 变更检查清单
 
 1. 在 MySQL（phpMyAdmin / 迁移脚本）中完成 DDL。  
 2. 更新 **本文档** 对应表节。  

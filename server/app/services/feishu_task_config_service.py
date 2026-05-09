@@ -54,6 +54,16 @@ def update_feishu_task_config(db: Session, config_id: int, *, config: dict[str, 
     return row
 
 
+def delete_feishu_task_config(db: Session, config_id: int) -> bool:
+    """按主键删除一行；不存在则返回 False。"""
+    row = db.get(FeishuTaskConfig, config_id)
+    if row is None:
+        return False
+    db.delete(row)
+    db.commit()
+    return True
+
+
 def config_dict_from_row(row: FeishuTaskConfig) -> dict[str, Any]:
     try:
         data = json.loads(row.config_json or "{}")

@@ -45,7 +45,7 @@
 
 ## 5. 统一响应体（`code` / `message` / `data`）
 
-所有 **`/api`** 接口（含健康检查）均采用同一外层结构：
+所有 **`/api`** 接口均采用同一外层结构：
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -72,16 +72,15 @@ HTTP 状态码仍遵循语义（如 404、422、503），**客户端应以响应
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `GET` | `/api/feishu-task-configs` | `data` 为列表项数组 |
+| `GET` | `/api/feishu-task-configs` | `data` 为列表项数组（见下表） |
 | `GET` | `/api/feishu-task-configs/{id}` | `data` 含 `config` 对象 |
 | `POST` | `/api/feishu-task-configs` | 请求体 `{"config": { ... }}`；成功时 `data` 为 `{ "id": number }` |
 | `PUT` | `/api/feishu-task-configs/{id}` | 全量更新；请求体同上 |
+| `DELETE` | `/api/feishu-task-configs/{id}` | 删除；成功时 `data` 为 `{ "id": number }` |
+
+列表项字段（除 `id`、`plan_name`、`updated_at` 外，其余由 `config_json` 解析，可能为 `null`）：`task_type`（`scheduled` \| `realtime`）、`platform_keys`（字符串数组）、`effective_at`（字符串）。
 
 库表与字段见 [DATABASE.md](./DATABASE.md) 中 `feishu_task_configs`。
-
-### 健康检查说明
-
-`GET /api/health` 成功时，原 `status`、`service`、`database` 等字段位于 **`data`** 内，外层仍有 `code`、`message`。
 
 ---
 

@@ -1,39 +1,60 @@
 <script setup lang="ts">
+import dayjs from 'dayjs'
 import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import TaskCreateForm from '@/views/TaskCreateForm/index.vue'
+import { sourcePlatforms } from '@/views/TaskCreateForm/constants'
+import TaskDetailDialog from '@/views/tasks/components/TaskDetailDialog.vue'
+import TaskListCard from '@/views/tasks/components/TaskListCard.vue'
+import type { TaskCardModel, TaskRunStatus } from '@/views/tasks/types'
 import {
+  deleteFeishuTaskConfig,
   getFeishuTaskConfig,
   listFeishuTaskConfigs,
   type FeishuTaskConfigDetail,
   type FeishuTaskConfigListItem,
 } from '@/lib/api'
 
-interface TaskRow {
-  id: number
-  name: string
-  status: string
-  updatedAt: string
-}
+const DEMO_STATUSES: TaskRunStatus[] = ['running', 'completed', 'stopped', 'failed']
 
-const tasks = ref<TaskRow[]>([])
+const tasks = ref<TaskCardModel[]>([])
 const screen = ref<'list' | 'create'>('list')
 const editingTaskId = ref<number | null>(null)
 const taskDetail = ref<FeishuTaskConfigDetail | null>(null)
 
-function formatTime(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleString('zh-CN', { hour12: false })
+const detailDialogVisible = ref(false)
+const detailDialogLoading = ref(false)
+const detailDialogPayload = ref<FeishuTaskConfigDetail | null>(null)
+
+/** 列表卡片运行态：占位演示，接入调度后改为接口字段 */
+function deriveDemoStatus(id: number): TaskRunStatus {
+  return DEMO_STATUSES[id % 4]!
 }
 
-function mapRows(rows: FeishuTaskConfigListItem[]): TaskRow[] {
+function formatPlatformsLabel(keys: string[] | null | undefined): string {
+  if (!keys || keys.length === 0) return '未选择平台'
+  if (keys.length >= sourcePlatforms.length) return '全平台'
+  const labels = keys
+    .map((k) => sourcePlatforms.find((p) => p.id === k)?.label)
+    .filter(Boolean) as string[]
+  return labels.length ? labels.join('、') : '未选择平台'
+}
+
+function formatCardDate(raw: string | null | undefined): string {
+  if (!raw?.trim()) return '—'
+  const d = dayjs(raw)
+  return d.isValid() ? d.format('YYYY-MM-DD') : raw.slice(0, 10) || '—'
+}
+
+function mapRows(rows: FeishuTaskConfigListItem[]): TaskCardModel[] {
   return rows.map((r) => ({
     id: r.id,
     name: r.plan_name?.trim() || '未命名方案',
-    status: '已保存',
-    updatedAt: formatTime(r.updated_at ?? undefined),
+    platformsLabel: formatPlatformsLabel(r.platform_keys ?? undefined),
+    taskTypeLabel: r.task_type === 'realtime' ? '实时任务' : '定时任务',
+    dateLabel: formatCardDate(r.effective_at ?? undefined),
+    status: deriveDemoStatus(r.id),
+    notificationCount: 0,
   }))
 }
 
@@ -69,7 +90,21 @@ function onSaved(id: number) {
   void loadTaskList()
 }
 
-async function openEdit(row: TaskRow) {
+async function openView(row: TaskCardModel) {
+  detailDialogVisible.value = true
+  detailDialogLoading.value = true
+  detailDialogPayload.value = null
+  try {
+    detailDialogPayload.value = await getFeishuTaskConfig(row.id)
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '加载配置失败')
+    detailDialogVisible.value = false
+  } finally {
+    detailDialogLoading.value = false
+  }
+}
+
+async function openEdit(row: TaskCardModel) {
   editingTaskId.value = row.id
   taskDetail.value = null
   screen.value = 'create'
@@ -81,10 +116,37 @@ async function openEdit(row: TaskRow) {
     editingTaskId.value = null
   }
 }
+
+function onPrimaryAction(_row: TaskCardModel) {}
+
+async function onDeleteTask(row: TaskCardModel) {
+  try {
+    await ElMessageBox.confirm(`确定删除「${row.name}」？删除后不可恢复。`, '删除任务', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return
+  }
+  try {
+    await deleteFeishuTaskConfig(row.id)
+    ElMessage.success('已删除')
+    await loadTaskList()
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '删除失败')
+  }
+}
 </script>
 
 <template>
   <div class="flex min-h-0 flex-col gap-4">
+    <TaskDetailDialog
+      v-model="detailDialogVisible"
+      :detail="detailDialogPayload"
+      :loading="detailDialogLoading"
+    />
+
     <template v-if="screen === 'create'">
       <div
         v-if="editingTaskId !== null && !taskDetail"
@@ -102,24 +164,22 @@ async function openEdit(row: TaskRow) {
     </template>
 
     <template v-else>
-      <section class="flex min-h-0 flex-col gap-3">
-        <h2 class="text-base font-medium text-slate-800">任务列表</h2>
-        <el-button type="primary" @click="onCreateTask">新建任务</el-button>
-        <ul v-if="tasks.length > 0" class="divide-y divide-slate-100 text-sm text-slate-800">
-          <li
+      <section class="flex min-h-0 flex-col gap-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-base font-semibold text-slate-800">任务列表</h2>
+          <el-button type="primary" @click="onCreateTask">新建任务</el-button>
+        </div>
+        <div v-if="tasks.length > 0" class="flex flex-col gap-4">
+          <TaskListCard
             v-for="row in tasks"
             :key="row.id"
-            class="flex cursor-pointer flex-wrap items-baseline gap-x-4 gap-y-1 py-3 transition-colors hover:bg-slate-50"
-            role="button"
-            tabindex="0"
-            @click="openEdit(row)"
-            @keydown.enter.prevent="openEdit(row)"
-          >
-            <span class="min-w-0 flex-1 font-medium">{{ row.name }}</span>
-            <span class="shrink-0 text-slate-500">{{ row.status }}</span>
-            <span class="shrink-0 text-xs text-slate-400">{{ row.updatedAt }}</span>
-          </li>
-        </ul>
+            :row="row"
+            @view="openView"
+            @edit="openEdit"
+            @primary-action="onPrimaryAction"
+            @delete="onDeleteTask"
+          />
+        </div>
         <p v-else class="py-6 text-center text-sm text-slate-400">暂无任务</p>
       </section>
     </template>

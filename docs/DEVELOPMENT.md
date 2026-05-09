@@ -42,7 +42,7 @@
 | 模型 | `models/` | ORM 与表映射（与 DATABASE.md 一致） |
 | 校验/DTO | `schemas/` | Pydantic |
 | 配置常量 | `core/config.py` | 非敏感常量 |
-| 数据库引擎 | `db.py` | `DATABASE_URL`、引擎、健康检查 |
+| 数据库引擎 | `db.py` | `DATABASE_URL`、引擎、会话工厂 |
 
 **接口响应格式**：`server/` 对外 JSON 统一为 **`{ code, message, data }`**（成功 `code=0`），详见 **[API.md](./API.md)** 第五节；实现涉及 `schemas/api_response.py`、`api/exception_handlers.py`。
 

@@ -91,6 +91,12 @@ export type FeishuTaskConfigListItem = {
   id: number
   plan_name?: string | null
   updated_at?: string | null
+  /** `scheduled` | `realtime`，来自表单 `taskType` */
+  task_type?: string | null
+  /** 平台 id 列表，来自表单 `selectedSources` */
+  platform_keys?: string[] | null
+  /** 生效时间字符串，来自表单 `effectiveAt` */
+  effective_at?: string | null
 }
 
 /** `GET /api/feishu-task-configs/{id}` 详情（`data` 对象） */
@@ -136,5 +142,15 @@ export function updateFeishuTaskConfig(id: number, config: Record<string, unknow
   return apiFetch<{ id: number }>(`/feishu-task-configs/${id}`, {
     method: 'PUT',
     body: JSON.stringify({ config }),
+  })
+}
+
+/**
+ * 删除任务配置。
+ * @param id - `feishu_task_configs` 主键
+ */
+export function deleteFeishuTaskConfig(id: number) {
+  return apiFetch<{ id: number }>(`/feishu-task-configs/${id}`, {
+    method: 'DELETE',
   })
 }

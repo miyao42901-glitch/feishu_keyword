@@ -57,7 +57,7 @@ function initialForm(): TaskCreateFormModel {
     expireAt: '',
     authCode: '',
     keywords: [],
-    excludeKeywords: '',
+    excludeKeywords: [],
     heatLikeMin: 0,
     heatCommentMin: 0,
     heatFavoriteMin: 0,
@@ -79,6 +79,8 @@ const form = reactive<TaskCreateFormModel>(initialForm())
 const formRef = ref<FormInstance>()
 /** 关键词输入框未完成提交的一行草稿（回车成 tag） */
 const keywordDraft = ref('')
+/** 排除词区域草稿，交互同 `keywordDraft` */
+const excludeKeywordDraft = ref('')
 
 /** 已勾选信源按 `sourcePlatforms` 固定顺序排列，用于下方字段区展示顺序 */
 const orderedSelectedPlatforms = computed(() =>
@@ -96,14 +98,33 @@ const activePanels = ref<string[]>(['basic'])
 function resetForm() {
   Object.assign(form, initialForm())
   keywordDraft.value = ''
+  excludeKeywordDraft.value = ''
   void nextTick(() => formRef.value?.clearValidate())
 }
 
 /**
  * 将服务端 `config` 合并进表单；对 `sourceFieldSelection` 做白名单字段过滤。
  */
+/** 兼容旧版 `excludeKeywords` 为整段字符串的配置 */
+function normalizeExcludeKeywords(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .filter((x): x is string => typeof x === 'string')
+      .map((s) => s.trim())
+      .filter((x) => x.length > 0)
+  }
+  if (typeof raw === 'string' && raw.trim()) {
+    return raw
+      .split(/[\n,，、]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+  }
+  return []
+}
+
 function mergeConfigIntoForm(raw: Record<string, unknown>) {
   Object.assign(form, initialForm(), raw as Partial<TaskCreateFormModel>)
+  form.excludeKeywords = normalizeExcludeKeywords(raw.excludeKeywords)
   const sel = raw.sourceFieldSelection
   const merged = emptySourceFieldSelection()
   if (sel && typeof sel === 'object' && !Array.isArray(sel)) {
@@ -125,6 +146,7 @@ watch(
     if (d?.config) {
       mergeConfigIntoForm(d.config)
       keywordDraft.value = ''
+      excludeKeywordDraft.value = ''
       void nextTick(() => formRef.value?.clearValidate())
     } else if (id == null) {
       resetForm()
@@ -185,7 +207,11 @@ async function saveConfig() {
         </el-collapse-item>
 
         <el-collapse-item title="过滤设置" name="filter">
-          <FilterSettingsSection :form="form" />
+          <FilterSettingsSection
+            :form="form"
+            :exclude-keyword-draft="excludeKeywordDraft"
+            @update:exclude-keyword-draft="excludeKeywordDraft = $event"
+          />
         </el-collapse-item>
 
         <el-collapse-item title="信源选择" name="sources">

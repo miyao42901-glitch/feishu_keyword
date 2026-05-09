@@ -65,14 +65,35 @@ def list_feishu_task_configs(
         db: 请求级会话，由 `get_db` 注入。
 
     Returns:
-        `code=0` 时 `data` 为列表项数组（`id`、`plan_name`、`updated_at`），按 `id` 降序。
+        `code=0` 时 `data` 为列表项数组（`id`、`plan_name`、`updated_at` 及从 `config` 解析的
+        `task_type`、`platform_keys`、`effective_at`），按 `id` 降序。
 
     Raises:
         HTTPException: 503 — 数据库错误，`detail` 含排查说明与 MySQL 摘要。
     """
     try:
         rows = feishu_task_config_service.list_feishu_task_configs(db, skip=skip, limit=limit)
-        items = [FeishuTaskConfigListItemOut.model_validate(r) for r in rows]
+        items: List[FeishuTaskConfigListItemOut] = []
+        for r in rows:
+            cfg = feishu_task_config_service.config_dict_from_row(r)
+            tt = cfg.get("taskType")
+            task_type = tt if tt in ("scheduled", "realtime") else None
+            raw_sources = cfg.get("selectedSources")
+            platform_keys: list[str] | None = None
+            if isinstance(raw_sources, list):
+                platform_keys = [str(x) for x in raw_sources if x is not None]
+            eff = cfg.get("effectiveAt")
+            effective_at = str(eff).strip() if eff is not None and str(eff).strip() else None
+            items.append(
+                FeishuTaskConfigListItemOut(
+                    id=r.id,
+                    plan_name=r.plan_name,
+                    updated_at=r.updated_at,
+                    task_type=task_type,
+                    platform_keys=platform_keys,
+                    effective_at=effective_at,
+                )
+            )
         return ApiResponse.success(data=items, message="查询成功")
     except SQLAlchemyError as e:
         db.rollback()
@@ -172,3 +193,32 @@ def update_feishu_task_config(
     if row is None:
         raise HTTPException(status_code=404, detail="任务配置不存在")
     return ApiResponse.success(data=FeishuTaskConfigIdOut(id=row.id), message="保存成功")
+
+
+@router.delete("/feishu-task-configs/{config_id}")
+def delete_feishu_task_config(
+    config_id: int, db: Session = Depends(get_db)
+) -> ApiResponse[FeishuTaskConfigIdOut]:
+    """
+    删除指定 id 的任务配置。
+
+    路径：`DELETE /api/feishu-task-configs/{config_id}`。
+
+    Args:
+        config_id: 要删除的主键。
+        db: 请求级会话。
+
+    Returns:
+        `code=0` 时 `data` 为 `{ "id": config_id }`。
+
+    Raises:
+        HTTPException: 404 — 记录不存在；503 — 数据库错误。
+    """
+    try:
+        ok = feishu_task_config_service.delete_feishu_task_config(db, config_id)
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=503, detail=_detail_from_sqlalchemy(e)) from None
+    if not ok:
+        raise HTTPException(status_code=404, detail="任务配置不存在")
+    return ApiResponse.success(data=FeishuTaskConfigIdOut(id=config_id), message="删除成功")

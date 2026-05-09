@@ -37,7 +37,7 @@
 
 ## 统一 API 响应（`code` / `message` / `data`）
 
-业务接口与健康检查均返回同一外层 JSON：
+业务接口均返回同一外层 JSON：
 
 | 字段 | 说明 |
 |------|------|
@@ -59,7 +59,6 @@ cd server
 .\.venv\Scripts\uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-- 健康检查：`GET http://127.0.0.1:8000/api/health`，成功示例：`code=0`，原状态字段在 **`data`** 内。
 - OpenAPI：`http://127.0.0.1:8000/docs`
 
 ---

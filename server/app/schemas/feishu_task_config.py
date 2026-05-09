@@ -32,13 +32,30 @@ class FeishuTaskConfigIdOut(BaseModel):
 
 
 class FeishuTaskConfigListItemOut(BaseModel):
-    """列表接口 `GET /api/feishu-task-configs` 单条 `data` 元素（ORM 行映射）。"""
+    """
+    列表接口 `GET /api/feishu-task-configs` 单条 `data` 元素。
+
+    `task_type`、`platform_keys`、`effective_at` 由服务端从 `config_json` 解析，供列表卡片展示；
+    缺省或无法解析时为 `null`。
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     plan_name: Optional[str] = None
     updated_at: Optional[datetime] = None
+    task_type: Optional[str] = Field(
+        default=None,
+        description="表单 `taskType`：`scheduled` | `realtime`。",
+    )
+    platform_keys: Optional[list[str]] = Field(
+        default=None,
+        description="表单 `selectedSources`：平台 id 列表。",
+    )
+    effective_at: Optional[str] = Field(
+        default=None,
+        description="表单 `effectiveAt` 原始字符串（多为日期时间）。",
+    )
 
 
 class FeishuTaskConfigDetailOut(BaseModel):

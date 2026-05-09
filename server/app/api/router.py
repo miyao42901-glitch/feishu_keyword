@@ -7,7 +7,6 @@
 
 | 模块 | 文件 | 说明 |
 |------|------|------|
-| 健康检查 | `routers/health.py` | `GET /api/health` |
 | 监控方案 | `routers/monitoring_plans.py` | `GET /api/monitoring-plans` 等 |
 | 飞书任务配置 | `routers/feishu_task_configs.py` | `GET|POST|PUT /api/feishu-task-configs` |
 
@@ -16,9 +15,8 @@
 
 from fastapi import APIRouter
 
-from app.api.routers import feishu_task_configs, health, monitoring_plans
+from app.api.routers import feishu_task_configs, monitoring_plans
 
 api_router = APIRouter()
-api_router.include_router(health.router, tags=["健康检查"])
 api_router.include_router(monitoring_plans.router, tags=["监控方案"])
 api_router.include_router(feishu_task_configs.router, tags=["飞书任务配置"])
