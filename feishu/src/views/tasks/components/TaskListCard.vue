@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Calendar, Clock, Promotion } from '@element-plus/icons-vue'
-import type { TaskCardModel, TaskRunStatus } from '@/views/tasks/types'
+import type { TaskCardModel } from '@/views/tasks/types'
+import type { TaskRunStatus } from '@/views/TaskCreateForm/types'
 
 defineOptions({ name: 'TaskListCard' })
 

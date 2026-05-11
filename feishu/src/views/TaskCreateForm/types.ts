@@ -21,6 +21,9 @@ export type VideoDuration = 'all' | 'lt1m' | '1to5m' | 'gt5m'
 /** 多维表格：新建或关联已有 */
 export type TableMode = 'new' | 'existing'
 
+/** 任务运行状态：写入 config.runStatus，列表接口解析为 run_status */
+export type TaskRunStatus = 'running' | 'completed' | 'stopped' | 'failed'
+
 /** 整条任务配置快照（序列化后进库） */
 export interface TaskCreateFormModel {
   /** 方案展示名，同步到服务端 `plan_name` */
@@ -50,4 +53,6 @@ export interface TaskCreateFormModel {
   tableMode: TableMode
   /** 已有表标识，接口联调后填充选项 */
   existingTableId: string
+  /** 列表卡片状态；调度/业务侧可更新后保存 */
+  runStatus: TaskRunStatus
 }

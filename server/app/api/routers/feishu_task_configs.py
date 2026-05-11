@@ -30,6 +30,9 @@ from app.services import feishu_task_config_service
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+_RUN_STATUSES = frozenset({"running", "completed", "stopped", "failed"})
+
+
 _DB_HINT = (
     "数据库操作失败：请确认已在 MySQL 创建表 feishu_task_configs。"
     " 可在 server 目录执行：python scripts/ensure_feishu_task_configs_table.py"
@@ -66,7 +69,7 @@ def list_feishu_task_configs(
 
     Returns:
         `code=0` 时 `data` 为列表项数组（`id`、`plan_name`、`updated_at` 及从 `config` 解析的
-        `task_type`、`platform_keys`、`effective_at`），按 `id` 降序。
+        `task_type`、`platform_keys`、`effective_at`、`run_status`），按 `id` 降序。
 
     Raises:
         HTTPException: 503 — 数据库错误，`detail` 含排查说明与 MySQL 摘要。
@@ -84,6 +87,8 @@ def list_feishu_task_configs(
                 platform_keys = [str(x) for x in raw_sources if x is not None]
             eff = cfg.get("effectiveAt")
             effective_at = str(eff).strip() if eff is not None and str(eff).strip() else None
+            rs = cfg.get("runStatus")
+            run_status = rs if isinstance(rs, str) and rs in _RUN_STATUSES else None
             items.append(
                 FeishuTaskConfigListItemOut(
                     id=r.id,
@@ -92,6 +97,7 @@ def list_feishu_task_configs(
                     task_type=task_type,
                     platform_keys=platform_keys,
                     effective_at=effective_at,
+                    run_status=run_status,
                 )
             )
         return ApiResponse.success(data=items, message="查询成功")

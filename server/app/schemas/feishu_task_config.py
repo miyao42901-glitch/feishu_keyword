@@ -56,6 +56,10 @@ class FeishuTaskConfigListItemOut(BaseModel):
         default=None,
         description="表单 `effectiveAt` 原始字符串（多为日期时间）。",
     )
+    run_status: Optional[str] = Field(
+        default=None,
+        description="表单 `runStatus`：`running`|`completed`|`stopped`|`failed`；缺省或非法时为 null。",
+    )
 
 
 class FeishuTaskConfigDetailOut(BaseModel):

@@ -6,7 +6,8 @@ import TaskCreateForm from '@/views/TaskCreateForm/index.vue'
 import { sourcePlatforms } from '@/views/TaskCreateForm/constants'
 import TaskDetailDialog from '@/views/tasks/components/TaskDetailDialog.vue'
 import TaskListCard from '@/views/tasks/components/TaskListCard.vue'
-import type { TaskCardModel, TaskRunStatus } from '@/views/tasks/types'
+import type { TaskCardModel } from '@/views/tasks/types'
+import type { TaskRunStatus } from '@/views/TaskCreateForm/types'
 import {
   deleteFeishuTaskConfig,
   getFeishuTaskConfig,
@@ -14,8 +15,6 @@ import {
   type FeishuTaskConfigDetail,
   type FeishuTaskConfigListItem,
 } from '@/lib/api'
-
-const DEMO_STATUSES: TaskRunStatus[] = ['running', 'completed', 'stopped', 'failed']
 
 const tasks = ref<TaskCardModel[]>([])
 const screen = ref<'list' | 'create'>('list')
@@ -26,9 +25,12 @@ const detailDialogVisible = ref(false)
 const detailDialogLoading = ref(false)
 const detailDialogPayload = ref<FeishuTaskConfigDetail | null>(null)
 
-/** 列表卡片运行态：占位演示，接入调度后改为接口字段 */
-function deriveDemoStatus(id: number): TaskRunStatus {
-  return DEMO_STATUSES[id % 4]!
+/** 列表项 `run_status`（源自 config.runStatus）；缺省为已停止 */
+function parseListRunStatus(raw: string | null | undefined): TaskRunStatus {
+  if (raw === 'running' || raw === 'completed' || raw === 'stopped' || raw === 'failed') {
+    return raw
+  }
+  return 'stopped'
 }
 
 function formatPlatformsLabel(keys: string[] | null | undefined): string {
@@ -53,7 +55,7 @@ function mapRows(rows: FeishuTaskConfigListItem[]): TaskCardModel[] {
     platformsLabel: formatPlatformsLabel(r.platform_keys ?? undefined),
     taskTypeLabel: r.task_type === 'realtime' ? '实时任务' : '定时任务',
     dateLabel: formatCardDate(r.effective_at ?? undefined),
-    status: deriveDemoStatus(r.id),
+    status: parseListRunStatus(r.run_status ?? undefined),
     notificationCount: 0,
   }))
 }

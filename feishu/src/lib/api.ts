@@ -97,6 +97,8 @@ export type FeishuTaskConfigListItem = {
   platform_keys?: string[] | null
   /** 生效时间字符串，来自表单 `effectiveAt` */
   effective_at?: string | null
+  /** 运行状态：来自表单 `runStatus`，可能为 null（旧数据） */
+  run_status?: string | null
 }
 
 /** `GET /api/feishu-task-configs/{id}` 详情（`data` 对象） */

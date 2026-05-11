@@ -16,7 +16,7 @@ import SourceSelectionSection from '@/views/TaskCreateForm/components/SourceSele
 import DataRetentionSection from '@/views/TaskCreateForm/components/DataRetentionSection.vue'
 
 import { dataRangeOptions, sourcePlatforms } from '@/views/TaskCreateForm/constants'
-import type { SourceFieldKey, TaskCreateFormModel } from '@/views/TaskCreateForm/types'
+import type { SourceFieldKey, TaskCreateFormModel, TaskRunStatus } from '@/views/TaskCreateForm/types'
 
 defineOptions({ name: 'TaskCreateForm' })
 
@@ -70,6 +70,7 @@ function initialForm(): TaskCreateFormModel {
     sourceFieldSelection: emptySourceFieldSelection(),
     tableMode: 'existing',
     existingTableId: '',
+    runStatus: 'stopped',
   }
 }
 
@@ -122,9 +123,17 @@ function normalizeExcludeKeywords(raw: unknown): string[] {
   return []
 }
 
+function normalizeRunStatus(raw: unknown): TaskRunStatus {
+  if (raw === 'running' || raw === 'completed' || raw === 'stopped' || raw === 'failed') {
+    return raw
+  }
+  return 'stopped'
+}
+
 function mergeConfigIntoForm(raw: Record<string, unknown>) {
   Object.assign(form, initialForm(), raw as Partial<TaskCreateFormModel>)
   form.excludeKeywords = normalizeExcludeKeywords(raw.excludeKeywords)
+  form.runStatus = normalizeRunStatus(raw.runStatus)
   const sel = raw.sourceFieldSelection
   const merged = emptySourceFieldSelection()
   if (sel && typeof sel === 'object' && !Array.isArray(sel)) {
