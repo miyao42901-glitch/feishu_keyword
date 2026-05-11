@@ -319,10 +319,12 @@
               const last_avg_top_read = userRecord.fields[fieldMap[tmpUserFields.avg_top_read.label].id] || 0
               const last_avg_top_zan = userRecord.fields[fieldMap[tmpUserFields.avg_top_zan.label].id] || 0
               const last_week_articles = userRecord.fields[fieldMap[tmpUserFields.week_articles.label].id] || 0
+              console.log(userRecord)
+              
               const result = await updateTable(
                 paneData.value.userTableId,
                 [{
-                  recordId: userRecord.recordId,
+                  recordId: user_recordId,
                   data: {
                     ghid: ghid, 
                     name: res.data.data.name,

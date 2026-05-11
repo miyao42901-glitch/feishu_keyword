@@ -47,17 +47,16 @@
 
       function userFields() {
         return {
-          sec_uid: { label: '抖音账号ID', fieldType: FieldType.Text, isPrimary: true, },
-          nickname: { label: '抖音账号昵称', fieldType: FieldType.Text, },
-          signature: { label: '简介', fieldType: FieldType.Text, },
-          follower_count: { label: '当前粉丝数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          aweme_count: { label: '发布视频数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          total_favorited: { label: '获赞总数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          follower_count_diff: { label: '新增粉丝数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          aweme_count_diff: { label: '新增视频数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          total_favorited_diff: { label: '新增获赞数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          following_count: { label: '关注数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          max_follower_count: { label: '最大粉丝数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          user_id: { label: '快手账号ID', fieldType: FieldType.Text, isPrimary: true},
+          user_name: { label: '快手账号名称', fieldType: FieldType.Text, },
+          eid: { label: '账号eid', fieldType: FieldType.Text, },
+          kwaiId: { label: '快手号', fieldType: FieldType.Text, },
+          user_text: { label: '简介', fieldType: FieldType.Text, },
+          fan: { label: '粉丝数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          photo: { label: '作品数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          fan_diff: { label: '新增粉丝数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          photo_diff: { label: '新增作品数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          shareLink: { label: '分享链接', fieldType: FieldType.Url, },
           current_get_time: { label: '当前获取时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           last_get_time: { label: '上次获取时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           get_work_flag: {
@@ -76,21 +75,23 @@
 
       function workFields() {
         return {
-          aweme_id: { label: '抖音视频ID', fieldType: FieldType.Text, isPrimary: true, },
-          desc: { label: '视频标题', fieldType: FieldType.Text, },
-          caption: { label: '视频简介', fieldType: FieldType.Text, },
-          nickname: { label: '抖音账号昵称', fieldType: FieldType.Text, },
-          sec_uid: { label: '抖音账号ID', fieldType: FieldType.Text, },
-          vedio_url: { label: '视频URL', fieldType: FieldType.Url, },
-          create_time: { label: '发布时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
-          digg_count: { label: '获赞数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          photo_id: { label: '作品ID', fieldType: FieldType.Text, isPrimary: true},
+          caption: { label: '标题', fieldType: FieldType.Text, },
+          user_id: { label: '快手账号ID', fieldType: FieldType.Text, isPrimary: true},
+          user_name: { label: '快手账号名称', fieldType: FieldType.Text, },
+          eid: { label: '作品eid', fieldType: FieldType.Text, },
+          timestamp: { label: '发布时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
+
+          like_count: { label: '点赞数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          view_count: { label: '播放数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          forward_count: { label: '转发数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           comment_count: { label: '评论数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          share_count: { label: '分享数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          collect_count: { label: '收藏数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          digg_count_diff: { label: '新增获赞数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+
+          like_count_diff: { label: '新增点赞数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          view_count_diff: { label: '新增播放数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          forward_count_diff: { label: '新增转发数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           comment_count_diff: { label: '新增评论数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          share_count_diff: { label: '新增分享数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          collect_count_diff: { label: '新增收藏数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+
           current_get_time: { label: '当前获取时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           last_get_time: { label: '上次获取时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
         }
@@ -99,8 +100,8 @@
       const dateRange = ref([1,3,7,15])
 
       const paneData = ref({
-        sec_user_id: null,
-        share_text: null,
+        user_id: null,
+        shareLink: null,
         userTableId: null,
         workTableId: null,
         searchDate: 3,
@@ -119,7 +120,7 @@
             null,
             [],
             userFields(),
-            '抖音账号' + today.toLocaleString('sv-SE').replace(' ', '_').replace(/:/g, '_')
+            '快手账号' + today.toLocaleString('sv-SE').replace(' ', '_').replace(/:/g, '_')
           );
           if (res.success) {
             paneData.value.userTableId = res.data.tableId
@@ -144,7 +145,7 @@
             null,
             [],
             workFields(),
-            '抖音视频' + today.toLocaleString('sv-SE').replace(' ', '_').replace(/:/g, '_')
+            '快手视频' + today.toLocaleString('sv-SE').replace(' ', '_').replace(/:/g, '_')
           );
           if (res.success) {
             paneData.value.workTableId = res.data.tableId
@@ -170,7 +171,7 @@
               null,
               [],
               userFields(),
-              '抖音账号' + today.toLocaleString('sv-SE').replace(' ', '_').replace(/:/g, '_')
+              '快手账号' + today.toLocaleString('sv-SE').replace(' ', '_').replace(/:/g, '_')
             );
             if (tableRes.success) {
               paneData.value.userTableId = tableRes.data.tableId
@@ -179,44 +180,40 @@
 
           const get_time = Date.now()
           const res = await pluginAPI.post('/plugin_forward', {
-            url: '/fbmain/monitor/v3/douyin_user_data',
+            url: '/fbmain/monitor/v3/ks_user_data_v2',
             body: {
-              sec_user_id: paneData.value.sec_user_id,
-              share_text: paneData.value.share_text,
-            },
-            params: {
+              share_text: paneData.value.shareLink,
               key: props.formData.key,
             }
           })
 
           const tmpUserFields = userFields()
           if (res && res.data && res.data.code === 0) {
-            const res_sec_id = res.data.data.user.sec_uid
-            const [record, fieldMap] = await getFirstRecordByField(paneData.value.userTableId, tmpUserFields.sec_uid.label, res_sec_id)
+            const user_id = res.data.data.profile.user_id
+            const [record, fieldMap] = await getFirstRecordByField(paneData.value.userTableId, tmpUserFields.user_id.label, user_id)
             if (record) {
               const last_get_time = record.fields[fieldMap[tmpUserFields.current_get_time.label].id]
-              const last_follower_count = record.fields[fieldMap[tmpUserFields.follower_count.label].id] || 0
-              const last_aweme_count = record.fields[fieldMap[tmpUserFields.aweme_count.label].id] || 0
-              const last_total_favorited = record.fields[fieldMap[tmpUserFields.total_favorited.label].id] || 0
+              const last_fan = record.fields[fieldMap[tmpUserFields.fan.label].id] || 0
+              const last_photo = record.fields[fieldMap[tmpUserFields.photo.label].id] || 0
               const result = await updateTable(
                 paneData.value.userTableId,
                 [{
                   recordId: record.recordId,
                   data: {
-                    sec_uid: res.data.data.user.sec_uid, 
-                    nickname: res.data.data.user.nickname,
-                    signature: res.data.data.user.signature,
+                    user_id: user_id, 
+                    user_name: res.data.data.profile.user_name,
+                    eid: res.data.data.profile.eid,
+                    kwaiId: res.data.data.profile.kwaiId,
+                    user_text: res.data.data.profile.user_text,
 
-                    follower_count: res.data.data.user.follower_count,
-                    aweme_count: res.data.data.user.aweme_count,
-                    total_favorited: res.data.data.user.total_favorited,
+                    fan: res.data.data.ownerCount.fan,
+                    photo: res.data.data.ownerCount.photo,
 
-                    follower_count_diff: res.data.data.user.follower_count - last_follower_count,
-                    aweme_count_diff: res.data.data.user.aweme_count - last_aweme_count,
-                    total_favorited_diff: res.data.data.user.total_favorited - last_total_favorited,
+                    fan_diff: res.data.data.ownerCount.fan - last_fan,
+                    photo_diff: res.data.data.ownerCount.photo - last_photo,
 
-                    following_count: res.data.data.user.following_count,
-                    max_follower_count: res.data.data.user.max_follower_count,
+                    shareLink: paneData.value.shareLink,
+
                     current_get_time: get_time,
                     last_get_time: last_get_time,
                   }
@@ -228,16 +225,17 @@
               console.log(paneData.value.userTableId)
               const result = await writeToTable(
                 paneData.value.userTableId,
-                [{sec_uid: res.data.data.user.sec_uid, 
-                  nickname: res.data.data.user.nickname,
-                  signature: res.data.data.user.signature,
+                [{
+                  user_id: user_id, 
+                  user_name: res.data.data.profile.user_name,
+                  eid: res.data.data.profile.eid,
+                  kwaiId: res.data.data.profile.kwaiId,
+                  user_text: res.data.data.profile.user_text,
 
-                  follower_count: res.data.data.user.follower_count,
-                  aweme_count: res.data.data.user.aweme_count,
-                  total_favorited: res.data.data.user.total_favorited,
+                  fan: res.data.data.ownerCount.fan,
+                  photo: res.data.data.ownerCount.photo,
 
-                  following_count: res.data.data.user.following_count,
-                  max_follower_count: res.data.data.user.max_follower_count,
+                  shareLink: paneData.value.shareLink,
                   current_get_time: get_time,
                   get_work_flag: 'unknow',
                 }],
@@ -245,8 +243,7 @@
               );
             }
 
-            
-            props.formData.message = '新增抖音账号完成，消耗：' + res.data.price
+            props.formData.message = '新增快手账号完成，消耗：' + res.data.price
             props.formData.messageType = 'success';
           }
           else{
@@ -284,7 +281,7 @@
           const tmpUserFields = userFields()
           for (const user_recordId of recordIdList){
             const userRecord = await userTable.getRecordById(user_recordId);
-            const sec_user_id = userRecord.fields[fieldMap[tmpUserFields.sec_uid.label].id][0].text
+            const shareLink = userRecord.fields[fieldMap[tmpUserFields.shareLink.label].id][0].text
             const get_time = Date.now()
 
             // const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_data?key=${props.formData.key}`, {
@@ -292,11 +289,9 @@
             // })
 
             const res = await pluginAPI.post('/plugin_forward', {
-              url: '/fbmain/monitor/v3/douyin_user_data',
+              url: '/fbmain/monitor/v3/ks_user_data_v2',
               body: {
-                sec_user_id: sec_user_id,
-              },
-              params: {
+                share_text: shareLink,
                 key: props.formData.key,
               }
             })
@@ -304,28 +299,25 @@
             if (res && res.data && res.data.code === 0) {
               totalCost += res.data.price
               const last_get_time = userRecord.fields[fieldMap[tmpUserFields.current_get_time.label].id]
-              const last_follower_count = userRecord.fields[fieldMap[tmpUserFields.follower_count.label].id] || 0
-              const last_aweme_count = userRecord.fields[fieldMap[tmpUserFields.aweme_count.label].id] || 0
-              const last_total_favorited = userRecord.fields[fieldMap[tmpUserFields.total_favorited.label].id] || 0
+              const last_fan = userRecord.fields[fieldMap[tmpUserFields.fan.label].id] || 0
+              const last_photo = userRecord.fields[fieldMap[tmpUserFields.photo.label].id] || 0
               const result = await updateTable(
                 paneData.value.userTableId,
                 [{
                   recordId: user_recordId,
                   data: {
-                    sec_uid: sec_user_id, 
-                    nickname: res.data.data.user.nickname,
-                    signature: res.data.data.user.signature,
+                    user_id: res.data.data.profile.user_id, 
+                    user_name: res.data.data.profile.user_name,
+                    eid: res.data.data.profile.eid,
+                    kwaiId: res.data.data.profile.kwaiId,
+                    user_text: res.data.data.profile.user_text,
 
-                    follower_count: res.data.data.user.follower_count,
-                    aweme_count: res.data.data.user.aweme_count,
-                    total_favorited: res.data.data.user.total_favorited,
+                    fan: res.data.data.ownerCount.fan,
+                    photo: res.data.data.ownerCount.photo,
 
-                    follower_count_diff: res.data.data.user.follower_count - last_follower_count,
-                    aweme_count_diff: res.data.data.user.aweme_count - last_aweme_count,
-                    total_favorited_diff: res.data.data.user.total_favorited - last_total_favorited,
+                    fan_diff: res.data.data.ownerCount.fan - last_fan,
+                    photo_diff: res.data.data.ownerCount.photo - last_photo,
 
-                    following_count: res.data.data.user.following_count,
-                    max_follower_count: res.data.data.user.max_follower_count,
                     current_get_time: get_time,
                     last_get_time: last_get_time,
                   }
@@ -339,7 +331,7 @@
           }
 
           if(recordIdList.length > 0){
-            props.formData.message = '更新用户信息完成，'+'尝试更新'+ recordIdList.length + '条账号信息，成功'+ successCount + '条，消耗' + totalCost.toFixed(3) + '元'
+            props.formData.message = '更新快手账号信息完成，'+'尝试更新'+ recordIdList.length + '条账号信息，成功'+ successCount + '条，消耗' + totalCost.toFixed(3) + '元'
             props.formData.messageType = 'success';
           }
         } catch (error) {
@@ -354,37 +346,43 @@
 
       const upsertWork = async(item, get_time) => {
         const tmpWorkFields = workFields()
-        const aweme_id = item.aweme_id
-        const [record, fieldMap] = await getFirstRecordByField(paneData.value.workTableId, tmpWorkFields.aweme_id.label, aweme_id)
+        const photo_id = item.photo_id.toString()
+        let photoIdFromShareInfo = '';
+        if (item.share_info) {
+          const params = new URLSearchParams(item.share_info);
+          photoIdFromShareInfo = params.get('photoId') || '';
+        }
+        const [record, fieldMap] = await getFirstRecordByField(paneData.value.workTableId, tmpWorkFields.photo_id.label, photo_id)
+        console.log(record)
         let result = {}
         if (record) {
           const last_get_time = record.fields[fieldMap[tmpWorkFields.current_get_time.label].id]
-          const last_digg_count = record.fields[fieldMap[tmpWorkFields.digg_count.label].id] || 0
+          const last_like_count = record.fields[fieldMap[tmpWorkFields.like_count.label].id] || 0
+          const last_view_count = record.fields[fieldMap[tmpWorkFields.view_count.label].id] || 0
+          const last_forward_count = record.fields[fieldMap[tmpWorkFields.forward_count.label].id] || 0
           const last_comment_count = record.fields[fieldMap[tmpWorkFields.comment_count.label].id] || 0
-          const last_share_count = record.fields[fieldMap[tmpWorkFields.share_count.label].id] || 0
-          const last_collect_count = record.fields[fieldMap[tmpWorkFields.collect_count.label].id] || 0
           result = await updateTable(
             paneData.value.workTableId,
             [{
               recordId: record.recordId,
               data: {
-                aweme_id: aweme_id,
-                desc: item.desc,
+                photo_id: item.photo_id,
                 caption: item.caption,
-                sec_uid: item.author.sec_uid,
-                nickname: item.author.nickname,
-                vedio_url: 'https://www.douyin.com/video/' + item.aweme_id,
-                create_time: item.create_time * 1000, // 转换为毫秒级时间戳
+                eid: photoIdFromShareInfo,
+                timestamp: item.timestamp,
 
-                digg_count: item.statistics.digg_count,
-                comment_count: item.statistics.comment_count,
-                share_count: item.statistics.share_count,
-                collect_count: item.statistics.collect_count,
+                user_name: item.user_name,
+                user_id: item.user_id,
 
-                digg_count_diff: item.statistics.digg_count - last_digg_count,
-                comment_count_diff: item.statistics.comment_count - last_comment_count,
-                share_count_diff: item.statistics.share_count - last_share_count,
-                collect_count_diff: item.statistics.collect_count - last_collect_count,
+                like_count: item.like_count,
+                view_count: item.view_count,
+                forward_count: item.forward_count,
+                comment_count: item.comment_count,
+
+                like_count_diff: item.like_count - last_like_count,
+                view_count_diff: item.view_count - last_view_count,
+                forward_count_diff: item.forward_count - last_forward_count,
+                comment_count_diff: item.comment_count - last_comment_count,
 
                 current_get_time: get_time,
                 last_get_time: last_get_time,
@@ -396,23 +394,22 @@
         else{
           result = await writeToTable(
             paneData.value.workTableId,
-            [
-              {
-                aweme_id: aweme_id,
-                desc: item.desc,
-                caption: item.caption,
-                sec_uid: item.author.sec_uid,
-                nickname: item.author.nickname,
-                vedio_url: 'https://www.douyin.com/video/' + item.aweme_id,
-                create_time: item.create_time * 1000, // 转换为毫秒级时间戳
+            [{
+              photo_id: item.photo_id,
+              caption: item.caption,
+              eid: photoIdFromShareInfo,
+              timestamp: item.timestamp,
 
-                digg_count: item.statistics.digg_count,
-                comment_count: item.statistics.comment_count,
-                share_count: item.statistics.share_count,
-                collect_count: item.statistics.collect_count,
-                current_get_time: get_time,
-              }
-            ],
+              user_name: item.user_name,
+              user_id: item.user_id,
+
+              like_count: item.like_count,
+              view_count: item.view_count,
+              forward_count: item.forward_count,
+              comment_count: item.comment_count,
+
+              current_get_time: get_time,
+            }],
             tmpWorkFields,
           );
         }
@@ -434,7 +431,7 @@
               null,
               [],
               workFields(),
-              '抖音视频' + today.toLocaleString('sv-SE').replace(' ', '_').replace(/:/g, '_')
+              '快手视频' + today.toLocaleString('sv-SE').replace(' ', '_').replace(/:/g, '_')
             );
             if (tableRes.success) {
               paneData.value.workTableId = tableRes.data.tableId
@@ -464,24 +461,24 @@
             }
 
             const recordIdList = await bitable.ui.selectRecordIdList(paneData.value.userTableId)
-            const sec_user_id_set = {}
+            const user_id_set = {}
             for (const userRecordId of recordIdList){
               const userRecord = await userTable.getRecordById(userRecordId);
-              const sec_user_id = userRecord.fields[fieldMap[tmpUserFields.sec_uid.label].id][0].text
-              if (sec_user_id_set[sec_user_id]) continue
-              sec_user_id_set[sec_user_id] = true
+              const user_id = userRecord.fields[fieldMap[tmpUserFields.user_id.label].id][0].text
+              if (user_id_set[user_id]) continue
+              user_id_set[user_id] = true
               userInfoList.push({
                 recordId: userRecordId,
-                sec_user_id: sec_user_id
+                user_id: user_id
               })
             }
           }
           else{
-            userInfoList = [{ sec_user_id: paneData.value.sec_user_id, share_text: paneData.value.share_text }]
+            userInfoList = [{ user_id: paneData.value.user_id }]
           }
           
           for (const userInfo of userInfoList){
-            let max_cursor = ""
+            let last_buffer = ""
             let i = 0
             while(true){
               i += 1
@@ -492,13 +489,10 @@
               // })
 
               const res = await pluginAPI.post('/plugin_forward', {
-                url: '/fbmain/monitor/v3/douyin_user_post',
+                url: '/fbmain/monitor/v3/ks_user_post_v1',
                 body: {
-                  sec_user_id: userInfo.sec_user_id,
-                  share_text: userInfo.share_text,
-                  max_cursor: max_cursor,
-                },
-                params: {
+                  uid: userInfo.user_id,
+                  pcursor: last_buffer,
                   key: props.formData.key,
                 }
               })
@@ -519,14 +513,14 @@
                 break
               }
 
-              max_cursor = String(res.data.data.max_cursor)
+              last_buffer = res.data.data.pcursor
               totalCost += res.data.price
 
-              // 过滤掉时间范围外的置顶视频
-              const preFilteringData = res.data.data.aweme_list.filter(item => item.is_top != 1 || item.create_time * 1000 > min_time)
+              const preFilteringData = res.data.data.feeds ? res.data.data.feeds : []
+
               let workAccordCount = 0
               for (const item of preFilteringData){
-                if (item.create_time * 1000 > min_time){
+                if (item.timestamp > min_time){
                   workAccordCount += 1  
                   const upsertSuccett = await upsertWork(item, get_time)
                   if (upsertSuccett){
@@ -598,7 +592,7 @@
           const totalInteract = []
           for (const workRecordId of recordIdList){
             const workRecord = await workTable.getRecordById(workRecordId);
-            const aweme_id = workRecord.fields[fieldMap[tmpWorkFields.aweme_id.label].id][0].text
+            const eid = workRecord.fields[fieldMap[tmpWorkFields.eid.label].id][0].text
             const get_time = Date.now()
 
             // const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_aweme_detail?key=${props.formData.key}`, {
@@ -606,11 +600,9 @@
             // })
 
             const res = await pluginAPI.post('/plugin_forward', {
-              url: '/fbmain/monitor/v3/douyin_aweme_detail',
+              url: '/fbmain/monitor/v3/ks_video_detail',
               body: {
-                aweme_id: aweme_id,
-              },
-              params: {
+                share_text: "https://www.kuaishou.com/short-video/" + eid,
                 key: props.formData.key,
               }
             })
@@ -618,32 +610,32 @@
             if (res && res.data && res.data.code === 0) {
               totalCost += res.data.price
               const last_get_time = workRecord.fields[fieldMap[tmpWorkFields.current_get_time.label].id]
-              const last_digg_count = workRecord.fields[fieldMap[tmpWorkFields.digg_count.label].id] || 0
+              const last_like_count = workRecord.fields[fieldMap[tmpWorkFields.like_count.label].id] || 0
+              const last_view_count = workRecord.fields[fieldMap[tmpWorkFields.view_count.label].id] || 0
+              const last_forward_count = workRecord.fields[fieldMap[tmpWorkFields.forward_count.label].id] || 0
               const last_comment_count = workRecord.fields[fieldMap[tmpWorkFields.comment_count.label].id] || 0
-              const last_share_count = workRecord.fields[fieldMap[tmpWorkFields.share_count.label].id] || 0
-              const last_collect_count = workRecord.fields[fieldMap[tmpWorkFields.collect_count.label].id] || 0
-              const result = await updateTable(
+              result = await updateTable(
                 paneData.value.workTableId,
                 [{
-                  recordId: workRecordId,
+                  recordId: workRecord.recordId,
                   data: {
-                    aweme_id: aweme_id,
-                    desc: res.data.data.aweme_detail.desc,
-                    caption: res.data.data.aweme_detail.caption,
-                    sec_uid: res.data.data.aweme_detail.author.sec_uid,
-                    nickname: res.data.data.aweme_detail.author.nickname,
-                    vedio_url: 'https://www.douyin.com/video/' + aweme_id,
-                    create_time: res.data.data.aweme_detail.create_time * 1000, // 转换为毫秒级时间戳
+                    photo_id: item.photo_id,
+                    caption: item.caption,
+                    eid: photoIdFromShareInfo,
+                    timestamp: item.timestamp,
 
-                    digg_count: res.data.data.aweme_detail.statistics.digg_count,
-                    comment_count: res.data.data.aweme_detail.statistics.comment_count,
-                    share_count: res.data.data.aweme_detail.statistics.share_count,
-                    collect_count: res.data.data.aweme_detail.statistics.collect_count,
+                    user_name: item.user_name,
+                    user_id: item.user_id,
 
-                    digg_count_diff: res.data.data.aweme_detail.statistics.digg_count - last_digg_count,
-                    comment_count_diff: res.data.data.aweme_detail.statistics.comment_count - last_comment_count,
-                    share_count_diff: res.data.data.aweme_detail.statistics.share_count - last_share_count,
-                    collect_count_diff: res.data.data.aweme_detail.statistics.collect_count - last_collect_count,
+                    like_count: item.like_count,
+                    view_count: item.view_count,
+                    forward_count: item.forward_count,
+                    comment_count: item.comment_count,
+
+                    like_count_diff: item.like_count - last_like_count,
+                    view_count_diff: item.view_count - last_view_count,
+                    forward_count_diff: item.forward_count - last_forward_count,
+                    comment_count_diff: item.comment_count - last_comment_count,
 
                     current_get_time: get_time,
                     last_get_time: last_get_time,
@@ -658,7 +650,7 @@
           }
           
           if(recordIdList.length > 0){
-            props.formData.message = '更新抖音视频完成, 共尝试更新'+recordIdList.length+'条, 成功'+successCount+'条, 消耗'+totalCost.toFixed(3);
+            props.formData.message = '更新快手视频完成, 共尝试更新'+recordIdList.length+'条, 成功'+successCount+'条, 消耗'+totalCost.toFixed(3);
             props.formData.messageType = 'success';
           }
         } catch (error) {
@@ -704,7 +696,7 @@
         plain
         style="flex: 1;"
       >
-          创建抖音视频表空模板
+          创建快手视频表空模板
       </el-button>
     </el-form-item>
 
@@ -717,13 +709,13 @@
         plain
         style="flex: 1;"
       >
-          创建抖音账号表空模板
+          创建快手账号表空模板
       </el-button>
     </el-form-item>
 
 
     <el-form-item 
-      :label="'抖音视频表'"
+      :label="'快手视频表'"
       v-show="paneData.getDataType !== 0"
     >
       <TableSelect v-model="paneData.workTableId" :placeholder="'未选自动创建'" />
@@ -732,38 +724,38 @@
 
     <el-form-item label-width="null" v-show="paneData.getDataType !== 0">
       <el-radio-group v-model="paneData.getWorksType" style="display: flex;">
-        <el-radio :label="1">根据账号id或分享链接获取</el-radio>
+        <el-radio :label="1">根据账号id获取</el-radio>
         <el-radio :label="0">根据账号表获取</el-radio>
       </el-radio-group>
     </el-form-item>
 
 
     <el-form-item 
-      :label="'抖音账号表'"
+      :label="'快手账号表'"
       v-show="paneData.getDataType === 0 || paneData.getWorksType === 0"
     >
-      <TableSelect v-model="paneData.userTableId" :placeholder="paneData.getDataType === 0 ? '未选自动创建' : '请选择抖音账号表'" />
+      <TableSelect v-model="paneData.userTableId" :placeholder="paneData.getDataType === 0 ? '未选自动创建' : '请选择快手账号表'" />
     </el-form-item>
 
 
     <el-form-item
-      :label="'抖音账号id'"
-      v-show="paneData.getDataType === 0 || paneData.getWorksType !== 0"
+      :label="'快手账号id'"
+      v-show="paneData.getDataType !== 0 && paneData.getWorksType !== 0"
     >
       <el-input 
-        v-model="paneData.sec_user_id"
-        :placeholder="'请输入抖音账号id'"
+        v-model="paneData.user_id"
+        :placeholder="'请输入快手账号id'"
       />
     </el-form-item>
 
 
     <el-form-item
       :label="'账号分享链接'"
-      v-show="paneData.getDataType === 0 || paneData.getWorksType !== 0"
+      v-show="paneData.getDataType === 0"
     >
       <el-input 
-        v-model="paneData.share_text"
-        :placeholder="'请输入抖音账号分享链接'"
+        v-model="paneData.shareLink"
+        :placeholder="'请输入快手账号分享链接'"
       />
     </el-form-item>
 
@@ -771,12 +763,12 @@
     <el-form-item label-width="null" v-show="paneData.getDataType === 0">
       <el-button 
         type="primary" 
-        :disabled="isLocked || !formData.key || !paneData.sec_user_id && !paneData.share_text"
+        :disabled="isLocked || !formData.key || !paneData.shareLink"
         @click="upsertUser"
         plain
         style="flex: 1;"
       >
-        写入抖音账号数据
+        写入快手账号数据
       </el-button>
     </el-form-item>
 
@@ -789,7 +781,7 @@
         plain
         style="flex: 1;"
       >
-        批量更新抖音账号数据
+        批量更新快手账号数据
       </el-button>
     </el-form-item>
 
@@ -803,7 +795,7 @@
     <el-form-item label-width="null" v-show="paneData.getDataType !== 0">
       <el-button 
         type="primary" 
-        :disabled="isLocked || !formData.key || !paneData.userTableId && paneData.getWorksType === 0 || !paneData.sec_user_id && !paneData.share_text && paneData.getWorksType !== 0"
+        :disabled="isLocked || !formData.key || !paneData.userTableId && paneData.getWorksType === 0 || !paneData.user_id && paneData.getWorksType !== 0"
         @click="getRecentWorks(paneData.searchDate, paneData.getWorksType)"
         plain
         style="flex: 1;"
@@ -820,7 +812,7 @@
         plain
         style="flex: 1;"
       >
-        批量更新抖音视频数据
+        批量更新快手视频数据
       </el-button>
     </el-form-item>
 

@@ -32,6 +32,7 @@
   import PDyForm from '@/paneForms/dyForm.vue'
   import PGhForm from '@/paneForms/ghForm.vue'
   import PV2Form from '@/paneForms/v2Form.vue'
+  import PKsForm from '@/paneForms/ksForm.vue'
 
   import SensitiveText from './sensitiveText.vue'
   import LoginDialog from './LoginDialog.vue'
@@ -70,6 +71,7 @@
       PDyForm,
       PGhForm,
       PV2Form,
+      PKsForm,
 
       SensitiveText,
       LoginDialog,
@@ -510,6 +512,11 @@
           <el-tab-pane :label="t('form.tabs.kuaishou')">
             <KsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
+        </el-tabs>
+      </el-card>
+
+      <el-card v-show="!showRechargeCard" class="card-item" shadow="hover">
+        <el-tabs :disabled="isLocked">
           <el-tab-pane :label="t('form.tabs.douyin')">
             <PDyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
@@ -518,6 +525,9 @@
           </el-tab-pane>
           <el-tab-pane :label="t('form.tabs.wechatChannel')">
             <PV2Form :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+          </el-tab-pane>
+          <el-tab-pane :label="t('form.tabs.kuaishou')">
+            <PKsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
         </el-tabs>
       </el-card>
