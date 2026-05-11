@@ -1,9 +1,9 @@
 /**
- * 任务列表卡片运行态（与表单 `runStatus` / 列表 `run_status` 一致）。
+ * 任务列表卡片：状态由接口 `display_status` / `stopped_kind` 展示，不在前端计算业务态。
  */
-import type { TaskRunStatus } from '@/views/TaskCreateForm/types'
+import type { TaskRunStatus, TaskStoppedKind } from '@/views/TaskCreateForm/types'
 
-export type { TaskRunStatus } from '@/views/TaskCreateForm/types'
+export type { TaskRunStatus, TaskStoppedKind } from '@/views/TaskCreateForm/types'
 
 /** 列表单行视图模型（由接口列表项映射而来） */
 export interface TaskCardModel {
@@ -15,4 +15,9 @@ export interface TaskCardModel {
   status: TaskRunStatus
   /** 角标未读数；0 表示不展示 */
   notificationCount: number
+  /** 用于主操作：重选时间 / 区分启动场景 */
+  effectiveAtRaw: string | null
+  expireAtRaw: string | null
+  /** 仅在 `status === 'stopped'` 时用于区分「未到生效」与「窗口内暂停」 */
+  stoppedKind: TaskStoppedKind
 }

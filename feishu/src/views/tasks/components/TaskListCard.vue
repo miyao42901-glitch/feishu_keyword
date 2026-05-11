@@ -1,19 +1,27 @@
 <script setup lang="ts">
-import { Calendar, Clock, Promotion } from '@element-plus/icons-vue'
+import { Calendar, Clock, Promotion, WarningFilled } from '@element-plus/icons-vue'
 import type { TaskCardModel } from '@/views/tasks/types'
 import type { TaskRunStatus } from '@/views/TaskCreateForm/types'
 
 defineOptions({ name: 'TaskListCard' })
 
-const props = defineProps<{
-  row: TaskCardModel
-}>()
+const props = withDefaults(
+  defineProps<{
+    row: TaskCardModel
+    /** 主操作（停止/启动/重启）请求中 */
+    primaryLoading?: boolean
+    /** 已完成/失败：点击「重启」后在卡片内展示提示条（无弹框） */
+    restartHint?: boolean
+  }>(),
+  { primaryLoading: false, restartHint: false },
+)
 
 const emit = defineEmits<{
   view: [row: TaskCardModel]
   edit: [row: TaskCardModel]
   primaryAction: [row: TaskCardModel]
   delete: [row: TaskCardModel]
+  dismissRestartHint: []
 }>()
 
 const statusStyles: Record<
@@ -55,7 +63,7 @@ function primaryActionLabel(status: TaskRunStatus): string {
     case 'stopped':
       return '启动'
     case 'failed':
-      return '重试'
+      return '重启'
   }
 }
 
@@ -128,13 +136,16 @@ function onPrimary() {
         >
           编辑
         </button>
-        <button
-          type="button"
-          class="cursor-pointer rounded px-2 py-1 text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700"
+        <el-button
+          link
+          type="primary"
+          class="!px-2 !py-1"
+          :loading="primaryLoading"
+          :disabled="primaryLoading"
           @click.stop="onPrimary"
         >
           {{ primaryActionLabel(row.status) }}
-        </button>
+        </el-button>
         <div class="ml-auto">
           <button
             type="button"
@@ -144,6 +155,29 @@ function onPrimary() {
             删除
           </button>
         </div>
+      </div>
+    </div>
+
+    <div
+      v-if="restartHint"
+      class="border-t border-red-100 bg-red-50 px-4 py-2.5"
+      role="alert"
+    >
+      <div class="flex items-start gap-2 pr-1">
+        <el-icon class="mt-0.5 shrink-0 text-amber-500" :size="18" aria-hidden="true">
+          <WarningFilled />
+        </el-icon>
+        <p class="m-0 min-w-0 flex-1 text-sm leading-relaxed text-red-600">
+          该任务有效期已过，请重新配置时间
+        </p>
+        <button
+          type="button"
+          class="shrink-0 rounded px-1.5 py-0.5 text-xs text-red-500 hover:bg-red-100"
+          aria-label="关闭提示"
+          @click.stop="emit('dismissRestartHint')"
+        >
+          ×
+        </button>
       </div>
     </div>
   </el-card>

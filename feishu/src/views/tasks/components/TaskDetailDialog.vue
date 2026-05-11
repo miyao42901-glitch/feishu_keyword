@@ -27,7 +27,11 @@ const planName = computed(() => {
   return typeof fallback === 'string' && fallback.trim() ? fallback.trim() : '—'
 })
 
-const taskTypeLabel = computed(() => '定时任务')
+const isRealtime = computed(() => cfg.value.taskType === 'realtime')
+
+const taskTypeLabel = computed(() =>
+  cfg.value.taskType === 'realtime' ? '实时任务' : '定时任务',
+)
 
 function formatDateTime(raw: unknown): string {
   if (raw == null) return '—'
@@ -100,14 +104,16 @@ const excludeTags = computed(() => {
         <div class="mb-1 text-xs text-slate-400">任务类型</div>
         <div class="text-slate-800">{{ taskTypeLabel }}</div>
       </div>
-      <div>
-        <div class="mb-1 text-xs text-slate-400">生效时间</div>
-        <div class="text-slate-800">{{ effectiveAtLabel }}</div>
-      </div>
-      <div>
-        <div class="mb-1 text-xs text-slate-400">过期时间</div>
-        <div class="text-slate-800">{{ expireAtLabel }}</div>
-      </div>
+      <template v-if="!isRealtime">
+        <div>
+          <div class="mb-1 text-xs text-slate-400">生效时间</div>
+          <div class="text-slate-800">{{ effectiveAtLabel }}</div>
+        </div>
+        <div>
+          <div class="mb-1 text-xs text-slate-400">过期时间</div>
+          <div class="text-slate-800">{{ expireAtLabel }}</div>
+        </div>
+      </template>
       <div>
         <div class="mb-1 text-xs text-slate-400">关键词</div>
         <div v-if="keywordTags.length" class="flex flex-wrap gap-2">

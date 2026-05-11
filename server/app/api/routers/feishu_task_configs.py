@@ -19,13 +19,16 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.core.config import DEFAULT_LIST_LIMIT
 from app.schemas.api_response import ApiResponse
+from app.models import FeishuTaskConfig
 from app.schemas.feishu_task_config import (
     FeishuTaskConfigDetailOut,
     FeishuTaskConfigIdOut,
     FeishuTaskConfigListItemOut,
     FeishuTaskConfigUpsertBody,
+    FeishuTaskConfigWriteOut,
 )
 from app.services import feishu_task_config_service
+from app.services.feishu_task_ui_status import compute_card_status
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -51,6 +54,17 @@ def _detail_from_sqlalchemy(exc: SQLAlchemyError) -> str:
     return f"{_DB_HINT} 【原因】{raw}"
 
 
+def _write_out_from_row(row: FeishuTaskConfig) -> FeishuTaskConfigWriteOut:
+    cfg = feishu_task_config_service.config_dict_from_row(row)
+    display_status, stopped_kind_raw = compute_card_status(cfg)
+    stopped_kind = stopped_kind_raw if display_status == "stopped" else None
+    return FeishuTaskConfigWriteOut(
+        id=row.id,
+        display_status=display_status,
+        stopped_kind=stopped_kind,
+    )
+
+
 @router.get("/feishu-task-configs")
 def list_feishu_task_configs(
     skip: int = 0,
@@ -69,7 +83,7 @@ def list_feishu_task_configs(
 
     Returns:
         `code=0` 时 `data` 为列表项数组（`id`、`plan_name`、`updated_at` 及从 `config` 解析的
-        `task_type`、`platform_keys`、`effective_at`、`run_status`），按 `id` 降序。
+        `task_type`、`platform_keys`、`effective_at`、`expire_at`、`task_paused`、`task_abnormal`、`run_status`），按 `id` 降序。
 
     Raises:
         HTTPException: 503 — 数据库错误，`detail` 含排查说明与 MySQL 摘要。
@@ -87,8 +101,15 @@ def list_feishu_task_configs(
                 platform_keys = [str(x) for x in raw_sources if x is not None]
             eff = cfg.get("effectiveAt")
             effective_at = str(eff).strip() if eff is not None and str(eff).strip() else None
+            ex = cfg.get("expireAt")
+            expire_at = str(ex).strip() if ex is not None and str(ex).strip() else None
+            task_paused = feishu_task_config_service.task_paused_from_config(cfg)
+            ta = cfg.get("taskAbnormal")
+            task_abnormal = bool(ta) if isinstance(ta, bool) else None
             rs = cfg.get("runStatus")
             run_status = rs if isinstance(rs, str) and rs in _RUN_STATUSES else None
+            display_status, stopped_kind_raw = compute_card_status(cfg)
+            stopped_kind = stopped_kind_raw if display_status == "stopped" else None
             items.append(
                 FeishuTaskConfigListItemOut(
                     id=r.id,
@@ -97,7 +118,12 @@ def list_feishu_task_configs(
                     task_type=task_type,
                     platform_keys=platform_keys,
                     effective_at=effective_at,
+                    expire_at=expire_at,
+                    task_paused=task_paused,
+                    task_abnormal=task_abnormal,
                     run_status=run_status,
+                    display_status=display_status,
+                    stopped_kind=stopped_kind,
                 )
             )
         return ApiResponse.success(data=items, message="查询成功")
@@ -132,12 +158,17 @@ def get_feishu_task_config(
         raise HTTPException(status_code=503, detail=_detail_from_sqlalchemy(e)) from None
     if row is None:
         raise HTTPException(status_code=404, detail="任务配置不存在")
+    cfg = feishu_task_config_service.config_dict_from_row(row)
+    display_status, stopped_kind_raw = compute_card_status(cfg)
+    stopped_kind = stopped_kind_raw if display_status == "stopped" else None
     payload = FeishuTaskConfigDetailOut(
         id=row.id,
         plan_name=row.plan_name,
-        config=feishu_task_config_service.config_dict_from_row(row),
+        config=cfg,
         created_at=row.created_at,
         updated_at=row.updated_at,
+        display_status=display_status,
+        stopped_kind=stopped_kind,
     )
     return ApiResponse.success(data=payload, message="查询成功")
 
@@ -145,7 +176,7 @@ def get_feishu_task_config(
 @router.post("/feishu-task-configs")
 def create_feishu_task_config(
     body: FeishuTaskConfigUpsertBody, db: Session = Depends(get_db)
-) -> ApiResponse[FeishuTaskConfigIdOut]:
+) -> ApiResponse[FeishuTaskConfigWriteOut]:
     """
     新建一条任务配置（插入一行，`config` 序列化为 `config_json`）。
 
@@ -156,14 +187,14 @@ def create_feishu_task_config(
         db: 请求级会话。
 
     Returns:
-        `code=0` 时 `data` 为 `{ "id": 新主键 }`。
+        `code=0` 时 `data` 含 `id` 及保存后的 `display_status`、`stopped_kind`。
 
     Raises:
         HTTPException: 503 — 数据库错误（常见：表未创建）。
     """
     try:
         row = feishu_task_config_service.create_feishu_task_config(db, config=body.config)
-        return ApiResponse.success(data=FeishuTaskConfigIdOut(id=row.id), message="保存成功")
+        return ApiResponse.success(data=_write_out_from_row(row), message="保存成功")
     except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(status_code=503, detail=_detail_from_sqlalchemy(e)) from None
@@ -174,7 +205,7 @@ def update_feishu_task_config(
     config_id: int,
     body: FeishuTaskConfigUpsertBody,
     db: Session = Depends(get_db),
-) -> ApiResponse[FeishuTaskConfigIdOut]:
+) -> ApiResponse[FeishuTaskConfigWriteOut]:
     """
     全量更新指定 id 的任务配置（覆盖 `plan_name` 与 `config_json`）。
 
@@ -186,7 +217,7 @@ def update_feishu_task_config(
         db: 请求级会话。
 
     Returns:
-        `code=0` 时 `data` 为 `{ "id": config_id }`。
+        `code=0` 时 `data` 含 `id` 及保存后的 `display_status`、`stopped_kind`。
 
     Raises:
         HTTPException: 404 — 记录不存在；503 — 数据库错误。
@@ -198,7 +229,7 @@ def update_feishu_task_config(
         raise HTTPException(status_code=503, detail=_detail_from_sqlalchemy(e)) from None
     if row is None:
         raise HTTPException(status_code=404, detail="任务配置不存在")
-    return ApiResponse.success(data=FeishuTaskConfigIdOut(id=row.id), message="保存成功")
+    return ApiResponse.success(data=_write_out_from_row(row), message="保存成功")
 
 
 @router.delete("/feishu-task-configs/{config_id}")

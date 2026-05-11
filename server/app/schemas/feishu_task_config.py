@@ -31,6 +31,20 @@ class FeishuTaskConfigIdOut(BaseModel):
     id: int
 
 
+class FeishuTaskConfigWriteOut(BaseModel):
+    """POST/PUT 成功后返回：便于前端立即展示服务端计算的卡片状态（不依赖列表 GET 是否含 `display_status`）。"""
+
+    id: int
+    display_status: str = Field(
+        ...,
+        description="保存后根据入库 config 与当前时间计算的卡片状态。",
+    )
+    stopped_kind: Optional[str] = Field(
+        default=None,
+        description="当 display_status 为 stopped 时的子类；否则 null。",
+    )
+
+
 class FeishuTaskConfigListItemOut(BaseModel):
     """
     列表接口 `GET /api/feishu-task-configs` 单条 `data` 元素。
@@ -56,9 +70,29 @@ class FeishuTaskConfigListItemOut(BaseModel):
         default=None,
         description="表单 `effectiveAt` 原始字符串（多为日期时间）。",
     )
+    expire_at: Optional[str] = Field(
+        default=None,
+        description="表单 `expireAt` 原始字符串。",
+    )
+    task_paused: Optional[bool] = Field(
+        default=None,
+        description="表单 `taskPaused`：窗口内用户点击「停止」后为 true；缺省为 null（视为 false）。",
+    )
+    task_abnormal: Optional[bool] = Field(
+        default=None,
+        description="表单 `taskAbnormal`：任务异常（如外部接口调用失败）后为 true；前端与 `run_status=failed` 一并视为失败态。",
+    )
     run_status: Optional[str] = Field(
         default=None,
-        description="表单 `runStatus`：`running`|`completed`|`stopped`|`failed`；缺省或非法时为 null。",
+        description="表单 `runStatus`：失败时可写 `failed`；亦可用 `taskAbnormal` 表示异常。",
+    )
+    display_status: str = Field(
+        ...,
+        description="服务端根据 config 与当前时间计算的卡片状态：`running`|`stopped`|`completed`|`failed`。",
+    )
+    stopped_kind: Optional[str] = Field(
+        default=None,
+        description="当 display_status 为 `stopped` 时：`before_effective`|`paused_in_window`|`neutral`；否则 null。",
     )
 
 
@@ -72,3 +106,11 @@ class FeishuTaskConfigDetailOut(BaseModel):
     config: dict[str, Any]
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    display_status: str = Field(
+        ...,
+        description="与列表一致：服务端根据 config 与当前时间计算的卡片状态。",
+    )
+    stopped_kind: Optional[str] = Field(
+        default=None,
+        description="与列表一致：`stopped` 时的子类，否则 null。",
+    )

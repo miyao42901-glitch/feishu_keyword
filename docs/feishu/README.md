@@ -54,6 +54,8 @@
 
 工程内封装：**`feishu/src/lib/api.ts`** — `apiFetch` 解析统一信封并只返回 **`data`**；各导出函数带 **JSDoc**（对应 `docs/API.md` 路径与参数）。注释与后端路由同步要求见 **[API.md 第九节](../API.md#9-代码位置与接口注释约定)**。
 
+其它与页面弱耦合的可复用逻辑放在 **`feishu/src/lib/*.ts`**（如任务生效/过期时间与日期控件：**`lib/datetime-task-window.ts`**）。**跨模块复用、禁止重复造轮子**的约定见 **[DEVELOPMENT.md](../DEVELOPMENT.md)** 第九节。
+
 完整约定见 **[HTTP 接口规范](../API.md)** 第五节；飞书任务配置接口见同文档第八节。
 
 ---

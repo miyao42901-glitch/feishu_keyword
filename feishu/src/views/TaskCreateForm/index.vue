@@ -2,7 +2,6 @@
 /**
  * 新建 / 编辑任务：整页表单入口，负责状态、校验、保存与子区块编排。
  */
-import dayjs from 'dayjs'
 import { computed, nextTick, onScopeDispose, reactive, ref, watch } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
@@ -15,6 +14,10 @@ import FilterSettingsSection from '@/views/TaskCreateForm/components/FilterSetti
 import SourceSelectionSection from '@/views/TaskCreateForm/components/SourceSelectionSection.vue'
 import DataRetentionSection from '@/views/TaskCreateForm/components/DataRetentionSection.vue'
 
+import {
+  effectiveAtFormItemRules,
+  expireAtFormItemRules,
+} from '@/lib/datetime-task-window'
 import { dataRangeOptions, sourcePlatforms } from '@/views/TaskCreateForm/constants'
 import type { SourceFieldKey, TaskCreateFormModel, TaskRunStatus } from '@/views/TaskCreateForm/types'
 
@@ -71,6 +74,8 @@ function initialForm(): TaskCreateFormModel {
     tableMode: 'existing',
     existingTableId: '',
     runStatus: 'stopped',
+    taskPaused: false,
+    taskAbnormal: false,
   }
 }
 
@@ -88,56 +93,16 @@ const orderedSelectedPlatforms = computed(() =>
   sourcePlatforms.filter((p) => form.selectedSources.includes(p.id)),
 )
 
-function parseFormDateTime(s: string | undefined): dayjs.Dayjs | null {
-  if (!s?.trim()) return null
-  const d = dayjs(s.trim())
-  return d.isValid() ? d : null
-}
-
-const rules: FormRules = {
+/** 仅定时任务校验生效/过期时间；实时任务不展示时间字段 */
+const rules = computed<FormRules>(() => ({
   authCode: [{ required: true, message: '请输入授权码', trigger: 'blur' }],
-  effectiveAt: [
-    { required: true, message: '请选择生效时间', trigger: 'change' },
-    {
-      validator: (_rule, value: string, callback) => {
-        const d = parseFormDateTime(value)
-        if (!d) {
-          callback(new Error('生效时间格式不正确'))
-          return
-        }
-        if (d.valueOf() < Date.now()) {
-          callback(new Error('生效时间不能早于当前时间'))
-          return
-        }
-        callback()
-      },
-      trigger: ['change', 'blur'],
-    },
-  ],
-  expireAt: [
-    { required: true, message: '请选择过期时间', trigger: 'change' },
-    {
-      validator: (_rule, value: string, callback) => {
-        const d = parseFormDateTime(value)
-        if (!d) {
-          callback(new Error('过期时间格式不正确'))
-          return
-        }
-        if (d.valueOf() < Date.now()) {
-          callback(new Error('过期时间不能早于当前时间'))
-          return
-        }
-        const eff = parseFormDateTime(form.effectiveAt)
-        if (eff && d.isBefore(eff)) {
-          callback(new Error('过期时间不能早于生效时间'))
-          return
-        }
-        callback()
-      },
-      trigger: ['change', 'blur'],
-    },
-  ],
-}
+  ...(form.taskType === 'scheduled'
+    ? {
+        effectiveAt: effectiveAtFormItemRules(),
+        expireAt: expireAtFormItemRules(() => form.effectiveAt),
+      }
+    : {}),
+}))
 
 /** `el-collapse` 当前展开的面板 name 列表 */
 const activePanels = ref<string[]>(['basic'])
@@ -211,10 +176,27 @@ function normalizeRunStatus(raw: unknown): TaskRunStatus {
   return 'stopped'
 }
 
+/** 与后端 `task_paused_from_config` 一致，避免库存非严格 bool 时表单误判为未暂停 */
+function coerceTaskPausedFlag(raw: Record<string, unknown>): boolean {
+  for (const key of ['taskPaused', 'task_paused'] as const) {
+    const v = raw[key]
+    if (typeof v === 'boolean') return v
+    if (typeof v === 'string') {
+      const s = v.trim().toLowerCase()
+      if (['true', '1', 'yes', 'on'].includes(s)) return true
+      if (['false', '0', 'no', 'off', ''].includes(s)) return false
+    }
+    if (typeof v === 'number' && (v === 1 || v === 0)) return v === 1
+  }
+  return false
+}
+
 function mergeConfigIntoForm(raw: Record<string, unknown>) {
   Object.assign(form, initialForm(), raw as Partial<TaskCreateFormModel>)
   form.excludeKeywords = normalizeExcludeKeywords(raw.excludeKeywords)
   form.runStatus = normalizeRunStatus(raw.runStatus)
+  form.taskPaused = coerceTaskPausedFlag(raw)
+  form.taskAbnormal = typeof raw.taskAbnormal === 'boolean' ? raw.taskAbnormal : false
   const sel = raw.sourceFieldSelection
   const merged = emptySourceFieldSelection()
   if (sel && typeof sel === 'object' && !Array.isArray(sel)) {
@@ -228,12 +210,27 @@ function mergeConfigIntoForm(raw: Record<string, unknown>) {
     }
   }
   form.sourceFieldSelection = merged
-  form.taskType = 'scheduled'
+  const tt = raw.taskType
+  form.taskType = tt === 'realtime' ? 'realtime' : 'scheduled'
 }
 
 watch(
-  () => form.effectiveAt,
+  () => form.taskType,
+  (t) => {
+    if (t === 'realtime') {
+      form.effectiveAt = ''
+      form.expireAt = ''
+      void nextTick(() => {
+        formRef.value?.clearValidate(['effectiveAt', 'expireAt'])
+      })
+    }
+  },
+)
+
+watch(
+  () => [form.effectiveAt, form.taskType] as const,
   () => {
+    if (form.taskType !== 'scheduled') return
     if (form.expireAt?.trim()) {
       void nextTick(() => formRef.value?.validateField('expireAt').catch(() => {}))
     }

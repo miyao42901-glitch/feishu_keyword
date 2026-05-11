@@ -6,14 +6,18 @@ import TaskCreateForm from '@/views/TaskCreateForm/index.vue'
 import { sourcePlatforms } from '@/views/TaskCreateForm/constants'
 import TaskDetailDialog from '@/views/tasks/components/TaskDetailDialog.vue'
 import TaskListCard from '@/views/tasks/components/TaskListCard.vue'
-import type { TaskCardModel } from '@/views/tasks/types'
-import type { TaskRunStatus } from '@/views/TaskCreateForm/types'
+import type { TaskCardModel, TaskStoppedKind } from '@/views/tasks/types'
 import {
   deleteFeishuTaskConfig,
+  feishuDetailToListItem,
   getFeishuTaskConfig,
   listFeishuTaskConfigs,
+  parseBackendDisplayStatus,
+  parseBackendStoppedKind,
+  updateFeishuTaskConfig,
   type FeishuTaskConfigDetail,
   type FeishuTaskConfigListItem,
+  type FeishuTaskConfigWriteResult,
 } from '@/lib/api'
 
 const tasks = ref<TaskCardModel[]>([])
@@ -30,6 +34,9 @@ const deleteDialogVisible = ref(false)
 const deleteTarget = ref<TaskCardModel | null>(null)
 const deleteSubmitting = ref(false)
 const deleteError = ref('')
+
+/** 已完成/失败：点击「重启」后在对应卡片底部展示提示条（无弹框） */
+const restartHintTaskId = ref<number | null>(null)
 
 const listTip = ref<string | null>(null)
 let listTipTimer: ReturnType<typeof setTimeout> | null = null
@@ -50,12 +57,49 @@ onScopeDispose(() => {
   if (listTipTimer != null) clearTimeout(listTipTimer)
 })
 
-/** 列表项 `run_status`（源自 config.runStatus）；缺省为已停止 */
-function parseListRunStatus(raw: string | null | undefined): TaskRunStatus {
-  if (raw === 'running' || raw === 'completed' || raw === 'stopped' || raw === 'failed') {
-    return raw
+const primaryActionRowId = ref<number | null>(null)
+
+function cloneConfigRecord(raw: unknown): Record<string, unknown> {
+  if (raw != null && typeof raw === 'object' && !Array.isArray(raw)) {
+    return JSON.parse(JSON.stringify(raw)) as Record<string, unknown>
   }
-  return 'stopped'
+  return {}
+}
+
+async function patchTaskConfig(
+  id: number,
+  patch: Record<string, unknown>,
+): Promise<FeishuTaskConfigWriteResult> {
+  const detail = await getFeishuTaskConfig(id)
+  const cfg = { ...cloneConfigRecord(detail.config), ...patch }
+  return updateFeishuTaskConfig(id, cfg)
+}
+
+/** 用 POST/PUT 返回的 `display_status` 覆盖列表行（在 `loadTaskList` 之后调用） */
+function applyDisplayFromWrite(id: number, wr: FeishuTaskConfigWriteResult) {
+  if (typeof wr.display_status !== 'string' || !wr.display_status.trim()) return
+  const idx = tasks.value.findIndex((t) => t.id === id)
+  if (idx < 0) return
+  const prev = tasks.value[idx]
+  const status = parseBackendDisplayStatus(wr)
+  const stoppedKind: TaskStoppedKind =
+    status === 'stopped' ? parseBackendStoppedKind(wr) : 'neutral'
+  tasks.value.splice(idx, 1, { ...prev, status, stoppedKind })
+}
+
+function isPrimaryLoadingFor(rowId: number): boolean {
+  return primaryActionRowId.value === rowId
+}
+
+/** 将任务标为异常（接口失败等），供列表推导为「失败」 */
+async function markTaskAbnormal(id: number) {
+  try {
+    const detail = await getFeishuTaskConfig(id)
+    const cfg = { ...cloneConfigRecord(detail.config), taskAbnormal: true, runStatus: 'failed' }
+    await updateFeishuTaskConfig(id, cfg)
+  } catch {
+    /* 忽略二次失败 */
+  }
 }
 
 function formatPlatformsLabel(keys: string[] | null | undefined): string {
@@ -73,7 +117,7 @@ function formatCardDate(raw: string | null | undefined): string {
   return d.isValid() ? d.format('YYYY-MM-DD') : raw.slice(0, 10) || '—'
 }
 
-/** 任务列表统计（与卡片 `status` 一致，来自接口 `run_status`） */
+/** 任务列表统计（与后端返回的 `display_status` 映射后一致） */
 const taskStats = computed(() => {
   const list = tasks.value
   return {
@@ -83,16 +127,47 @@ const taskStats = computed(() => {
   }
 })
 
+/** 停止/启动后：优先用 PUT 返回的 `display_status` 覆盖；否则再拉详情（列表缺字段时） */
+async function mergeTaskCardFromDetail(id: number, wr?: FeishuTaskConfigWriteResult) {
+  if (typeof wr?.display_status === 'string' && wr.display_status.trim() !== '') {
+    applyDisplayFromWrite(id, wr)
+    return
+  }
+  try {
+    const detail = await getFeishuTaskConfig(id)
+    const item = feishuDetailToListItem(detail)
+    const [card] = mapRows([item])
+    const idx = tasks.value.findIndex((t) => t.id === id)
+    if (idx >= 0) tasks.value.splice(idx, 1, card)
+  } catch {
+    /* 详情失败时保留仅列表刷新的结果 */
+  }
+}
+
 function mapRows(rows: FeishuTaskConfigListItem[]): TaskCardModel[] {
-  return rows.map((r) => ({
-    id: r.id,
-    name: r.plan_name?.trim() || '未命名方案',
-    platformsLabel: formatPlatformsLabel(r.platform_keys ?? undefined),
-    taskTypeLabel: '定时任务',
-    dateLabel: formatCardDate(r.effective_at ?? undefined),
-    status: parseListRunStatus(r.run_status ?? undefined),
-    notificationCount: 0,
-  }))
+  return rows.map((r) => {
+    const effStr = r.effective_at?.trim() ? String(r.effective_at).trim() : null
+    const expStr = r.expire_at?.trim() ? String(r.expire_at).trim() : null
+    const o = r as Record<string, unknown>
+    const status = parseBackendDisplayStatus(o)
+    const rawTaskType = o.task_type ?? o.taskType
+    const isRealtime = rawTaskType === 'realtime'
+    const stoppedKind: TaskStoppedKind =
+      status === 'stopped' ? parseBackendStoppedKind(o) : 'neutral'
+
+    return {
+      id: r.id,
+      name: r.plan_name?.trim() || '未命名方案',
+      platformsLabel: formatPlatformsLabel(r.platform_keys ?? undefined),
+      taskTypeLabel: isRealtime ? '实时任务' : '定时任务',
+      dateLabel: isRealtime ? '—' : formatCardDate(r.effective_at ?? undefined),
+      status,
+      notificationCount: 0,
+      effectiveAtRaw: effStr,
+      expireAtRaw: expStr,
+      stoppedKind,
+    }
+  })
 }
 
 async function loadTaskList() {
@@ -136,12 +211,15 @@ async function openView(row: TaskCardModel) {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载配置失败')
     detailDialogVisible.value = false
+    void markTaskAbnormal(row.id)
+    await loadTaskList()
   } finally {
     detailDialogLoading.value = false
   }
 }
 
 async function openEdit(row: TaskCardModel) {
+  restartHintTaskId.value = null
   editingTaskId.value = row.id
   taskDetail.value = null
   screen.value = 'create'
@@ -149,12 +227,61 @@ async function openEdit(row: TaskCardModel) {
     taskDetail.value = await getFeishuTaskConfig(row.id)
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载配置失败')
+    void markTaskAbnormal(row.id)
+    await loadTaskList()
     screen.value = 'list'
     editingTaskId.value = null
   }
 }
 
-function onPrimaryAction(_row: TaskCardModel) {}
+async function onPrimaryAction(row: TaskCardModel) {
+  if (row.status === 'completed' || row.status === 'failed') {
+    restartHintTaskId.value = restartHintTaskId.value === row.id ? null : row.id
+    return
+  }
+  if (primaryActionRowId.value != null) return
+  primaryActionRowId.value = row.id
+  try {
+    switch (row.status) {
+      case 'running': {
+        const wr = await patchTaskConfig(row.id, { taskPaused: true })
+        await loadTaskList()
+        await mergeTaskCardFromDetail(row.id, wr)
+        showListTip(wr.display_status === 'stopped' ? '已停止' : '已保存')
+        break
+      }
+      case 'stopped': {
+        const wr = await patchTaskConfig(row.id, {
+          taskPaused: false,
+          taskAbnormal: false,
+          runStatus: 'stopped',
+        })
+        await loadTaskList()
+        await mergeTaskCardFromDetail(row.id, wr)
+        if (wr.display_status === 'running') {
+          showListTip('已启动')
+        } else if (parseBackendStoppedKind(wr) === 'before_effective') {
+          showListTip('未到生效时间，仍为已停止')
+        } else {
+          showListTip('配置已保存')
+        }
+        break
+      }
+      default:
+        break
+    }
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '操作失败')
+    void markTaskAbnormal(row.id)
+    await loadTaskList()
+  } finally {
+    primaryActionRowId.value = null
+  }
+}
+
+function onDismissRestartHint() {
+  restartHintTaskId.value = null
+}
 
 function onDeleteTask(row: TaskCardModel) {
   deleteError.value = ''
@@ -282,9 +409,12 @@ async function confirmDeleteTask() {
             v-for="row in tasks"
             :key="row.id"
             :row="row"
+            :primary-loading="isPrimaryLoadingFor(row.id)"
+            :restart-hint="restartHintTaskId === row.id"
             @view="openView"
             @edit="openEdit"
             @primary-action="onPrimaryAction"
+            @dismiss-restart-hint="onDismissRestartHint"
             @delete="onDeleteTask"
           />
         </div>

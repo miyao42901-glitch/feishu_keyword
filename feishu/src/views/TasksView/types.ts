@@ -3,7 +3,7 @@
  */
 export type TaskListStatus = 'running' | 'completed' | 'stopped' | 'failed'
 
-export type TaskListTaskType = 'scheduled'
+export type TaskListTaskType = 'scheduled' | 'realtime'
 
 export interface TaskListItem {
   id: number

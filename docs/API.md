@@ -78,7 +78,7 @@ HTTP 状态码仍遵循语义（如 404、422、503），**客户端应以响应
 | `PUT` | `/api/feishu-task-configs/{id}` | 全量更新；请求体同上 |
 | `DELETE` | `/api/feishu-task-configs/{id}` | 删除；成功时 `data` 为 `{ "id": number }` |
 
-列表项字段（除 `id`、`plan_name`、`updated_at` 外，其余由 `config_json` 解析，可能为 `null`）：`task_type`（`scheduled` \| `realtime`）、`platform_keys`（字符串数组）、`effective_at`（字符串）、`run_status`（`running` \| `completed` \| `stopped` \| `failed`，对应表单 `runStatus`）。
+列表项字段（除 `id`、`plan_name`、`updated_at` 外，其余由 `config_json` 解析，可能为 `null`）：`task_type`、`platform_keys`、`effective_at`、`expire_at`、`task_paused`、`task_abnormal`（任务异常如接口失败）、`run_status`（可与 `task_abnormal` 一并表示失败）。
 
 库表与字段见 [DATABASE.md](./DATABASE.md) 中 `feishu_task_configs`。
 
