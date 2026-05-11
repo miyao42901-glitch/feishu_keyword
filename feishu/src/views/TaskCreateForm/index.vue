@@ -2,9 +2,8 @@
 /**
  * 新建 / 编辑任务：整页表单入口，负责状态、校验、保存与子区块编排。
  */
-import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onScopeDispose, reactive, ref, watch } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
-import { ElMessage } from 'element-plus'
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
 import { createFeishuTaskConfig, updateFeishuTaskConfig } from '@/lib/api'
 import type { FeishuTaskConfigDetail } from '@/lib/api'
@@ -95,6 +94,40 @@ const rules: FormRules = {
 /** `el-collapse` 当前展开的面板 name 列表 */
 const activePanels = ref<string[]>(['basic'])
 
+/** 保存中，防止连点导致重复提示 */
+const saving = ref(false)
+/** 保存结果：页内顶部提示（飞书嵌入里 ElMessage 易出现在整页底部） */
+const saveBanner = ref<'success' | 'error' | null>(null)
+const saveErrorText = ref('')
+let saveSuccessClearTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearSaveSuccessTimer() {
+  if (saveSuccessClearTimer != null) {
+    clearTimeout(saveSuccessClearTimer)
+    saveSuccessClearTimer = null
+  }
+}
+
+function showSaveSuccess() {
+  clearSaveSuccessTimer()
+  saveBanner.value = 'success'
+  saveErrorText.value = ''
+  saveSuccessClearTimer = setTimeout(() => {
+    saveBanner.value = null
+    saveSuccessClearTimer = null
+  }, 4000)
+}
+
+function showSaveError(msg: string) {
+  clearSaveSuccessTimer()
+  saveBanner.value = 'error'
+  saveErrorText.value = msg
+}
+
+onScopeDispose(() => {
+  clearSaveSuccessTimer()
+})
+
 /** 恢复默认并清空草稿与校验态 */
 function resetForm() {
   Object.assign(form, initialForm())
@@ -171,25 +204,28 @@ function snapshotForm(): Record<string, unknown> {
 
 /** 校验通过后调用创建或更新接口 */
 async function saveConfig() {
-  if (!formRef.value) return
+  if (!formRef.value || saving.value) return
   try {
     await formRef.value.validate()
   } catch {
     return
   }
+  saving.value = true
   try {
     const payload = snapshotForm()
     if (props.taskConfigId != null) {
       await updateFeishuTaskConfig(props.taskConfigId, payload)
-      ElMessage.success('配置已保存')
+      showSaveSuccess()
       emit('saved', props.taskConfigId)
     } else {
       const { id } = await createFeishuTaskConfig(payload)
-      ElMessage.success('配置已保存')
+      showSaveSuccess()
       emit('saved', id)
     }
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '保存失败')
+    showSaveError(e instanceof Error ? e.message : '保存失败')
+  } finally {
+    saving.value = false
   }
 }
 </script>
@@ -200,6 +236,25 @@ async function saveConfig() {
       <el-button link type="primary" @click="emit('back')">← 返回任务列表</el-button>
     </div>
     <h2 class="text-lg font-medium text-slate-800">新建任务</h2>
+
+    <el-alert
+      v-if="saveBanner === 'success'"
+      type="success"
+      title="配置已保存"
+      show-icon
+      closable
+      class="save-banner sticky top-0 z-20 mb-3 max-w-3xl shadow-sm"
+      @close="saveBanner = null"
+    />
+    <el-alert
+      v-else-if="saveBanner === 'error'"
+      type="error"
+      :title="saveErrorText"
+      show-icon
+      closable
+      class="save-banner sticky top-0 z-20 mb-3 max-w-3xl shadow-sm"
+      @close="saveBanner = null"
+    />
 
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="max-w-3xl">
       <el-collapse v-model="activePanels" class="task-form-collapse">
@@ -252,12 +307,16 @@ async function saveConfig() {
 
     <div class="flex flex-wrap gap-3 border-t border-slate-100 pt-6">
       <el-button @click="resetForm">重置</el-button>
-      <el-button type="primary" @click="saveConfig">保存配置</el-button>
+      <el-button type="primary" :loading="saving" @click="saveConfig">保存配置</el-button>
     </div>
   </div>
 </template>
 
 <style scoped>
+.save-banner :deep(.el-alert__title) {
+  font-size: 0.875rem;
+}
+
 .task-form-collapse {
   border: none;
 }
