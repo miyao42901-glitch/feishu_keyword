@@ -30,6 +30,8 @@
   import NewDyForm from './NewDyForm.vue'
 
   import PDyForm from '@/paneForms/dyForm.vue'
+  import PGhForm from '@/paneForms/ghForm.vue'
+  import PV2Form from '@/paneForms/v2Form.vue'
 
   import SensitiveText from './sensitiveText.vue'
   import LoginDialog from './LoginDialog.vue'
@@ -66,6 +68,8 @@
       NewDyForm,
 
       PDyForm,
+      PGhForm,
+      PV2Form,
 
       SensitiveText,
       LoginDialog,
@@ -508,6 +512,12 @@
           </el-tab-pane>
           <el-tab-pane :label="t('form.tabs.douyin')">
             <PDyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+          </el-tab-pane>
+          <el-tab-pane :label="t('form.tabs.wechat')">
+            <PGhForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+          </el-tab-pane>
+          <el-tab-pane :label="t('form.tabs.wechatChannel')">
+            <PV2Form :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
         </el-tabs>
       </el-card>
