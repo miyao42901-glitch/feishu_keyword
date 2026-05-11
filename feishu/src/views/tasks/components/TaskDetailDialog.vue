@@ -27,11 +27,7 @@ const planName = computed(() => {
   return typeof fallback === 'string' && fallback.trim() ? fallback.trim() : '—'
 })
 
-const taskTypeLabel = computed(() => {
-  const t = cfg.value.taskType
-  if (t === 'realtime') return '实时任务'
-  return '定时任务'
-})
+const taskTypeLabel = computed(() => '定时任务')
 
 function formatDateTime(raw: unknown): string {
   if (raw == null) return '—'

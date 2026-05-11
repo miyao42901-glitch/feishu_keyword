@@ -6,8 +6,8 @@ import type { PlatformKey } from '@/components/PlatformIcon.vue'
 /** 信源单行可勾选的采集指标（与勾选组 value 一致） */
 export type SourceFieldKey = 'like' | 'comment' | 'share'
 
-/** 定时 / 实时（影响采集频率显隐） */
-export type TaskType = 'scheduled' | 'realtime'
+/** 仅支持定时任务（已下线「实时任务」选项） */
+export type TaskType = 'scheduled'
 
 /** 列表排序口径 */
 export type SortOrder = 'latest' | 'hottest' | 'default'

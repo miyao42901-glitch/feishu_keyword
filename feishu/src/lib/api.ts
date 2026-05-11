@@ -91,7 +91,7 @@ export type FeishuTaskConfigListItem = {
   id: number
   plan_name?: string | null
   updated_at?: string | null
-  /** `scheduled` | `realtime`，来自表单 `taskType` */
+  /** 来自表单 `taskType`（当前仅 `scheduled`） */
   task_type?: string | null
   /** 平台 id 列表，来自表单 `selectedSources` */
   platform_keys?: string[] | null

@@ -88,7 +88,7 @@ function mapRows(rows: FeishuTaskConfigListItem[]): TaskCardModel[] {
     id: r.id,
     name: r.plan_name?.trim() || '未命名方案',
     platformsLabel: formatPlatformsLabel(r.platform_keys ?? undefined),
-    taskTypeLabel: r.task_type === 'realtime' ? '实时任务' : '定时任务',
+    taskTypeLabel: '定时任务',
     dateLabel: formatCardDate(r.effective_at ?? undefined),
     status: parseListRunStatus(r.run_status ?? undefined),
     notificationCount: 0,

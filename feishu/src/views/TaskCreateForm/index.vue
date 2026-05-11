@@ -2,6 +2,7 @@
 /**
  * 新建 / 编辑任务：整页表单入口，负责状态、校验、保存与子区块编排。
  */
+import dayjs from 'dayjs'
 import { computed, nextTick, onScopeDispose, reactive, ref, watch } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
@@ -87,8 +88,55 @@ const orderedSelectedPlatforms = computed(() =>
   sourcePlatforms.filter((p) => form.selectedSources.includes(p.id)),
 )
 
+function parseFormDateTime(s: string | undefined): dayjs.Dayjs | null {
+  if (!s?.trim()) return null
+  const d = dayjs(s.trim())
+  return d.isValid() ? d : null
+}
+
 const rules: FormRules = {
   authCode: [{ required: true, message: '请输入授权码', trigger: 'blur' }],
+  effectiveAt: [
+    { required: true, message: '请选择生效时间', trigger: 'change' },
+    {
+      validator: (_rule, value: string, callback) => {
+        const d = parseFormDateTime(value)
+        if (!d) {
+          callback(new Error('生效时间格式不正确'))
+          return
+        }
+        if (d.valueOf() < Date.now()) {
+          callback(new Error('生效时间不能早于当前时间'))
+          return
+        }
+        callback()
+      },
+      trigger: ['change', 'blur'],
+    },
+  ],
+  expireAt: [
+    { required: true, message: '请选择过期时间', trigger: 'change' },
+    {
+      validator: (_rule, value: string, callback) => {
+        const d = parseFormDateTime(value)
+        if (!d) {
+          callback(new Error('过期时间格式不正确'))
+          return
+        }
+        if (d.valueOf() < Date.now()) {
+          callback(new Error('过期时间不能早于当前时间'))
+          return
+        }
+        const eff = parseFormDateTime(form.effectiveAt)
+        if (eff && d.isBefore(eff)) {
+          callback(new Error('过期时间不能早于生效时间'))
+          return
+        }
+        callback()
+      },
+      trigger: ['change', 'blur'],
+    },
+  ],
 }
 
 /** `el-collapse` 当前展开的面板 name 列表 */
@@ -180,7 +228,17 @@ function mergeConfigIntoForm(raw: Record<string, unknown>) {
     }
   }
   form.sourceFieldSelection = merged
+  form.taskType = 'scheduled'
 }
+
+watch(
+  () => form.effectiveAt,
+  () => {
+    if (form.expireAt?.trim()) {
+      void nextTick(() => formRef.value?.validateField('expireAt').catch(() => {}))
+    }
+  },
+)
 
 watch(
   () => [props.taskConfigId, props.detail] as const,
