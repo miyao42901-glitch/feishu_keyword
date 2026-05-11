@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import dayjs from 'dayjs'
-import { onMounted, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { computed, onMounted, onScopeDispose, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import TaskCreateForm from '@/views/TaskCreateForm/index.vue'
 import { sourcePlatforms } from '@/views/TaskCreateForm/constants'
 import TaskDetailDialog from '@/views/tasks/components/TaskDetailDialog.vue'
@@ -25,6 +25,31 @@ const detailDialogVisible = ref(false)
 const detailDialogLoading = ref(false)
 const detailDialogPayload = ref<FeishuTaskConfigDetail | null>(null)
 
+/** 删除确认：不用 ElMessageBox（飞书 iframe 内易出现错位、叠字） */
+const deleteDialogVisible = ref(false)
+const deleteTarget = ref<TaskCardModel | null>(null)
+const deleteSubmitting = ref(false)
+const deleteError = ref('')
+
+const listTip = ref<string | null>(null)
+let listTipTimer: ReturnType<typeof setTimeout> | null = null
+
+function showListTip(msg: string) {
+  if (listTipTimer != null) {
+    clearTimeout(listTipTimer)
+    listTipTimer = null
+  }
+  listTip.value = msg
+  listTipTimer = setTimeout(() => {
+    listTip.value = null
+    listTipTimer = null
+  }, 3500)
+}
+
+onScopeDispose(() => {
+  if (listTipTimer != null) clearTimeout(listTipTimer)
+})
+
 /** 列表项 `run_status`（源自 config.runStatus）；缺省为已停止 */
 function parseListRunStatus(raw: string | null | undefined): TaskRunStatus {
   if (raw === 'running' || raw === 'completed' || raw === 'stopped' || raw === 'failed') {
@@ -47,6 +72,16 @@ function formatCardDate(raw: string | null | undefined): string {
   const d = dayjs(raw)
   return d.isValid() ? d.format('YYYY-MM-DD') : raw.slice(0, 10) || '—'
 }
+
+/** 任务列表统计（与卡片 `status` 一致，来自接口 `run_status`） */
+const taskStats = computed(() => {
+  const list = tasks.value
+  return {
+    total: list.length,
+    running: list.filter((t) => t.status === 'running').length,
+    completed: list.filter((t) => t.status === 'completed').length,
+  }
+})
 
 function mapRows(rows: FeishuTaskConfigListItem[]): TaskCardModel[] {
   return rows.map((r) => ({
@@ -87,9 +122,9 @@ async function onBackFromCreate() {
   await loadTaskList()
 }
 
-function onSaved(id: number) {
-  editingTaskId.value = id
-  void loadTaskList()
+/** 保存成功后回到任务列表并刷新（与点「返回任务列表」一致） */
+async function onSaved(_id: number) {
+  await onBackFromCreate()
 }
 
 async function openView(row: TaskCardModel) {
@@ -121,22 +156,31 @@ async function openEdit(row: TaskCardModel) {
 
 function onPrimaryAction(_row: TaskCardModel) {}
 
-async function onDeleteTask(row: TaskCardModel) {
-  try {
-    await ElMessageBox.confirm(`确定删除「${row.name}」？删除后不可恢复。`, '删除任务', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-    })
-  } catch {
-    return
-  }
+function onDeleteTask(row: TaskCardModel) {
+  deleteError.value = ''
+  deleteTarget.value = row
+  deleteDialogVisible.value = true
+}
+
+function onDeleteDialogClosed() {
+  deleteTarget.value = null
+  deleteError.value = ''
+}
+
+async function confirmDeleteTask() {
+  const row = deleteTarget.value
+  if (!row || deleteSubmitting.value) return
+  deleteError.value = ''
+  deleteSubmitting.value = true
   try {
     await deleteFeishuTaskConfig(row.id)
-    ElMessage.success('已删除')
+    deleteDialogVisible.value = false
+    showListTip('已删除')
     await loadTaskList()
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '删除失败')
+    deleteError.value = e instanceof Error ? e.message : '删除失败'
+  } finally {
+    deleteSubmitting.value = false
   }
 }
 </script>
@@ -148,6 +192,37 @@ async function onDeleteTask(row: TaskCardModel) {
       :detail="detailDialogPayload"
       :loading="detailDialogLoading"
     />
+
+    <el-dialog
+      v-model="deleteDialogVisible"
+      title="删除任务"
+      width="420px"
+      align-center
+      append-to-body
+      destroy-on-close
+      :close-on-click-modal="false"
+      class="delete-task-dialog"
+      @closed="onDeleteDialogClosed"
+    >
+      <el-alert
+        v-if="deleteError"
+        type="error"
+        :title="deleteError"
+        show-icon
+        closable
+        class="mb-3"
+        @close="deleteError = ''"
+      />
+      <p v-if="deleteTarget" class="m-0 text-sm leading-relaxed text-slate-600">
+        确定删除「<strong class="font-medium text-slate-800">{{ deleteTarget.name }}</strong>」？删除后不可恢复。
+      </p>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <el-button :disabled="deleteSubmitting" @click="deleteDialogVisible = false">取消</el-button>
+          <el-button type="danger" :loading="deleteSubmitting" @click="confirmDeleteTask">删除</el-button>
+        </div>
+      </template>
+    </el-dialog>
 
     <template v-if="screen === 'create'">
       <div
@@ -167,10 +242,41 @@ async function onDeleteTask(row: TaskCardModel) {
 
     <template v-else>
       <section class="flex min-h-0 flex-col gap-4">
+        <el-alert
+          v-if="listTip"
+          type="success"
+          :title="listTip"
+          show-icon
+          closable
+          class="sticky top-0 z-10 shadow-sm"
+          @close="listTip = null"
+        />
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h2 class="text-base font-semibold text-slate-800">任务列表</h2>
           <el-button type="primary" @click="onCreateTask">新建任务</el-button>
         </div>
+
+        <div class="grid min-w-0 grid-cols-3 gap-2 sm:gap-3">
+          <div
+            class="min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-4 text-center shadow-sm sm:px-4 sm:py-5"
+          >
+            <div class="text-2xl font-bold leading-none text-[#3355FF] sm:text-3xl">{{ taskStats.total }}</div>
+            <div class="mt-1.5 truncate text-xs text-slate-600 sm:mt-2 sm:text-sm">总任务数</div>
+          </div>
+          <div
+            class="min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-4 text-center shadow-sm sm:px-4 sm:py-5"
+          >
+            <div class="text-2xl font-bold leading-none text-[#3355FF] sm:text-3xl">{{ taskStats.running }}</div>
+            <div class="mt-1.5 truncate text-xs text-slate-600 sm:mt-2 sm:text-sm">运行中</div>
+          </div>
+          <div
+            class="min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-4 text-center shadow-sm sm:px-4 sm:py-5"
+          >
+            <div class="text-2xl font-bold leading-none text-[#3355FF] sm:text-3xl">{{ taskStats.completed }}</div>
+            <div class="mt-1.5 truncate text-xs text-slate-600 sm:mt-2 sm:text-sm">已完成</div>
+          </div>
+        </div>
+
         <div v-if="tasks.length > 0" class="flex flex-col gap-4">
           <TaskListCard
             v-for="row in tasks"
