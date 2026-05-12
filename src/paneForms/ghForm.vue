@@ -47,18 +47,9 @@
 
       function userFields() {
         return {
-          ghid: { label: '公众号id', fieldType: FieldType.Text, isPrimary: true, },
+          biz: { label: '公众号标识(base64)', fieldType: FieldType.Text, isPrimary: true, },
           name: { label: '公众号名称', fieldType: FieldType.Text, },
-          fans: { label: '预估粉丝数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          avg_top_read: { label: '头条平均阅读', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          avg_top_zan: { label: '头条平均点赞', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          week_articles: { label: '周发文量', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          fans_diff: { label: '预估粉丝数变化', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          avg_top_read_diff: { label: '头条平均阅读变化', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          avg_top_zan_diff: { label: '头条平均点赞变化', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          week_articles_diff: { label: '周发文量变化', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          current_get_time: { label: '当前获取时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
-          last_get_time: { label: '上次获取时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
+          desc: { label: '公众号描述', fieldType: FieldType.Text, },
           get_work_flag: {
             label: '获取文章状态', 
             fieldType: FieldType.SingleSelect, 
@@ -77,8 +68,7 @@
         return {
           mid: { label: '文章id', fieldType: FieldType.Text, isPrimary: true, },
           title: { label: '文章标题', fieldType: FieldType.Text, },
-          name: { label: '公众号名称', fieldType: FieldType.Text, },
-          ghid: { label: '公众号id', fieldType: FieldType.Text, },
+          biz: { label: '公众号biz', fieldType: FieldType.Text, },
           url: { label: '文章链接', fieldType: FieldType.Url, },
           post_time: { label: '发文时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME },},
           digest: { label: '文章摘要', fieldType: FieldType.Text, },
@@ -123,6 +113,7 @@
 
       const paneData = ref({
         name: null,
+        biz: null,
         userTableId: null,
         workTableId: null,
         searchDate: 3,
@@ -201,7 +192,7 @@
 
           const get_time = Date.now()
           const res = await pluginAPI.post('/plugin_forward', {
-            url: '/fbmain/monitor/v3/Keyverifycode',
+            url: '/fbmain/monitor/v3/avatar_type',
             body: {
               name: paneData.value.name,
               key: props.formData.key,
@@ -210,31 +201,17 @@
 
           const tmpUserFields = userFields()
           if (res && res.data && res.data.code === 0) {
-            const ghid = res.data.data.ghid
-            const [record, fieldMap] = await getFirstRecordByField(paneData.value.userTableId, tmpUserFields.ghid.label, ghid)
+            const biz = res.data.data.biz
+            const [record, fieldMap] = await getFirstRecordByField(paneData.value.userTableId, tmpUserFields.biz.label, biz)
             if (record) {
-              const last_get_time = record.fields[fieldMap[tmpUserFields.current_get_time.label].id]
-              const last_fans = record.fields[fieldMap[tmpUserFields.fans.label].id] || 0
-              const last_avg_top_read = record.fields[fieldMap[tmpUserFields.avg_top_read.label].id] || 0
-              const last_avg_top_zan = record.fields[fieldMap[tmpUserFields.avg_top_zan.label].id] || 0
-              const last_week_articles = record.fields[fieldMap[tmpUserFields.week_articles.label].id] || 0
               const result = await updateTable(
                 paneData.value.userTableId,
                 [{
                   recordId: record.recordId,
                   data: {
-                    ghid: ghid, 
+                    biz: biz,
                     name: res.data.data.name,
-                    fans: res.data.data.fans,
-                    avg_top_read: res.data.data.avg_top_read,
-                    avg_top_zan: res.data.data.avg_top_zan,
-                    week_articles: res.data.data.week_articles,
-                    fans_diff: res.data.data.fans - last_fans,
-                    avg_top_read_diff: res.data.data.avg_top_read - last_avg_top_read,
-                    avg_top_zan_diff: res.data.data.avg_top_zan - last_avg_top_zan,
-                    week_articles_diff: res.data.data.week_articles - last_week_articles,
-                    current_get_time: get_time,
-                    last_get_time: last_get_time,
+                    desc: res.data.data.desc,
                   }
                 }],
                 tmpUserFields,
@@ -245,13 +222,9 @@
               const result = await writeToTable(
                 paneData.value.userTableId,
                 [{
-                    ghid: ghid, 
+                    biz: biz,
                     name: res.data.data.name,
-                    fans: res.data.data.fans,
-                    avg_top_read: res.data.data.avg_top_read,
-                    avg_top_zan: res.data.data.avg_top_zan,
-                    week_articles: res.data.data.week_articles,
-                    current_get_time: get_time,
+                    desc: res.data.data.desc,
                     get_work_flag: 'unknow',
                 }],
                 tmpUserFields,
@@ -276,91 +249,6 @@
       }
 
 
-      const batchUpdateUser = async() => {
-        if (props.isLocked) return;
-        emit('update:isLocked', true);
-
-        try{
-          let successCount = 0
-          let totalCost = 0
-
-          const userTable = await bitable.base.getTable(paneData.value.userTableId)
-          const recordIdList = await bitable.ui.selectRecordIdList(paneData.value.userTableId)
-
-          const fieldList = await userTable.getFieldList()
-          const fieldMap = {};
-          for (const field of fieldList) {
-            const fieldName = await field.getName();
-            fieldMap[fieldName] = field;
-          }
-
-          const tmpUserFields = userFields()
-          for (const user_recordId of recordIdList){
-            const userRecord = await userTable.getRecordById(user_recordId);
-            const ghid = userRecord.fields[fieldMap[tmpUserFields.ghid.label].id][0].text
-            const get_time = Date.now()
-
-            // const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_data?key=${props.formData.key}`, {
-            //     sec_user_id: secUid,
-            // })
-
-            const res = await pluginAPI.post('/plugin_forward', {
-              url: '/fbmain/monitor/v3/Keyverifycode',
-              body: {
-                name: ghid,
-                key: props.formData.key,
-              },
-            })
-
-            if (res && res.data && res.data.code === 0) {
-              totalCost += 0.5
-              const last_get_time = userRecord.fields[fieldMap[tmpUserFields.current_get_time.label].id]
-              const last_fans = userRecord.fields[fieldMap[tmpUserFields.fans.label].id] || 0
-              const last_avg_top_read = userRecord.fields[fieldMap[tmpUserFields.avg_top_read.label].id] || 0
-              const last_avg_top_zan = userRecord.fields[fieldMap[tmpUserFields.avg_top_zan.label].id] || 0
-              const last_week_articles = userRecord.fields[fieldMap[tmpUserFields.week_articles.label].id] || 0
-              console.log(userRecord)
-              
-              const result = await updateTable(
-                paneData.value.userTableId,
-                [{
-                  recordId: user_recordId,
-                  data: {
-                    ghid: ghid, 
-                    name: res.data.data.name,
-                    fans: res.data.data.fans,
-                    avg_top_read: res.data.data.avg_top_read,
-                    avg_top_zan: res.data.data.avg_top_zan,
-                    week_articles: res.data.data.week_articles,
-                    fans_diff: res.data.data.fans - last_fans,
-                    avg_top_read_diff: res.data.data.avg_top_read - last_avg_top_read,
-                    avg_top_zan_diff: res.data.data.avg_top_zan - last_avg_top_zan,
-                    week_articles_diff: res.data.data.week_articles - last_week_articles,
-                    current_get_time: get_time,
-                    last_get_time: last_get_time,
-                  }
-                }],
-                tmpUserFields,
-              );
-              if (result && result.success) {
-                successCount++
-              }
-            }
-          }
-
-          if(recordIdList.length > 0){
-            props.formData.message = '更新用户信息完成，'+'尝试更新'+ recordIdList.length + '条账号信息，成功'+ successCount + '条，消耗' + totalCost.toFixed(3) + '元'
-            props.formData.messageType = 'success';
-          }
-        } catch (error) {
-          console.error('操作失败:', error);
-          props.formData.message = '操作失败:'+ (error.message || '未知错误');
-          props.formData.messageType = 'error';
-        } finally {
-          emit('update:isLocked', false);
-        }
-      }
-
 
       const upsertWork = async(items, get_time, userInfo) => {
         const tmpWorkFields = workFields()
@@ -376,8 +264,7 @@
               data: {
                 mid: mid,
                 title: item.title,
-                name: userInfo.name,
-                ghid: userInfo.ghid,
+                biz: userInfo.biz,
                 url: item.url,
                 post_time: item.post_time * 1000,
                 digest: item.digest,
@@ -390,8 +277,7 @@
             insertData.push({
               mid: mid.toString(),
               title: item.title,
-              name: userInfo.name,
-              ghid: userInfo.ghid,
+              biz: userInfo.biz,
               url: item.url,
               post_time: item.post_time * 1000,
               digest: item.digest,
@@ -464,26 +350,21 @@
             }
 
             const recordIdList = await bitable.ui.selectRecordIdList(paneData.value.userTableId)
-            const ghid_set = {}
+            const biz_set = {}
             for (const userRecordId of recordIdList){
               const userRecord = await userTable.getRecordById(userRecordId);
-              let ghid = null
-              if (fieldMap[tmpUserFields.ghid.label]){
-                ghid = userRecord.fields[fieldMap[tmpUserFields.ghid.label].id][0].text
-              }
-              else{
-                ghid = userRecord.fields[fieldMap[tmpUserFields.name.label].id][0].text
-              }
-              if (ghid_set[ghid]) continue
-              ghid_set[ghid] = true
+              const biz = userRecord.fields[fieldMap[tmpUserFields.biz.label].id][0].text
+
+              if (biz_set[biz]) continue
+              biz_set[biz] = true
               userInfoList.push({
                 recordId: userRecordId,
-                ghid: ghid,
+                biz: biz
               })
             }
           }
           else{
-            userInfoList = [{ ghid: paneData.value.name }]
+            userInfoList = [{ biz: paneData.value.biz }]
           }
           
           for (const userInfo of userInfoList){
@@ -501,7 +382,7 @@
               const res = await pluginAPI.post('/plugin_forward', {
                   url: '/fbmain/monitor/v3/post_history',
                   body: {
-                    name: userInfo.ghid,
+                    biz: userInfo.biz,
                     key: props.formData.key,
                     page: i
                   }
@@ -537,7 +418,7 @@
                 }
               }
               if (items.length > 0){
-                workSuccessCount += await upsertWork(items, get_time,{name: res.data.mp_nickname, ghid: res.data.mp_ghid})
+                  workSuccessCount += await upsertWork(items, get_time,{biz: userInfo.biz})
               }
               
               // 将数据添加到对象中，使用 recordId 作为 key
@@ -673,7 +554,6 @@
         addUserTableTemplate,
         addWorkTableTemplate,
         upsertUser,
-        batchUpdateUser,
         upsertWork,
         getRecentWorks,
         updateWorks,
@@ -729,7 +609,7 @@
 
     <el-form-item label-width="null" v-show="paneData.getDataType !== 0">
       <el-radio-group v-model="paneData.getWorksType" style="display: flex;">
-        <el-radio :label="1">根据公众号名称或id获取</el-radio>
+        <el-radio :label="1">根据公众号biz获取</el-radio>
         <el-radio :label="0">根据账号表获取</el-radio>
       </el-radio-group>
     </el-form-item>
@@ -745,11 +625,21 @@
 
     <el-form-item
       :label="'公众号名称'"
-      v-show="paneData.getDataType === 0 || paneData.getWorksType !== 0"
+      v-show="paneData.getDataType === 0"
     >
       <el-input
         v-model="paneData.name"
         :placeholder="'请输入公众号名称或id'"
+      />
+    </el-form-item>
+
+    <el-form-item
+      :label="'公众号biz'"
+      v-show="paneData.getDataType !== 0 && paneData.getWorksType !== 0"
+    >
+      <el-input
+        v-model="paneData.biz"
+        :placeholder="'请输入公众号biz'"
       />
     </el-form-item>
 
@@ -767,19 +657,6 @@
     </el-form-item>
 
 
-    <el-form-item label-width="null"  v-show="paneData.getDataType === 0">
-      <el-button 
-        type="primary" 
-        :disabled="isLocked || !formData.key || !paneData.userTableId"
-        @click="batchUpdateUser"
-        plain
-        style="flex: 1;"
-      >
-        批量更新公众号账号数据
-      </el-button>
-    </el-form-item>
-
-
     <el-form-item :label="'日期范围'"  v-show="paneData.getDataType !== 0">
       <el-select v-model="paneData.searchDate" :placeholder="'请选择日期范围'">
         <el-option v-for="item in dateRange" :key="item" :label="item > 1 ? item + '天' : '当天'" :value="item" />
@@ -789,7 +666,7 @@
     <el-form-item label-width="null" v-show="paneData.getDataType !== 0">
       <el-button 
         type="primary" 
-        :disabled="isLocked || !formData.key || !paneData.userTableId && paneData.getWorksType === 0 || !paneData.name && paneData.getWorksType !== 0"
+        :disabled="isLocked || !formData.key || !paneData.userTableId && paneData.getWorksType === 0 || !paneData.biz && paneData.getWorksType !== 0"
         @click="getRecentWorks(paneData.searchDate, paneData.getWorksType)"
         plain
         style="flex: 1;"
