@@ -7,12 +7,16 @@ import type { FormInstance, FormRules } from 'element-plus'
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
 import { createFeishuTaskConfig, updateFeishuTaskConfig } from '@/lib/api'
 import type { FeishuTaskConfigDetail } from '@/lib/api'
+import { useGlobalSettingsStore } from '@/stores/globalSettings'
+import { useAccountPointsStore } from '@/stores/accountPoints'
+import { estimateTaskSavePoints } from '@/lib/task-estimate-points'
 
 import BasicInfoSection from '@/views/TaskCreateForm/components/BasicInfoSection.vue'
 import KeywordsSection from '@/views/TaskCreateForm/components/KeywordsSection.vue'
 import FilterSettingsSection from '@/views/TaskCreateForm/components/FilterSettingsSection.vue'
 import SourceSelectionSection from '@/views/TaskCreateForm/components/SourceSelectionSection.vue'
 import DataRetentionSection from '@/views/TaskCreateForm/components/DataRetentionSection.vue'
+import TaskGlobalConfigBar from '@/views/TaskGlobalConfigBar.vue'
 
 import {
   effectiveAtFormItemRules,
@@ -58,7 +62,6 @@ function initialForm(): TaskCreateFormModel {
     crawlFrequency: '5',
     effectiveAt: '',
     expireAt: '',
-    authCode: '',
     keywords: [],
     excludeKeywords: [],
     heatLikeMin: 0,
@@ -93,9 +96,11 @@ const orderedSelectedPlatforms = computed(() =>
   sourcePlatforms.filter((p) => form.selectedSources.includes(p.id)),
 )
 
+const accountPoints = useAccountPointsStore()
+const estimatedSavePoints = computed(() => estimateTaskSavePoints(form))
+
 /** 仅定时任务校验生效/过期时间；实时任务不展示时间字段 */
 const rules = computed<FormRules>(() => ({
-  authCode: [{ required: true, message: '请输入授权码', trigger: 'blur' }],
   ...(form.taskType === 'scheduled'
     ? {
         effectiveAt: effectiveAtFormItemRules(),
@@ -192,7 +197,17 @@ function coerceTaskPausedFlag(raw: Record<string, unknown>): boolean {
 }
 
 function mergeConfigIntoForm(raw: Record<string, unknown>) {
-  Object.assign(form, initialForm(), raw as Partial<TaskCreateFormModel>)
+  const globalSettings = useGlobalSettingsStore()
+  const savedAuth = raw.authCode
+  const { authCode: _omitAuth, ...rest } = raw
+  Object.assign(form, initialForm(), rest as Partial<TaskCreateFormModel>)
+  if (
+    typeof savedAuth === 'string' &&
+    savedAuth.trim() &&
+    !String(globalSettings.authCode ?? '').trim()
+  ) {
+    globalSettings.authCode = savedAuth.trim()
+  }
   form.excludeKeywords = normalizeExcludeKeywords(raw.excludeKeywords)
   form.runStatus = normalizeRunStatus(raw.runStatus)
   form.taskPaused = coerceTaskPausedFlag(raw)
@@ -252,14 +267,22 @@ watch(
   { immediate: true },
 )
 
-/** 深拷贝为普通对象便于 `JSON.stringify` 提交 */
+/** 深拷贝为普通对象便于 `JSON.stringify` 提交；授权码来自全局配置写入 `config_json`。 */
 function snapshotForm(): Record<string, unknown> {
-  return JSON.parse(JSON.stringify(form)) as Record<string, unknown>
+  const globalSettings = useGlobalSettingsStore()
+  const base = JSON.parse(JSON.stringify(form)) as Record<string, unknown>
+  base.authCode = globalSettings.authCode
+  return base
 }
 
 /** 校验通过后调用创建或更新接口 */
 async function saveConfig() {
   if (!formRef.value || saving.value) return
+  const globalSettings = useGlobalSettingsStore()
+  if (!String(globalSettings.authCode ?? '').trim()) {
+    showSaveError('请先在「任务配置」中填写授权码')
+    return
+  }
   try {
     await formRef.value.validate()
   } catch {
@@ -290,7 +313,8 @@ async function saveConfig() {
     <div class="flex items-center gap-3">
       <el-button link type="primary" @click="emit('back')">← 返回任务列表</el-button>
     </div>
-    <h2 class="text-lg font-medium text-slate-800">新建任务</h2>
+
+    <TaskGlobalConfigBar />
 
     <el-alert
       v-if="saveBanner === 'success'"
@@ -360,9 +384,20 @@ async function saveConfig() {
       </el-collapse>
     </el-form>
 
-    <div class="flex flex-wrap gap-3 border-t border-slate-100 pt-6">
-      <el-button @click="resetForm">重置</el-button>
-      <el-button type="primary" :loading="saving" @click="saveConfig">保存配置</el-button>
+    <div class="footer-actions max-w-3xl border-t border-slate-100 pt-6">
+      <div
+        class="mb-3 flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800"
+      >
+        <span>
+          预估消耗:
+          <span class="font-medium text-[#3355FF]">~{{ estimatedSavePoints }}点</span>
+        </span>
+        <span>当前余额: {{ accountPoints.currentBalancePoints }}点</span>
+      </div>
+      <div class="flex w-full gap-3">
+        <el-button class="flex-1" @click="resetForm">重置</el-button>
+        <el-button type="primary" class="flex-1" :loading="saving" @click="saveConfig">保存配置</el-button>
+      </div>
     </div>
   </div>
 </template>

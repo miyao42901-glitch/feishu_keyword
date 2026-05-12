@@ -3,13 +3,21 @@ import { ref } from 'vue'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import AccountMemberView from '@/views/AccountMemberView.vue'
 import TasksView from '@/views/TasksView.vue'
+import { useAccountPointsStore } from '@/stores/accountPoints'
 
 const activeTab = ref<'tasks' | 'account'>('tasks')
+const accountPoints = useAccountPointsStore()
 </script>
 
 <template>
   <el-config-provider :locale="zhCn">
   <div class="flex h-screen min-h-0 flex-col bg-slate-50">
+    <header
+      class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3"
+    >
+      <h1 class="truncate text-sm font-semibold text-slate-900">飞书关键词监控插件</h1>
+      <span class="shrink-0 text-sm text-slate-700">当前余额: {{ accountPoints.currentBalancePoints }}点</span>
+    </header>
     <div class="grid shrink-0 grid-cols-2 border-b border-slate-200 bg-slate-50">
       <button
         type="button"

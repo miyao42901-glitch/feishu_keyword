@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 折叠块「基础信息」：方案名、任务类型、采集频率（仅定时）、时间（仅定时）、授权码。
+ * 折叠块「基础信息」：方案名、任务类型、采集频率（仅定时）、时间（仅定时）。
  */
 import type { TaskCreateFormModel } from '@/views/TaskCreateForm/types'
 import { DATETIME_FORMAT, frequencyOptions } from '@/views/TaskCreateForm/constants'
@@ -66,9 +66,5 @@ function onExpireDisabledTime(date: Date) {
         />
       </el-form-item>
     </template>
-    <el-form-item label="授权码" prop="authCode">
-      <el-input v-model="form.authCode" type="password" show-password placeholder="请输入授权码" clearable />
-      <p class="mt-1.5 text-xs text-slate-500">授权码用于API接口调用认证</p>
-    </el-form-item>
   </div>
 </template>

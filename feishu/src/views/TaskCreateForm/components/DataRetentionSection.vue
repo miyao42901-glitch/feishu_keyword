@@ -1,12 +1,43 @@
 <script setup lang="ts">
 /**
- * 折叠块「数据沉淀配置」：新建表 / 使用现有表 + 表格下拉（选项待接口）。
+ * 折叠块「数据沉淀配置」：新建表 / 使用现有表 + 表格下拉（选项来自当前多维表格数据表列表）。
  */
+import { onMounted, ref, watch } from 'vue'
+import { fetchBitableTableMetaList } from '@/lib/feishu-bitable-tables'
 import type { TaskCreateFormModel } from '@/views/TaskCreateForm/types'
 
 defineOptions({ name: 'DataRetentionSection' })
 
 const props = defineProps<{ form: TaskCreateFormModel }>()
+
+const bitableTableOptions = ref<{ id: string; name: string }[]>([])
+const tableListLoading = ref(false)
+const tableListError = ref('')
+
+async function loadBitableTables() {
+  if (props.form.tableMode !== 'existing') return
+  tableListLoading.value = true
+  tableListError.value = ''
+  try {
+    bitableTableOptions.value = await fetchBitableTableMetaList()
+  } catch {
+    bitableTableOptions.value = []
+    tableListError.value = '无法读取表格列表（请在多维表格插件内使用）'
+  } finally {
+    tableListLoading.value = false
+  }
+}
+
+watch(
+  () => props.form.tableMode,
+  (mode) => {
+    if (mode === 'existing') void loadBitableTables()
+  },
+)
+
+onMounted(() => {
+  if (props.form.tableMode === 'existing') void loadBitableTables()
+})
 
 /** 选择「新建」时清空已选表 id */
 function onPickNew() {
@@ -58,9 +89,18 @@ function onPickExisting() {
       placeholder="请选择表格..."
       clearable
       filterable
+      :loading="tableListLoading"
     >
-      <!-- 选项由多维表格列表接口后续接入 -->
+      <el-option
+        v-for="opt in bitableTableOptions"
+        :key="opt.id"
+        :label="opt.name"
+        :value="opt.id"
+      />
     </el-select>
+    <p v-if="form.tableMode === 'existing' && tableListError" class="retention-table-list-hint mt-1 text-xs text-amber-700">
+      {{ tableListError }}
+    </p>
   </div>
 </template>
 

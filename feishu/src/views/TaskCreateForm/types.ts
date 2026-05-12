@@ -36,8 +36,6 @@ export interface TaskCreateFormModel {
   crawlFrequency: string
   effectiveAt: string
   expireAt: string
-  /** API 调用认证，必填 */
-  authCode: string
   keywords: string[]
   /** 排除词：与 `keywords` 同为字符串数组入库 */
   excludeKeywords: string[]
