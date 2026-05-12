@@ -447,7 +447,7 @@
       }
 
 
-      const getRecentWorks = async(maxDay = 1, getWorksType = 0) => {
+      const getRecentWorks = async(rangeKey, getWorksType = 0) => {
         if (props.isLocked) return;
         emit('update:isLocked', true);
 

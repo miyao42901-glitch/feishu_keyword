@@ -24,11 +24,6 @@
   import V2Form from './v2Form.vue'
   import KsForm from './ksForm.vue'
 
-  import NewGhForm from './NewGhForm.vue'
-  import NewKsForm from './NewKsForm.vue'
-  import NewV2Form from './NewV2Form.vue'
-  import NewDyForm from './NewDyForm.vue'
-
   import PDyForm from '@/paneForms/dyForm.vue'
   import PGhForm from '@/paneForms/ghForm.vue'
   import PV2Form from '@/paneForms/v2Form.vue'
@@ -62,11 +57,6 @@
       // XhsForm,
       V2Form,
       KsForm,
-
-      NewGhForm,
-      NewKsForm,
-      NewV2Form,
-      NewDyForm,
 
       PDyForm,
       PGhForm,
@@ -213,7 +203,7 @@
           if (res && res.data && res.data.code === 0) {
             formData.value.isLogin = true;
             formData.value.key = res.data.data.key;
-            // formData.value.key = 'JZL6f0685390502a6b9';
+            formData.value.key = 'JZL6f0685390502a6b9';
             formData.value.username = res.data.data.user_name;
             formData.value.remainMoney = res.data.data.remain_money;
             result = true
@@ -498,7 +488,7 @@
       @close="showRechargeCard = false"
     />
 
-      <el-card v-show="!showRechargeCard" class="card-item" shadow="hover">
+      <!-- <el-card v-show="!showRechargeCard" class="card-item" shadow="hover">
         <el-tabs :disabled="isLocked">
           <el-tab-pane :label="t('form.tabs.douyin')">
             <DyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
@@ -513,7 +503,7 @@
             <KsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
         </el-tabs>
-      </el-card>
+      </el-card> -->
 
       <el-card v-show="!showRechargeCard" class="card-item" shadow="hover">
         <el-tabs :disabled="isLocked">
@@ -531,23 +521,6 @@
           </el-tab-pane>
         </el-tabs>
       </el-card>
-
-      <!-- <el-card v-show="!showRechargeCard" class="card-item" shadow="hover">
-        <el-tabs :disabled="isLocked">
-          <el-tab-pane :label="t('form.tabs.douyin')">
-            <NewDyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-          </el-tab-pane>
-          <el-tab-pane :label="t('form.tabs.wechatChannel')">
-            <NewV2Form :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-          </el-tab-pane>
-          <el-tab-pane :label="t('form.tabs.wechat')">
-            <NewGhForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-          </el-tab-pane>
-          <el-tab-pane :label="t('form.tabs.kuaishou')">
-            <NewKsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-          </el-tab-pane>
-        </el-tabs>
-      </el-card> -->
       
       <!-- <p>{{ formData }}</p>
       <p>{{ isLocked }}</p> -->
