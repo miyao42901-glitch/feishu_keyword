@@ -1,2 +1,13 @@
 # 本地残留目录（勿提交）
 /web/
+
+# public 下飞书发布用编译目录（独立远端仓，勿进主仓）；保留 admin 随主仓提交
+/public/*
+!/public/admin/
+!/public/admin/**
+
+# Docker 本地数据卷
+/data/
+
+# 参考资料目录（仅本地查看，勿提交）
+/references/
