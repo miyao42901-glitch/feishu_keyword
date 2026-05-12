@@ -47,7 +47,7 @@
 
       function userFields() {
         return {
-          sec_uid: { label: '抖音账号ID', fieldType: FieldType.Text, isPrimary: true, },
+          sec_uid: { label: '用户id', fieldType: FieldType.Text, isPrimary: true, },
           nickname: { label: '抖音账号昵称', fieldType: FieldType.Text, },
           signature: { label: '简介', fieldType: FieldType.Text, },
           follower_count: { label: '当前粉丝数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
@@ -76,7 +76,7 @@
 
       function workFields() {
         return {
-          aweme_id: { label: '抖音视频ID', fieldType: FieldType.Text, isPrimary: true, },
+          aweme_id: { label: '视频id', fieldType: FieldType.Text, isPrimary: true, },
           desc: { label: '视频标题', fieldType: FieldType.Text, },
           caption: { label: '视频简介', fieldType: FieldType.Text, },
           nickname: { label: '抖音账号昵称', fieldType: FieldType.Text, },
@@ -352,20 +352,21 @@
       }
 
 
-      const upsertWork = async(item, get_time) => {
+      const upsertWork = async(items, get_time) => {
         const tmpWorkFields = workFields()
-        const aweme_id = item.aweme_id
-        const [record, fieldMap] = await getFirstRecordByField(paneData.value.workTableId, tmpWorkFields.aweme_id.label, aweme_id)
-        let result = {}
-        if (record) {
-          const last_get_time = record.fields[fieldMap[tmpWorkFields.current_get_time.label].id]
-          const last_digg_count = record.fields[fieldMap[tmpWorkFields.digg_count.label].id] || 0
-          const last_comment_count = record.fields[fieldMap[tmpWorkFields.comment_count.label].id] || 0
-          const last_share_count = record.fields[fieldMap[tmpWorkFields.share_count.label].id] || 0
-          const last_collect_count = record.fields[fieldMap[tmpWorkFields.collect_count.label].id] || 0
-          result = await updateTable(
-            paneData.value.workTableId,
-            [{
+        const insertData = []
+        const updateData = []
+        for (const item of items) {
+          const aweme_id = item.aweme_id
+          const [record, fieldMap] = await getFirstRecordByField(paneData.value.workTableId, tmpWorkFields.aweme_id.label, aweme_id)
+          let result = {}
+          if (record) {
+            const last_get_time = record.fields[fieldMap[tmpWorkFields.current_get_time.label].id]
+            const last_digg_count = record.fields[fieldMap[tmpWorkFields.digg_count.label].id] || 0
+            const last_comment_count = record.fields[fieldMap[tmpWorkFields.comment_count.label].id] || 0
+            const last_share_count = record.fields[fieldMap[tmpWorkFields.share_count.label].id] || 0
+            const last_collect_count = record.fields[fieldMap[tmpWorkFields.collect_count.label].id] || 0
+            updateData.push({
               recordId: record.recordId,
               data: {
                 aweme_id: aweme_id,
@@ -389,37 +390,46 @@
                 current_get_time: get_time,
                 last_get_time: last_get_time,
               }
-            }],
-            tmpWorkFields,
-          );
-        }
-        else{
-          result = await writeToTable(
-            paneData.value.workTableId,
-            [
-              {
-                aweme_id: aweme_id,
-                desc: item.desc,
-                caption: item.caption,
-                sec_uid: item.author.sec_uid,
-                nickname: item.author.nickname,
-                vedio_url: 'https://www.douyin.com/video/' + item.aweme_id,
-                create_time: item.create_time * 1000, // 转换为毫秒级时间戳
+            })
+          }
+          else{
+            insertData.push({
+              aweme_id: aweme_id,
+              desc: item.desc,
+              caption: item.caption,
+              sec_uid: item.author.sec_uid,
+              nickname: item.author.nickname,
+              vedio_url: 'https://www.douyin.com/video/' + item.aweme_id,
+              create_time: item.create_time * 1000, // 转换为毫秒级时间戳
 
-                digg_count: item.statistics.digg_count,
-                comment_count: item.statistics.comment_count,
-                share_count: item.statistics.share_count,
-                collect_count: item.statistics.collect_count,
-                current_get_time: get_time,
-              }
-            ],
-            tmpWorkFields,
-          );
+              digg_count: item.statistics.digg_count,
+              comment_count: item.statistics.comment_count,
+              share_count: item.statistics.share_count,
+              collect_count: item.statistics.collect_count,
+              current_get_time: get_time,
+            })
+          }
         }
-        if (result && result.success) {
-          return result.success
+        const insertRes = await writeToTable(
+          paneData.value.workTableId,
+          insertData,
+          tmpWorkFields,
+        );
+        
+        const updateRes = await updateTable(
+          paneData.value.workTableId,
+          updateData,
+          tmpWorkFields,
+        );
+        
+        let resultCount = 0
+        if (insertRes && insertRes.success) {
+          resultCount += insertRes.data.recordIds.length
         }
-        return false
+        if (updateRes && updateRes.success) {
+          resultCount += updateRes.data.recordIds.length
+        }
+        return resultCount
       }
 
 
@@ -525,14 +535,15 @@
               // 过滤掉时间范围外的置顶视频
               const preFilteringData = res.data.data.aweme_list.filter(item => item.is_top != 1 || item.create_time * 1000 > min_time)
               let workAccordCount = 0
+              const items = []
               for (const item of preFilteringData){
                 if (item.create_time * 1000 > min_time){
-                  workAccordCount += 1  
-                  const upsertSuccett = await upsertWork(item, get_time)
-                  if (upsertSuccett){
-                    workSuccessCount += 1
-                  }
+                  workAccordCount += 1
+                  items.push(item)
                 }
+              }
+              if (items.length > 0){
+                workSuccessCount += await upsertWork(items, get_time)
               }
               
               // 将数据添加到对象中，使用 recordId 作为 key

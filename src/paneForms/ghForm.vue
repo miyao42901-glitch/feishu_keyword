@@ -362,15 +362,16 @@
       }
 
 
-      const upsertWork = async(item, get_time, userInfo) => {
+      const upsertWork = async(items, get_time, userInfo) => {
         const tmpWorkFields = workFields()
-        const mid = item.appmsgid
-        const [record, fieldMap] = await getFirstRecordByField(paneData.value.workTableId, tmpWorkFields.mid.label, mid.toString())
-        let result = {}
-        if (record) {
-          result = await updateTable(
-            paneData.value.workTableId,
-            [{
+        const insertData = []
+        const updateData = []
+        for (const item of items) {
+          const mid = item.appmsgid
+          const [record, fieldMap] = await getFirstRecordByField(paneData.value.workTableId, tmpWorkFields.mid.label, mid.toString())
+          let result = {}
+          if (record) {
+            updateData.push({
               recordId: record.recordId,
               data: {
                 mid: mid,
@@ -383,33 +384,42 @@
                 original: item.original,
                 item_show_type: item.item_show_type,
               }
-            }],
-            tmpWorkFields,
-          );
+            })
+          }
+          else{
+            insertData.push({
+              mid: mid.toString(),
+              title: item.title,
+              name: userInfo.name,
+              ghid: userInfo.ghid,
+              url: item.url,
+              post_time: item.post_time * 1000,
+              digest: item.digest,
+              original: item.original,
+              item_show_type: item.item_show_type,
+            })
+          }
         }
-        else{
-          result = await writeToTable(
-            paneData.value.workTableId,
-            [
-              {
-                mid: mid.toString(),
-                title: item.title,
-                name: userInfo.name,
-                ghid: userInfo.ghid,
-                url: item.url,
-                post_time: item.post_time * 1000,
-                digest: item.digest,
-                original: item.original,
-                item_show_type: item.item_show_type,
-              }
-            ],
-            tmpWorkFields,
-          );
+        const insertRes = await writeToTable(
+          paneData.value.workTableId,
+          insertData,
+          tmpWorkFields,
+        );
+        
+        const updateRes = await updateTable(
+          paneData.value.workTableId,
+          updateData,
+          tmpWorkFields,
+        );
+        
+        let resultCount = 0
+        if (insertRes && insertRes.success) {
+          resultCount += insertRes.data.recordIds.length
         }
-        if (result && result.success) {
-          return result.success
+        if (updateRes && updateRes.success) {
+          resultCount += updateRes.data.recordIds.length
         }
-        return false
+        return resultCount
       }
 
 
@@ -457,7 +467,13 @@
             const ghid_set = {}
             for (const userRecordId of recordIdList){
               const userRecord = await userTable.getRecordById(userRecordId);
-              const ghid = userRecord.fields[fieldMap[tmpUserFields.ghid.label].id][0].text
+              let ghid = null
+              if (fieldMap[tmpUserFields.ghid.label]){
+                ghid = userRecord.fields[fieldMap[tmpUserFields.ghid.label].id][0].text
+              }
+              else{
+                ghid = userRecord.fields[fieldMap[tmpUserFields.name.label].id][0].text
+              }
               if (ghid_set[ghid]) continue
               ghid_set[ghid] = true
               userInfoList.push({
@@ -512,18 +528,16 @@
               // 过滤掉时间范围外的置顶视频
               const preFilteringData = res.data.data.filter(item => !mid_set[item.appmsgid])
               let workAccordCount = 0
+              const items = []
               for (const item of preFilteringData){
                 mid_set[item.appmsgid] = true
                 if (item.post_time * 1000 > min_time){
                   workAccordCount += 1  
-                  const upsertSuccett = await upsertWork(item, get_time, {
-                    name: res.data.mp_nickname,
-                    ghid: res.data.mp_ghid,
-                  })
-                  if (upsertSuccett){
-                    workSuccessCount += 1
-                  }
+                  items.push(item)
                 }
+              }
+              if (items.length > 0){
+                workSuccessCount += await upsertWork(items, get_time,{name: res.data.mp_nickname, ghid: res.data.mp_ghid})
               }
               
               // 将数据添加到对象中，使用 recordId 作为 key

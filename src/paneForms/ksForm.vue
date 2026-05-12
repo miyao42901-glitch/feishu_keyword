@@ -47,16 +47,16 @@
 
       function userFields() {
         return {
-          user_id: { label: '快手账号ID', fieldType: FieldType.Text, isPrimary: true},
-          user_name: { label: '快手账号名称', fieldType: FieldType.Text, },
-          eid: { label: '账号eid', fieldType: FieldType.Text, },
+          user_id: { label: '快手用户id', fieldType: FieldType.Text, isPrimary: true},
+          user_name: { label: '快手用户名', fieldType: FieldType.Text, },
+          eid: { label: '标识id', fieldType: FieldType.Text, },
           kwaiId: { label: '快手号', fieldType: FieldType.Text, },
           user_text: { label: '简介', fieldType: FieldType.Text, },
           fan: { label: '粉丝数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           photo: { label: '作品数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           fan_diff: { label: '新增粉丝数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           photo_diff: { label: '新增作品数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
-          shareLink: { label: '分享链接', fieldType: FieldType.Url, },
+          shareLink: { label: '主页分享链接', fieldType: FieldType.Url, },
           current_get_time: { label: '当前获取时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           last_get_time: { label: '上次获取时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           get_work_flag: {
@@ -75,11 +75,11 @@
 
       function workFields() {
         return {
-          photo_id: { label: '作品ID', fieldType: FieldType.Text, isPrimary: true},
+          photo_id: { label: '视频id', fieldType: FieldType.Text, isPrimary: true},
           caption: { label: '标题', fieldType: FieldType.Text, },
           user_id: { label: '快手账号ID', fieldType: FieldType.Text, isPrimary: true},
           user_name: { label: '快手账号名称', fieldType: FieldType.Text, },
-          eid: { label: '作品eid', fieldType: FieldType.Text, },
+          eid: { label: '标识id', fieldType: FieldType.Text, },
           timestamp: { label: '发布时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
 
           like_count: { label: '点赞数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
@@ -344,26 +344,27 @@
       }
 
 
-      const upsertWork = async(item, get_time) => {
+      const upsertWork = async(items, get_time) => {
         const tmpWorkFields = workFields()
-        const photo_id = item.photo_id.toString()
-        let photoIdFromShareInfo = '';
-        if (item.share_info) {
-          const params = new URLSearchParams(item.share_info);
-          photoIdFromShareInfo = params.get('photoId') || '';
-        }
-        const [record, fieldMap] = await getFirstRecordByField(paneData.value.workTableId, tmpWorkFields.photo_id.label, photo_id)
-        console.log(record)
-        let result = {}
-        if (record) {
-          const last_get_time = record.fields[fieldMap[tmpWorkFields.current_get_time.label].id]
-          const last_like_count = record.fields[fieldMap[tmpWorkFields.like_count.label].id] || 0
-          const last_view_count = record.fields[fieldMap[tmpWorkFields.view_count.label].id] || 0
-          const last_forward_count = record.fields[fieldMap[tmpWorkFields.forward_count.label].id] || 0
-          const last_comment_count = record.fields[fieldMap[tmpWorkFields.comment_count.label].id] || 0
-          result = await updateTable(
-            paneData.value.workTableId,
-            [{
+        const insertData = []
+        const updateData = []
+        for (const item of items) {
+          const photo_id = item.photo_id.toString()
+          let photoIdFromShareInfo = '';
+          if (item.share_info) {
+            const params = new URLSearchParams(item.share_info);
+            photoIdFromShareInfo = params.get('photoId') || '';
+          }
+          const [record, fieldMap] = await getFirstRecordByField(paneData.value.workTableId, tmpWorkFields.photo_id.label, photo_id)
+          console.log(record)
+          let result = {}
+          if (record) {
+            const last_get_time = record.fields[fieldMap[tmpWorkFields.current_get_time.label].id]
+            const last_like_count = record.fields[fieldMap[tmpWorkFields.like_count.label].id] || 0
+            const last_view_count = record.fields[fieldMap[tmpWorkFields.view_count.label].id] || 0
+            const last_forward_count = record.fields[fieldMap[tmpWorkFields.forward_count.label].id] || 0
+            const last_comment_count = record.fields[fieldMap[tmpWorkFields.comment_count.label].id] || 0
+            updateData.push({
               recordId: record.recordId,
               data: {
                 photo_id: item.photo_id,
@@ -387,14 +388,10 @@
                 current_get_time: get_time,
                 last_get_time: last_get_time,
               }
-            }],
-            tmpWorkFields,
-          );
-        }
-        else{
-          result = await writeToTable(
-            paneData.value.workTableId,
-            [{
+            })
+          }
+          else{
+            insertData.push({
               photo_id: item.photo_id,
               caption: item.caption,
               eid: photoIdFromShareInfo,
@@ -409,14 +406,29 @@
               comment_count: item.comment_count,
 
               current_get_time: get_time,
-            }],
-            tmpWorkFields,
-          );
+            })
+          }
         }
-        if (result && result.success) {
-          return result.success
+        const insertRes = await writeToTable(
+          paneData.value.workTableId,
+          insertData,
+          tmpWorkFields,
+        );
+        
+        const updateRes = await updateTable(
+          paneData.value.workTableId,
+          updateData,
+          tmpWorkFields,
+        );
+        
+        let resultCount = 0
+        if (insertRes && insertRes.success) {
+          resultCount += insertRes.data.recordIds.length
         }
-        return false
+        if (updateRes && updateRes.success) {
+          resultCount += updateRes.data.recordIds.length
+        }
+        return resultCount
       }
 
 
@@ -519,14 +531,15 @@
               const preFilteringData = res.data.data.feeds ? res.data.data.feeds : []
 
               let workAccordCount = 0
+              const items = []
               for (const item of preFilteringData){
                 if (item.timestamp > min_time){
                   workAccordCount += 1  
-                  const upsertSuccett = await upsertWork(item, get_time)
-                  if (upsertSuccett){
-                    workSuccessCount += 1
-                  }
+                  items.push(item)
                 }
+              }
+              if (items.length > 0){
+                workSuccessCount += await upsertWork(items, get_time)
               }
               
               // 将数据添加到对象中，使用 recordId 作为 key

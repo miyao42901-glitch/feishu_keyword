@@ -239,20 +239,21 @@
       }
 
 
-      const upsertWork = async(item, get_time, userInfo) => {
+      const upsertWork = async(items, get_time, userInfo) => {
         const tmpWorkFields = workFields()
-        const object_id = item.object_id
-        const [record, fieldMap] = await getFirstRecordByField(paneData.value.workTableId, tmpWorkFields.object_id.label, object_id)
-        let result = {}
-        if (record) {
-          const last_get_time = record.fields[fieldMap[tmpWorkFields.current_get_time.label].id]
-          const last_like_count = record.fields[fieldMap[tmpWorkFields.like_count.label].id] || 0
-          const last_fav_count = record.fields[fieldMap[tmpWorkFields.fav_count.label].id] || 0
-          const last_forward_count = record.fields[fieldMap[tmpWorkFields.forward_count.label].id] || 0
-          const last_comment_count = record.fields[fieldMap[tmpWorkFields.comment_count.label].id] || 0
-          result = await updateTable(
-            paneData.value.workTableId,
-            [{
+        const insertData = []
+        const updateData = []
+        for (const item of items) {
+          const object_id = item.object_id
+          const [record, fieldMap] = await getFirstRecordByField(paneData.value.workTableId, tmpWorkFields.object_id.label, object_id)
+          let result = {}
+          if (record) {
+            const last_get_time = record.fields[fieldMap[tmpWorkFields.current_get_time.label].id]
+            const last_like_count = record.fields[fieldMap[tmpWorkFields.like_count.label].id] || 0
+            const last_fav_count = record.fields[fieldMap[tmpWorkFields.fav_count.label].id] || 0
+            const last_forward_count = record.fields[fieldMap[tmpWorkFields.forward_count.label].id] || 0
+            const last_comment_count = record.fields[fieldMap[tmpWorkFields.comment_count.label].id] || 0
+            updateData.push({
               recordId: record.recordId,
               data: {
                 object_id: object_id,
@@ -274,14 +275,10 @@
                 current_get_time: get_time,
                 last_get_time: last_get_time,
               }
-            }],
-            tmpWorkFields,
-          );
-        }
-        else{
-          result = await writeToTable(
-            paneData.value.workTableId,
-            [{
+            })
+          }
+          else{
+            insertData.push({
               object_id: object_id,
               export_id: item.export_id,
               title: item.title,
@@ -295,14 +292,29 @@
               video_play_len: item.video_play_len,
 
               current_get_time: get_time,
-            }],
-            tmpWorkFields,
-          );
+            })
+          }
         }
-        if (result && result.success) {
-          return result.success
+        const insertRes = await writeToTable(
+          paneData.value.workTableId,
+          insertData,
+          tmpWorkFields,
+        );
+        
+        const updateRes = await updateTable(
+          paneData.value.workTableId,
+          updateData,
+          tmpWorkFields,
+        );
+        
+        let resultCount = 0
+        if (insertRes && insertRes.success) {
+          resultCount += insertRes.data.recordIds.length
         }
-        return false
+        if (updateRes && updateRes.success) {
+          resultCount += updateRes.data.recordIds.length
+        }
+        return resultCount
       }
 
 
@@ -406,17 +418,15 @@
               // 过滤掉时间范围外的置顶视频
               const preFilteringData = res.data.object.filter(item => !(item.sticky_time) || getTimeFromStr(item.publish_time) > min_time)
               let workAccordCount = 0
+              const items = []
               for (const item of preFilteringData){
                 if (getTimeFromStr(item.publish_time) > min_time){
-                  workAccordCount += 1  
-                  const upsertSuccett = await upsertWork(item, get_time, {
-                    username: res.data.contact.username,
-                    nickname: res.data.contact.nickname,
-                  })
-                  if (upsertSuccett){
-                    workSuccessCount += 1
-                  }
+                  workAccordCount += 1
+                  items.push(item)
                 }
+              }
+              if (items.length > 0){
+                workSuccessCount += await upsertWork(items, get_time,{username: res.data.contact.username, nickname: res.data.contact.nickname})
               }
               
               // 将数据添加到对象中，使用 recordId 作为 key
