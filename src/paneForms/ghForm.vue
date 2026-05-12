@@ -110,6 +110,20 @@
       }
 
       const dateRange = ref([1,3,7,15])
+      const ranges = ref({
+        '当天': {value: 1 , type: 'date'},
+        '3天内': {value: 3 , type: 'date'},
+        '7天内': {value: 7 , type: 'date'},
+        '15天内': {value: 15 , type: 'date'},
+        '30天内': {value: 30 , type: 'date'},
+        '1页': {value: 1 , type: 'page'},
+        '2页': {value: 2 , type: 'page'},
+        '5页': {value: 5 , type: 'page'},
+        '10页': {value: 10 , type: 'page'},
+        '20页': {value: 20 , type: 'page'},
+        '50页': {value: 50 , type: 'page'},
+        '全部': {value: 0 , type: 'all'},
+      })
 
       const paneData = ref({
         name: null,
@@ -117,6 +131,7 @@
         userTableId: null,
         workTableId: null,
         searchDate: 3,
+        searchRange: '1页',
         getDataType: 0,
         getWorksType: 1,
       })
@@ -309,7 +324,7 @@
       }
 
 
-      const getRecentWorks = async(maxDay = 1, getWorksType = 0) => {
+      const getRecentWorks = async(rangeKey, getWorksType = 0) => {
         if (props.isLocked) return;
         emit('update:isLocked', true);
 
@@ -331,11 +346,14 @@
           let singleUserSuccess = 1
           let totalCost = 0
 
-          const searchDays = typeof maxDay === 'number' && !isNaN(maxDay) ? Math.min(15, Math.max(1, Math.floor(maxDay))) : 1
-          const date = new Date()
-          date.setHours(0, 0, 0, 0)
-          date.setDate(date.getDate() - (searchDays - 1))
-          const min_time = date.getTime()
+          const range = ranges.value[rangeKey]
+          let min_time = 0
+          if (range.type === 'date'){
+            const date = new Date()
+            date.setHours(0, 0, 0, 0)
+            date.setDate(date.getDate() - (range.value - 1))
+            min_time = date.getTime()
+          }
           
           const tmpUserFields = userFields()
           const totalLastTime = {}
@@ -406,13 +424,13 @@
 
               totalCost += res.data.cost_money
 
-              // 过滤掉时间范围外的置顶视频
+              // 过滤
               const preFilteringData = res.data.data.filter(item => !mid_set[item.appmsgid])
               let workAccordCount = 0
               const items = []
               for (const item of preFilteringData){
                 mid_set[item.appmsgid] = true
-                if (item.post_time * 1000 > min_time){
+                if (range.type !== 'date' || item.post_time * 1000 > min_time){
                   workAccordCount += 1  
                   items.push(item)
                 }
@@ -432,8 +450,14 @@
                 };
               }
               
-              if (workAccordCount === 0 || workAccordCount < preFilteringData.length){
-                break
+              if (range.type === 'date'){
+                if (workAccordCount === 0 || workAccordCount < preFilteringData.length) break;
+              }
+              else if (range.type === 'page'){
+                if (i >= range.value) break;
+              }
+              else{
+                if (preFilteringData.length === 0) break;
               }
             }
           }
@@ -551,6 +575,7 @@
       return {
         paneData,
         dateRange,
+        ranges,
         addUserTableTemplate,
         addWorkTableTemplate,
         upsertUser,
@@ -657,9 +682,9 @@
     </el-form-item>
 
 
-    <el-form-item :label="'日期范围'"  v-show="paneData.getDataType !== 0">
-      <el-select v-model="paneData.searchDate" :placeholder="'请选择日期范围'">
-        <el-option v-for="item in dateRange" :key="item" :label="item > 1 ? item + '天' : '当天'" :value="item" />
+    <el-form-item :label="'数据范围'"  v-show="paneData.getDataType !== 0">
+      <el-select v-model="paneData.searchRange" :placeholder="'请选择数据范围'">
+        <el-option v-for="item in Object.keys(ranges)" :key="item" :label="item" :value="item" />
       </el-select>
     </el-form-item>
 
@@ -667,11 +692,11 @@
       <el-button 
         type="primary" 
         :disabled="isLocked || !formData.key || !paneData.userTableId && paneData.getWorksType === 0 || !paneData.biz && paneData.getWorksType !== 0"
-        @click="getRecentWorks(paneData.searchDate, paneData.getWorksType)"
+        @click="getRecentWorks(paneData.searchRange, paneData.getWorksType)"
         plain
         style="flex: 1;"
       >
-        {{ '获取' + (paneData.searchDate > 1 ? paneData.searchDate + '天内' : '今日') + '发布文章'}}
+        {{ '获取' + paneData.searchRange + '发布文章'}}
       </el-button>
     </el-form-item>
 
