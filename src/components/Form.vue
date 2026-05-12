@@ -203,7 +203,7 @@
           if (res && res.data && res.data.code === 0) {
             formData.value.isLogin = true;
             formData.value.key = res.data.data.key;
-            formData.value.key = 'JZL6f0685390502a6b9';
+            // formData.value.key = 'JZL6f0685390502a6b9';
             formData.value.username = res.data.data.user_name;
             formData.value.remainMoney = res.data.data.remain_money;
             result = true
