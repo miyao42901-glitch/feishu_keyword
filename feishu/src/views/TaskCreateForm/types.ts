@@ -3,8 +3,39 @@
  */
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
 
-/** 信源单行可勾选的采集指标（与勾选组 value 一致） */
-export type SourceFieldKey = 'like' | 'comment' | 'share'
+/**
+ * 信源采集字段勾选值（与下拉多选、`config_json.sourceFieldSelection` 一致）。
+ * 含各平台基础项与互动/作者等；必选项（如视频唯一 ID、笔记 ID）由表单逻辑强制保留在数组中。
+ */
+export type SourceFieldKey =
+  | 'videoUniqueId'
+  | 'title'
+  | 'videoDescription'
+  | 'playPageUrl'
+  | 'externalDownloadUrl'
+  | 'coverUrl'
+  | 'videoTypeTag'
+  | 'durationSeconds'
+  | 'publishedAt'
+  | 'like'
+  | 'comment'
+  | 'share'
+  | 'favorite'
+  | 'authorNickname'
+  | 'authorId'
+  | 'authorFollowers'
+  | 'authorAvatar'
+  | 'hashtagList'
+  | 'city'
+  | 'ipLocation'
+  | 'noteId'
+  | 'noteBody'
+  | 'topicTags'
+  | 'noteImages'
+  | 'videoMedia'
+  | 'location'
+  | 'noteType'
+  | 'mentionedUsers'
 
 /** 定时任务需填写生效/过期时间；实时任务不展示时间选择 */
 export type TaskType = 'scheduled' | 'realtime'

@@ -3,6 +3,16 @@
  */
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
 
+/** 列表/回显用：含历史任务中可能出现的全部平台 id */
+export const platformDisplayNames: Record<PlatformKey, string> = {
+  douyin: '抖音',
+  xiaohongshu: '小红书',
+  weibo: '微博',
+  gzh: '公众号',
+  shipinhao: '视频号',
+  kuaishou: '快手',
+}
+
 /** Element Plus 日期时间展示与 v-model 字符串格式 */
 export const DATETIME_FORMAT = 'YYYY-MM-DD HH:mm:ss'
 
@@ -41,12 +51,8 @@ export const videoDurationOptions = [
 /** 单次拉取/展示条数候选 */
 export const dataRangeOptions = [10, 20, 30, 50, 70, 100] as const
 
-/** 信源勾选区固定顺序与展示文案 */
+/** 信源勾选区固定顺序与展示文案（当前仅开放抖音、小红书） */
 export const sourcePlatforms: { id: PlatformKey; label: string }[] = [
-  { id: 'xiaohongshu', label: '小红书' },
-  { id: 'weibo', label: '微博' },
   { id: 'douyin', label: '抖音' },
-  { id: 'gzh', label: '公众号' },
-  { id: 'shipinhao', label: '视频号' },
-  { id: 'kuaishou', label: '快手' },
+  { id: 'xiaohongshu', label: '小红书' },
 ]

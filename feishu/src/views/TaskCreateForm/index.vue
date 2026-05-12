@@ -9,7 +9,7 @@ import { createFeishuTaskConfig, updateFeishuTaskConfig } from '@/lib/api'
 import type { FeishuTaskConfigDetail } from '@/lib/api'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
 import { useAccountPointsStore } from '@/stores/accountPoints'
-import { estimateTaskSavePoints } from '@/lib/task-estimate-points'
+import { estimateTaskPointsBreakdown } from '@/lib/task-estimate-points'
 
 import BasicInfoSection from '@/views/TaskCreateForm/components/BasicInfoSection.vue'
 import KeywordsSection from '@/views/TaskCreateForm/components/KeywordsSection.vue'
@@ -23,6 +23,11 @@ import {
   expireAtFormItemRules,
 } from '@/lib/datetime-task-window'
 import { dataRangeOptions, sourcePlatforms } from '@/views/TaskCreateForm/constants'
+import {
+  ensureSourceFieldSelectionForAllSelected,
+  isSourceFieldKey,
+  isSupportedSourcePlatform,
+} from '@/views/TaskCreateForm/source-field-catalog'
 import type { SourceFieldKey, TaskCreateFormModel, TaskRunStatus } from '@/views/TaskCreateForm/types'
 
 defineOptions({ name: 'TaskCreateForm' })
@@ -97,7 +102,7 @@ const orderedSelectedPlatforms = computed(() =>
 )
 
 const accountPoints = useAccountPointsStore()
-const estimatedSavePoints = computed(() => estimateTaskSavePoints(form))
+const pointsEstimate = computed(() => estimateTaskPointsBreakdown(form))
 
 /** 仅定时任务校验生效/过期时间；实时任务不展示时间字段 */
 const rules = computed<FormRules>(() => ({
@@ -218,16 +223,24 @@ function mergeConfigIntoForm(raw: Record<string, unknown>) {
     for (const key of Object.keys(merged) as PlatformKey[]) {
       const v = (sel as Record<string, unknown>)[key]
       if (Array.isArray(v)) {
-        merged[key] = v.filter(
-          (x): x is SourceFieldKey => x === 'like' || x === 'comment' || x === 'share',
-        )
+        merged[key] = v.filter((x): x is SourceFieldKey => isSourceFieldKey(x))
       }
     }
   }
   form.sourceFieldSelection = merged
+  form.selectedSources = form.selectedSources.filter((id) => isSupportedSourcePlatform(id))
+  ensureSourceFieldSelectionForAllSelected(form)
   const tt = raw.taskType
   form.taskType = tt === 'realtime' ? 'realtime' : 'scheduled'
 }
+
+watch(
+  () => [...form.selectedSources],
+  () => {
+    ensureSourceFieldSelectionForAllSelected(form)
+  },
+  { immediate: true },
+)
 
 watch(
   () => form.taskType,
@@ -389,8 +402,7 @@ async function saveConfig() {
         class="mb-3 flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800"
       >
         <span>
-          预估消耗:
-          <span class="font-medium text-[#3355FF]">~{{ estimatedSavePoints }}点</span>
+          预估消耗：<span class="font-medium text-[#3355FF]">~{{ pointsEstimate.total }}条</span>
         </span>
         <span>当前余额: {{ accountPoints.currentBalancePoints }}点</span>
       </div>

@@ -3,7 +3,7 @@ import dayjs from 'dayjs'
 import { computed, onMounted, onScopeDispose, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import TaskCreateForm from '@/views/TaskCreateForm/index.vue'
-import { sourcePlatforms } from '@/views/TaskCreateForm/constants'
+import { platformDisplayNames, sourcePlatforms } from '@/views/TaskCreateForm/constants'
 import TaskDetailDialog from '@/views/tasks/components/TaskDetailDialog.vue'
 import TaskListCard from '@/views/tasks/components/TaskListCard.vue'
 import type { TaskCardModel, TaskStoppedKind } from '@/views/tasks/types'
@@ -104,10 +104,13 @@ async function markTaskAbnormal(id: number) {
 
 function formatPlatformsLabel(keys: string[] | null | undefined): string {
   if (!keys || keys.length === 0) return '未选择平台'
-  if (keys.length >= sourcePlatforms.length) return '全平台'
-  const labels = keys
-    .map((k) => sourcePlatforms.find((p) => p.id === k)?.label)
-    .filter(Boolean) as string[]
+  const supported = new Set(sourcePlatforms.map((p) => p.id))
+  const normalized = keys.filter((k): k is keyof typeof platformDisplayNames => k in platformDisplayNames)
+  const onlySupported = normalized.filter((k) => supported.has(k))
+  if (onlySupported.length >= sourcePlatforms.length && sourcePlatforms.every((p) => onlySupported.includes(p.id))) {
+    return '全平台'
+  }
+  const labels = normalized.map((k) => platformDisplayNames[k])
   return labels.length ? labels.join('、') : '未选择平台'
 }
 
