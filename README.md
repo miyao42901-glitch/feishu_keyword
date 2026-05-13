@@ -33,6 +33,7 @@ feishu_keyword/
 │   │   ├── main.py           # FastAPI 应用入口
 │   │   └── api/              # 路由与接口实现
 │   └── .venv/                # 本地虚拟环境（勿提交，见各目录 .gitignore）
+├── python/                   # 爬虫 Worker（独立进程/端口；与 server、feishu 无代码耦合）
 └── docs/                     # 项目文档（设计说明、接口约定等，可按需补充）
 ```
 

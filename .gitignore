@@ -1,2 +1,28 @@
 # 本地残留目录（勿提交）
 /web/
+
+python/.env
+
+# Python（仅根路径 python/）
+python/**/__pycache__/
+python/**/*.py[cod]
+python/**/*$py.class
+python/**/*.so
+python/.Python
+python/venv/
+python/.venv/
+python/ENV/
+python/env/
+python/.eggs/
+python/**/*.egg-info/
+python/**/*.egg
+python/dist/
+python/build/
+python/.pytest_cache/
+python/.mypy_cache/
+python/.ruff_cache/
+python/.coverage
+python/htmlcov/
+python/**/*.cover
+python/.hypothesis/
+
