@@ -1,5 +1,0 @@
-{
-  // 内置终端空格/组合键异常：Kitty 键盘协议在部分 Cursor/VS Code 版本下会误处理空格（见 VS Code #299822）。
-  // 关闭后终端恢复传统按键编码，空格与多数组合键可正常输入。
-  "terminal.integrated.enableKittyKeyboardProtocol": false
-}
