@@ -5,7 +5,11 @@
 import { computed, nextTick, onScopeDispose, reactive, ref, watch } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
-import { createFeishuTaskConfig, updateFeishuTaskConfig } from '@/lib/api'
+import {
+  createFeishuTaskConfig,
+  getFeishuTaskConfig,
+  updateFeishuTaskConfig,
+} from '@/lib/api'
 import type { FeishuTaskConfigDetail } from '@/lib/api'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
 import { useAccountPointsStore } from '@/stores/accountPoints'
@@ -16,7 +20,11 @@ import KeywordsSection from '@/views/TaskCreateForm/components/KeywordsSection.v
 import FilterSettingsSection from '@/views/TaskCreateForm/components/FilterSettingsSection.vue'
 import SourceSelectionSection from '@/views/TaskCreateForm/components/SourceSelectionSection.vue'
 import DataRetentionSection from '@/views/TaskCreateForm/components/DataRetentionSection.vue'
-import TaskGlobalConfigBar from '@/views/TaskGlobalConfigBar.vue'
+import TaskConfigPreviewDialog from '@/views/TaskCreateForm/components/TaskConfigPreviewDialog.vue'
+import {
+  buildTaskConfigPreviewRows,
+  snapshotForPreview,
+} from '@/views/TaskCreateForm/build-preview-rows'
 
 import {
   effectiveAtFormItemRules,
@@ -106,6 +114,7 @@ const pointsEstimate = computed(() => estimateTaskPointsBreakdown(form))
 
 /** 仅定时任务校验生效/过期时间；实时任务不展示时间字段 */
 const rules = computed<FormRules>(() => ({
+  planName: [{ required: true, message: '请输入方案名称', trigger: 'blur' }],
   ...(form.taskType === 'scheduled'
     ? {
         effectiveAt: effectiveAtFormItemRules(),
@@ -114,8 +123,25 @@ const rules = computed<FormRules>(() => ({
     : {}),
 }))
 
-/** `el-collapse` 当前展开的面板 name 列表 */
-const activePanels = ref<string[]>(['basic'])
+/** 分步向导：0 基础 → … → 4 数据沉淀 */
+const LAST_STEP = 4
+const currentStep = ref(0)
+const stepTitles = [
+  '基础信息',
+  '关键词',
+  '过滤设置',
+  '信源',
+  '数据沉淀',
+] as const
+
+/** 新建首次保存后由接口返回的 id，用于再次保存走 PUT */
+const internalConfigId = ref<number | null>(null)
+
+/** 保存成功后的预览弹框 */
+const previewVisible = ref(false)
+const previewRows = ref<{ label: string; value: string }[]>([])
+const savedTaskIdForPreview = ref<number | null>(null)
+const previewExecuting = ref(false)
 
 /** 保存中，防止连点导致重复提示 */
 const saving = ref(false)
@@ -156,7 +182,21 @@ function resetForm() {
   Object.assign(form, initialForm())
   keywordDraft.value = ''
   excludeKeywordDraft.value = ''
+  currentStep.value = 0
+  internalConfigId.value = null
   void nextTick(() => formRef.value?.clearValidate())
+}
+
+function effectiveTaskConfigId(): number | null {
+  return props.taskConfigId ?? internalConfigId.value
+}
+
+function goPrevStep() {
+  if (currentStep.value > 0) currentStep.value -= 1
+}
+
+function goNextStep() {
+  if (currentStep.value < LAST_STEP) currentStep.value += 1
 }
 
 /**
@@ -276,6 +316,9 @@ watch(
     } else if (id == null) {
       resetForm()
     }
+    if (id != null) {
+      internalConfigId.value = null
+    }
   },
   { immediate: true },
 )
@@ -288,12 +331,12 @@ function snapshotForm(): Record<string, unknown> {
   return base
 }
 
-/** 校验通过后调用创建或更新接口 */
+/** 校验通过后调用创建或更新接口；成功后打开预览弹框（不立即返回列表） */
 async function saveConfig() {
   if (!formRef.value || saving.value) return
   const globalSettings = useGlobalSettingsStore()
   if (!String(globalSettings.authCode ?? '').trim()) {
-    showSaveError('请先在「任务配置」中填写授权码')
+    showSaveError('请先在顶部填写 API-Key（授权码）')
     return
   }
   try {
@@ -304,35 +347,73 @@ async function saveConfig() {
   saving.value = true
   try {
     const payload = snapshotForm()
-    if (props.taskConfigId != null) {
-      await updateFeishuTaskConfig(props.taskConfigId, payload)
-      showSaveSuccess()
-      emit('saved', props.taskConfigId)
+    const existingId = effectiveTaskConfigId()
+    let targetId: number
+    if (existingId != null) {
+      await updateFeishuTaskConfig(existingId, payload)
+      targetId = existingId
     } else {
       const { id } = await createFeishuTaskConfig(payload)
-      showSaveSuccess()
-      emit('saved', id)
+      internalConfigId.value = id
+      targetId = id
     }
+    savedTaskIdForPreview.value = targetId
+    previewRows.value = buildTaskConfigPreviewRows(snapshotForPreview(payload as Record<string, unknown>))
+    showSaveSuccess()
+    previewVisible.value = true
   } catch (e) {
     showSaveError(e instanceof Error ? e.message : '保存失败')
   } finally {
     saving.value = false
   }
 }
+
+/** 与任务列表「启动」一致：解除暂停并清除异常标记，由服务端推导运行态 */
+async function executeFromPreview() {
+  const id = savedTaskIdForPreview.value
+  if (id == null || previewExecuting.value) return
+  previewExecuting.value = true
+  try {
+    const detail = await getFeishuTaskConfig(id)
+    const cfg = JSON.parse(JSON.stringify(detail.config)) as Record<string, unknown>
+    Object.assign(cfg, {
+      taskPaused: false,
+      taskAbnormal: false,
+      runStatus: 'stopped',
+    })
+    await updateFeishuTaskConfig(id, cfg)
+    ElMessage.success('已开始分配任务')
+    previewVisible.value = false
+    emit('saved', id)
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '启动失败')
+  } finally {
+    previewExecuting.value = false
+  }
+}
+
+function leavePreviewWithoutExecute() {
+  const id = savedTaskIdForPreview.value
+  previewVisible.value = false
+  if (id != null) emit('saved', id)
+}
+
+function onBackRequested() {
+  if (previewVisible.value) previewVisible.value = false
+  emit('back')
+}
 </script>
 
 <template>
   <div class="flex min-h-0 flex-col gap-6 pb-8">
     <div class="flex items-center gap-3">
-      <el-button link type="primary" @click="emit('back')">← 返回任务列表</el-button>
+      <el-button link type="primary" @click="onBackRequested">← 返回任务列表</el-button>
     </div>
-
-    <TaskGlobalConfigBar />
 
     <el-alert
       v-if="saveBanner === 'success'"
       type="success"
-      title="配置已保存"
+      title="配置已保存，请预览后选择是否立即执行"
       show-icon
       closable
       class="save-banner sticky top-0 z-20 mb-3 max-w-3xl shadow-sm"
@@ -348,53 +429,47 @@ async function saveConfig() {
       @close="saveBanner = null"
     />
 
+    <TaskConfigPreviewDialog
+      v-model="previewVisible"
+      :rows="previewRows"
+      :executing="previewExecuting"
+      @execute="executeFromPreview"
+      @leave="leavePreviewWithoutExecute"
+    />
+
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="max-w-3xl">
-      <el-collapse v-model="activePanels" class="task-form-collapse">
-        <el-collapse-item title="基础信息" name="basic">
-          <BasicInfoSection :form="form" />
-        </el-collapse-item>
+      <el-steps
+        :active="currentStep"
+        finish-status="success"
+        align-center
+        class="task-create-steps mb-6"
+      >
+        <el-step v-for="(t, i) in stepTitles" :key="i" :title="t" />
+      </el-steps>
 
-        <el-collapse-item title="关键词管理" name="keywords">
-          <KeywordsSection
-            :form="form"
-            :keyword-draft="keywordDraft"
-            @update:keyword-draft="keywordDraft = $event"
-          />
-        </el-collapse-item>
-
-        <el-collapse-item title="过滤设置" name="filter">
-          <FilterSettingsSection
-            :form="form"
-            :exclude-keyword-draft="excludeKeywordDraft"
-            @update:exclude-keyword-draft="excludeKeywordDraft = $event"
-          />
-        </el-collapse-item>
-
-        <el-collapse-item title="信源选择" name="sources">
-          <SourceSelectionSection :form="form" :ordered-platforms="orderedSelectedPlatforms" />
-        </el-collapse-item>
-
-        <el-collapse-item name="retention">
-          <template #title>
-            <span class="retention-collapse-title inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
-              <svg
-                class="size-4 shrink-0 text-slate-600"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.75"
-                aria-hidden="true"
-              >
-                <path d="M6 4h9l3 3v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" />
-                <path d="M8 12h8M8 16h5" stroke-linecap="round" />
-              </svg>
-              数据沉淀配置
-            </span>
-          </template>
-
-          <DataRetentionSection :form="form" />
-        </el-collapse-item>
-      </el-collapse>
+      <div v-show="currentStep === 0">
+        <BasicInfoSection :form="form" />
+      </div>
+      <div v-show="currentStep === 1">
+        <KeywordsSection
+          :form="form"
+          :keyword-draft="keywordDraft"
+          @update:keyword-draft="keywordDraft = $event"
+        />
+      </div>
+      <div v-show="currentStep === 2">
+        <FilterSettingsSection
+          :form="form"
+          :exclude-keyword-draft="excludeKeywordDraft"
+          @update:exclude-keyword-draft="excludeKeywordDraft = $event"
+        />
+      </div>
+      <div v-show="currentStep === 3">
+        <SourceSelectionSection :form="form" :ordered-platforms="orderedSelectedPlatforms" />
+      </div>
+      <div v-show="currentStep === 4">
+        <DataRetentionSection :form="form" />
+      </div>
     </el-form>
 
     <div class="footer-actions max-w-3xl border-t border-slate-100 pt-6">
@@ -406,9 +481,30 @@ async function saveConfig() {
         </span>
         <span>当前余额: {{ accountPoints.currentBalancePoints }}点</span>
       </div>
+      <div class="mb-3 flex flex-wrap items-center gap-2">
+        <el-button :disabled="currentStep === 0" @click="goPrevStep">上一步</el-button>
+        <el-button v-if="currentStep < LAST_STEP" type="primary" @click="goNextStep">下一步</el-button>
+        <span v-if="currentStep < LAST_STEP" class="text-xs text-slate-500">完成全部步骤后可点击「保存配置」</span>
+      </div>
       <div class="flex w-full gap-3">
         <el-button class="flex-1" @click="resetForm">重置</el-button>
-        <el-button type="primary" class="flex-1" :loading="saving" @click="saveConfig">保存配置</el-button>
+        <el-tooltip
+          :disabled="currentStep === LAST_STEP"
+          content="请先通过「下一步」完成全部步骤"
+          placement="top"
+        >
+          <span class="inline-flex flex-1">
+            <el-button
+              type="primary"
+              class="w-full"
+              :loading="saving"
+              :disabled="currentStep !== LAST_STEP"
+              @click="saveConfig"
+            >
+              保存配置
+            </el-button>
+          </span>
+        </el-tooltip>
       </div>
     </div>
   </div>
@@ -419,34 +515,31 @@ async function saveConfig() {
   font-size: 0.875rem;
 }
 
-.task-form-collapse {
-  border: none;
+/* 飞书窄容器内避免步骤标题换行：略缩字号 + 单行 */
+.task-create-steps :deep(.el-step__title) {
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  margin-top: 0.25rem;
+  padding: 0 0.125rem;
 }
 
-.task-form-collapse :deep(.el-collapse-item) {
-  margin-bottom: 0.5rem;
-  border: 1px solid rgb(226 232 240);
-  border-radius: 0.5rem;
-  overflow: hidden;
-  background: #fff;
+.task-create-steps :deep(.el-step__head) {
+  margin-right: 0;
 }
 
-.task-form-collapse :deep(.el-collapse-item__header) {
-  height: auto;
-  min-height: 48px;
-  padding: 0 1rem;
-  font-size: 0.875rem;
+.task-create-steps :deep(.el-step__line) {
+  margin: 0 0.125rem;
+}
+
+.task-create-steps :deep(.el-step__icon) {
+  width: 1.375rem;
+  height: 1.375rem;
+  font-size: 0.6875rem;
+}
+
+.task-create-steps :deep(.el-step__icon-inner) {
+  font-size: 0.6875rem;
   font-weight: 600;
-  color: rgb(30 41 59);
-  background: rgb(248 250 252);
-}
-
-.task-form-collapse :deep(.el-collapse-item__wrap) {
-  border-bottom: none;
-}
-
-.task-form-collapse :deep(.el-collapse-item__content) {
-  padding: 1rem 1rem 1.25rem;
-  padding-bottom: 1.25rem;
 }
 </style>

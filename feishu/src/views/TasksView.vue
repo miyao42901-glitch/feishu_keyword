@@ -35,9 +35,6 @@ const deleteTarget = ref<TaskCardModel | null>(null)
 const deleteSubmitting = ref(false)
 const deleteError = ref('')
 
-/** 已完成/失败：点击「重启」后在对应卡片底部展示提示条（无弹框） */
-const restartHintTaskId = ref<number | null>(null)
-
 const listTip = ref<string | null>(null)
 let listTipTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -126,9 +123,37 @@ const taskStats = computed(() => {
   return {
     total: list.length,
     running: list.filter((t) => t.status === 'running').length,
-    completed: list.filter((t) => t.status === 'completed').length,
+    stopped: list.filter((t) => t.status === 'stopped').length,
   }
 })
+
+/** 点击统计卡片筛选列表：`all` | `running` | `stopped` */
+const listFilter = ref<'all' | 'running' | 'stopped'>('all')
+
+const displayedTasks = computed(() => {
+  switch (listFilter.value) {
+    case 'running':
+      return tasks.value.filter((t) => t.status === 'running')
+    case 'stopped':
+      return tasks.value.filter((t) => t.status === 'stopped')
+    default:
+      return tasks.value
+  }
+})
+
+const listFilterLoading = ref(false)
+
+/** 切换统计维度时重新拉列表，保证与后端状态一致 */
+async function selectListFilter(next: 'all' | 'running' | 'stopped') {
+  if (listFilterLoading.value) return
+  listFilter.value = next
+  listFilterLoading.value = true
+  try {
+    await loadTaskList()
+  } finally {
+    listFilterLoading.value = false
+  }
+}
 
 /** 停止/启动后：优先用 PUT 返回的 `display_status` 覆盖；否则再拉详情（列表缺字段时） */
 async function mergeTaskCardFromDetail(id: number, wr?: FeishuTaskConfigWriteResult) {
@@ -222,7 +247,6 @@ async function openView(row: TaskCardModel) {
 }
 
 async function openEdit(row: TaskCardModel) {
-  restartHintTaskId.value = null
   editingTaskId.value = row.id
   taskDetail.value = null
   screen.value = 'create'
@@ -238,10 +262,6 @@ async function openEdit(row: TaskCardModel) {
 }
 
 async function onPrimaryAction(row: TaskCardModel) {
-  if (row.status === 'completed' || row.status === 'failed') {
-    restartHintTaskId.value = restartHintTaskId.value === row.id ? null : row.id
-    return
-  }
   if (primaryActionRowId.value != null) return
   primaryActionRowId.value = row.id
   try {
@@ -253,7 +273,9 @@ async function onPrimaryAction(row: TaskCardModel) {
         showListTip(wr.display_status === 'stopped' ? '已停止' : '已保存')
         break
       }
-      case 'stopped': {
+      case 'stopped':
+      case 'completed':
+      case 'failed': {
         const wr = await patchTaskConfig(row.id, {
           taskPaused: false,
           taskAbnormal: false,
@@ -263,10 +285,12 @@ async function onPrimaryAction(row: TaskCardModel) {
         await mergeTaskCardFromDetail(row.id, wr)
         if (wr.display_status === 'running') {
           showListTip('已启动')
+        } else if (wr.display_status === 'completed') {
+          showListTip('任务已过期或未在窗口内，请编辑生效/过期时间后再启动')
         } else if (parseBackendStoppedKind(wr) === 'before_effective') {
           showListTip('未到生效时间，仍为已停止')
         } else {
-          showListTip('配置已保存')
+          showListTip('已提交')
         }
         break
       }
@@ -280,10 +304,6 @@ async function onPrimaryAction(row: TaskCardModel) {
   } finally {
     primaryActionRowId.value = null
   }
-}
-
-function onDismissRestartHint() {
-  restartHintTaskId.value = null
 }
 
 function onDeleteTask(row: TaskCardModel) {
@@ -387,40 +407,69 @@ async function confirmDeleteTask() {
         </div>
 
         <div class="grid min-w-0 grid-cols-3 gap-2 sm:gap-3">
-          <div
-            class="min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-4 text-center shadow-sm sm:px-4 sm:py-5"
-          >
-            <div class="text-2xl font-bold leading-none text-[#3355FF] sm:text-3xl">{{ taskStats.total }}</div>
-            <div class="mt-1.5 truncate text-xs text-slate-600 sm:mt-2 sm:text-sm">总任务数</div>
-          </div>
-          <div
-            class="min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-4 text-center shadow-sm sm:px-4 sm:py-5"
+          <button
+            type="button"
+            class="min-w-0 rounded-lg border px-2 py-4 text-center shadow-sm transition-colors sm:px-4 sm:py-5 disabled:cursor-not-allowed disabled:opacity-60"
+            :class="
+              listFilter === 'running'
+                ? 'border-indigo-500 bg-indigo-50/90 ring-1 ring-indigo-500/30'
+                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+            "
+            :disabled="listFilterLoading"
+            @click="selectListFilter('running')"
           >
             <div class="text-2xl font-bold leading-none text-[#3355FF] sm:text-3xl">{{ taskStats.running }}</div>
-            <div class="mt-1.5 truncate text-xs text-slate-600 sm:mt-2 sm:text-sm">运行中</div>
-          </div>
-          <div
-            class="min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-4 text-center shadow-sm sm:px-4 sm:py-5"
+            <div class="mt-1.5 whitespace-nowrap text-[11px] leading-none text-slate-600 sm:text-xs">
+              运行中
+            </div>
+          </button>
+          <button
+            type="button"
+            class="min-w-0 rounded-lg border px-2 py-4 text-center shadow-sm transition-colors sm:px-4 sm:py-5 disabled:cursor-not-allowed disabled:opacity-60"
+            :class="
+              listFilter === 'stopped'
+                ? 'border-indigo-500 bg-indigo-50/90 ring-1 ring-indigo-500/30'
+                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+            "
+            :disabled="listFilterLoading"
+            @click="selectListFilter('stopped')"
           >
-            <div class="text-2xl font-bold leading-none text-[#3355FF] sm:text-3xl">{{ taskStats.completed }}</div>
-            <div class="mt-1.5 truncate text-xs text-slate-600 sm:mt-2 sm:text-sm">已完成</div>
-          </div>
+            <div class="text-2xl font-bold leading-none text-[#3355FF] sm:text-3xl">{{ taskStats.stopped }}</div>
+            <div class="mt-1.5 whitespace-nowrap text-[11px] leading-none text-slate-600 sm:text-xs">
+              已停止
+            </div>
+          </button>
+          <button
+            type="button"
+            class="min-w-0 rounded-lg border px-2 py-4 text-center shadow-sm transition-colors sm:px-4 sm:py-5 disabled:cursor-not-allowed disabled:opacity-60"
+            :class="
+              listFilter === 'all'
+                ? 'border-indigo-500 bg-indigo-50/90 ring-1 ring-indigo-500/30'
+                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+            "
+            :disabled="listFilterLoading"
+            @click="selectListFilter('all')"
+          >
+            <div class="text-2xl font-bold leading-none text-[#3355FF] sm:text-3xl">{{ taskStats.total }}</div>
+            <div class="mt-1.5 whitespace-nowrap text-[11px] leading-none text-slate-600 sm:text-xs">
+              总任务数
+            </div>
+          </button>
         </div>
 
-        <div v-if="tasks.length > 0" class="flex flex-col gap-4">
+        <div v-if="displayedTasks.length > 0" class="flex flex-col gap-4">
           <TaskListCard
-            v-for="row in tasks"
+            v-for="row in displayedTasks"
             :key="row.id"
             :row="row"
             :primary-loading="isPrimaryLoadingFor(row.id)"
-            :restart-hint="restartHintTaskId === row.id"
             @view="openView"
             @edit="openEdit"
             @primary-action="onPrimaryAction"
-            @dismiss-restart-hint="onDismissRestartHint"
             @delete="onDeleteTask"
           />
         </div>
+        <p v-else-if="tasks.length > 0" class="py-6 text-center text-sm text-slate-400">当前筛选下暂无任务</p>
         <p v-else class="py-6 text-center text-sm text-slate-400">暂无任务</p>
       </section>
     </template>

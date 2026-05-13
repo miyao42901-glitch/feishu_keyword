@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Calendar, Clock, Promotion, WarningFilled } from '@element-plus/icons-vue'
+import { Calendar, Clock, Promotion } from '@element-plus/icons-vue'
 import type { TaskCardModel } from '@/views/tasks/types'
 import type { TaskRunStatus } from '@/views/TaskCreateForm/types'
 
@@ -10,10 +10,8 @@ const props = withDefaults(
     row: TaskCardModel
     /** 主操作（停止/启动/重启）请求中 */
     primaryLoading?: boolean
-    /** 已完成/失败：点击「重启」后在卡片内展示提示条（无弹框） */
-    restartHint?: boolean
   }>(),
-  { primaryLoading: false, restartHint: false },
+  { primaryLoading: false },
 )
 
 const emit = defineEmits<{
@@ -21,7 +19,6 @@ const emit = defineEmits<{
   edit: [row: TaskCardModel]
   primaryAction: [row: TaskCardModel]
   delete: [row: TaskCardModel]
-  dismissRestartHint: []
 }>()
 
 const statusStyles: Record<
@@ -82,12 +79,12 @@ function onPrimary() {
     </div>
 
     <div class="space-y-3 p-4">
-      <div class="flex items-start justify-between gap-3 pr-1">
-        <h3 class="text-[15px] font-semibold leading-snug text-slate-800">
+      <div class="flex min-w-0 items-start justify-between gap-2 pr-1">
+        <h3 class="min-w-0 flex-1 truncate text-sm font-semibold leading-snug text-slate-800">
           {{ row.name }}
         </h3>
         <span
-          class="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
+          class="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium leading-none"
           :class="[statusStyles[row.status].wrap, statusStyles[row.status].text]"
         >
           <span
@@ -98,21 +95,21 @@ function onPrimary() {
         </span>
       </div>
 
-      <div class="flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-500">
-        <span class="inline-flex items-center gap-1.5">
-          <el-icon class="text-slate-400" :size="14">
+      <div class="flex min-w-0 flex-wrap gap-x-4 gap-y-1.5 text-[11px] leading-tight text-slate-500">
+        <span class="inline-flex min-w-0 max-w-full items-center gap-1">
+          <el-icon class="shrink-0 text-slate-400" :size="13">
             <Promotion />
           </el-icon>
-          {{ row.platformsLabel }}
+          <span class="min-w-0 truncate">{{ row.platformsLabel }}</span>
         </span>
-        <span class="inline-flex items-center gap-1.5">
-          <el-icon class="text-slate-400" :size="14">
+        <span class="inline-flex shrink-0 items-center gap-1">
+          <el-icon class="text-slate-400" :size="13">
             <Clock />
           </el-icon>
           {{ row.taskTypeLabel }}
         </span>
-        <span class="inline-flex items-center gap-1.5">
-          <el-icon class="text-slate-400" :size="14">
+        <span class="inline-flex shrink-0 items-center gap-1">
+          <el-icon class="text-slate-400" :size="13">
             <Calendar />
           </el-icon>
           {{ row.dateLabel }}
@@ -121,7 +118,7 @@ function onPrimary() {
     </div>
 
     <div class="border-t border-slate-100 px-4 py-2.5">
-      <div class="flex flex-wrap items-center gap-x-1 gap-y-1 text-sm">
+      <div class="flex flex-wrap items-center gap-x-1 gap-y-1 text-xs">
         <button
           type="button"
           class="cursor-pointer rounded px-2 py-1 text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700"
@@ -155,29 +152,6 @@ function onPrimary() {
             删除
           </button>
         </div>
-      </div>
-    </div>
-
-    <div
-      v-if="restartHint"
-      class="border-t border-red-100 bg-red-50 px-4 py-2.5"
-      role="alert"
-    >
-      <div class="flex items-start gap-2 pr-1">
-        <el-icon class="mt-0.5 shrink-0 text-amber-500" :size="18" aria-hidden="true">
-          <WarningFilled />
-        </el-icon>
-        <p class="m-0 min-w-0 flex-1 text-sm leading-relaxed text-red-600">
-          该任务有效期已过，请重新配置时间
-        </p>
-        <button
-          type="button"
-          class="shrink-0 rounded px-1.5 py-0.5 text-xs text-red-500 hover:bg-red-100"
-          aria-label="关闭提示"
-          @click.stop="emit('dismissRestartHint')"
-        >
-          ×
-        </button>
       </div>
     </div>
   </el-card>

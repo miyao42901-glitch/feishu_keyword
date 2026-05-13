@@ -1,9 +1,26 @@
 /**
  * 独立计费站（api.yddm.com）HTTP 封装，与 `lib/api.ts`（飞书插件后端）完全分离。
  * 响应体兼容 `message` 或 `msg` 字段。
+ *
+ * - **本地 `npm run dev`**：默认请求同源 `/yddm-api`（见 `vite.config.ts` 代理），避免浏览器 CORS。
+ * - **生产**：默认直连 `https://api.yddm.com`；若仍有 CORS，请在对方网关配置允许飞书页面 Origin，或设置 `VITE_YDDM_API_BASE` 为你方可控的反代地址。
  */
 
-export const YDDM_API_BASE = 'https://api.yddm.com'
+const YDDM_UPSTREAM = 'https://api.yddm.com'
+
+/** 上游计费域（展示用） */
+export const YDDM_UPSTREAM_ORIGIN = YDDM_UPSTREAM
+
+/**
+ * 实际发起 fetch 使用的根地址（无末尾 `/`）。
+ * 优先级：`VITE_YDDM_API_BASE` → 开发模式为 `/yddm-api` → 否则为上游域名。
+ */
+export function getYddmApiBase(): string {
+  const raw = (import.meta.env.VITE_YDDM_API_BASE as string | undefined)?.trim()
+  if (raw) return raw.replace(/\/$/, '')
+  if (import.meta.env.DEV) return '/yddm-api'
+  return YDDM_UPSTREAM
+}
 
 /** 与 `/auth/register` 入参一致 */
 export interface YddmRegisterRequest {
@@ -12,6 +29,28 @@ export interface YddmRegisterRequest {
   password: string
   phone_num?: string
   [property: string]: unknown
+}
+
+/** `POST /auth/login` — 插件侧仅传手机号与密码 */
+export interface YddmLoginRequest {
+  phone_num: string
+  password: string
+  [property: string]: unknown
+}
+
+/** `/auth/login` 成功时 `data` 结构（字段以实际接口为准） */
+export interface YddmLoginUser {
+  id: number
+  email?: string
+  phone_num?: string
+  api_key: string
+  balance_cents?: number
+}
+
+export interface YddmLoginData {
+  access_token: string
+  token_type: string
+  user: YddmLoginUser
 }
 
 type YddmEnvelope<T> = {
@@ -37,7 +76,7 @@ function unwrapYddm<T>(body: unknown): T {
 }
 
 export async function yddmPostJson<T>(path: string, body: unknown): Promise<T> {
-  const url = `${YDDM_API_BASE}${path.startsWith('/') ? path : `/${path}`}`
+  const url = `${getYddmApiBase()}${path.startsWith('/') ? path : `/${path}`}`
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -65,4 +104,9 @@ export async function yddmPostJson<T>(path: string, body: unknown): Promise<T> {
 /** `POST /auth/register` */
 export function yddmRegister(payload: YddmRegisterRequest) {
   return yddmPostJson<unknown>('/auth/register', payload)
+}
+
+/** `POST /auth/login` */
+export function yddmLogin(payload: YddmLoginRequest) {
+  return yddmPostJson<YddmLoginData | null>('/auth/login', payload)
 }
