@@ -4,6 +4,7 @@
 
 
 # Python（仅根路径 python/）
+__pycache__
 .idea/
 .vscode/
 python/.env
