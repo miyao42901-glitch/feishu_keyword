@@ -16,7 +16,7 @@ const accountPoints = useAccountPointsStore()
     <header
       class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3"
     >
-      <h1 class="truncate text-sm font-semibold text-slate-900">飞书关键词监控插件</h1>
+      <h1 class="truncate text-sm font-semibold text-slate-900">关键词监控</h1>
       <span class="shrink-0 text-sm text-slate-700">当前余额: {{ accountPoints.currentBalancePoints }}点</span>
     </header>
     <div class="shrink-0 border-b border-slate-200 bg-white px-4 py-3">
