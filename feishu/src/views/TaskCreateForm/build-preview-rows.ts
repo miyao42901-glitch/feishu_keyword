@@ -39,7 +39,7 @@ export function buildTaskConfigPreviewRows(cfg: Record<string, unknown>): { labe
   const planName = typeof cfg.planName === 'string' ? cfg.planName.trim() : ''
   rows.push({ label: '方案名称', value: planName || '—' })
 
-  const taskType = cfg.taskType === 'realtime' ? '单词任务' : '定时任务'
+  const taskType = cfg.taskType === 'realtime' ? '单次任务' : '定时任务'
   rows.push({ label: '任务类型', value: taskType })
 
   if (cfg.taskType !== 'realtime') {
@@ -148,7 +148,7 @@ export function buildTaskConfigConfirmRows(cfg: Record<string, unknown>): TaskCo
   const rows: TaskConfigConfirmRow[] = []
   const isRealtime = cfg.taskType === 'realtime'
 
-  const taskTypeLabel = isRealtime ? '单词任务' : '定时任务'
+  const taskTypeLabel = isRealtime ? '单次任务' : '定时任务'
   rows.push({ kind: 'text', label: '任务类型', value: taskTypeLabel })
 
   const planName = typeof cfg.planName === 'string' ? cfg.planName.trim() : ''

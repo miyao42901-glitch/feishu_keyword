@@ -118,7 +118,7 @@ const orderedSelectedPlatforms = computed(() =>
 const accountPoints = useAccountPointsStore()
 const pointsEstimate = computed(() => estimateTaskPointsBreakdown(form))
 
-/** 仅定时任务校验开始/结束时间；单词任务不展示时间字段 */
+/** 仅定时任务校验开始/结束时间；单次任务不展示时间字段 */
 const rules = computed<FormRules>(() => ({
   planName: [{ required: true, message: '请输入方案名称', trigger: 'blur' }],
   feishuWebhookUrl: [

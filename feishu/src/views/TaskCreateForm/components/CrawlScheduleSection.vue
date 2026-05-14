@@ -53,7 +53,7 @@ function onExpireDisabledTime(date: Date) {
       </el-form-item>
     </div>
   </div>
-  <p v-else class="mb-4 text-sm text-slate-500">单词任务按单次关键词执行，无需配置采集频率与时间窗口。</p>
+  <p v-else class="mb-4 text-sm text-slate-500">单次任务按关键词单次执行，无需配置采集频率与时间窗口。</p>
 </template>
 
 <style scoped>

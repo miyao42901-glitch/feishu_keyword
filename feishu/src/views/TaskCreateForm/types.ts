@@ -37,7 +37,7 @@ export type SourceFieldKey =
   | 'noteType'
   | 'mentionedUsers'
 
-/** 定时任务需填写开始/结束时间；单词任务不展示时间选择 */
+/** 定时任务需填写开始/结束时间；单次任务不展示时间选择 */
 export type TaskType = 'scheduled' | 'realtime'
 
 /** 列表排序口径 */

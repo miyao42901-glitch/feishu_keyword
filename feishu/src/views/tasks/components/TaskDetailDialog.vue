@@ -30,7 +30,7 @@ const planName = computed(() => {
 const isRealtime = computed(() => cfg.value.taskType === 'realtime')
 
 const taskTypeLabel = computed(() =>
-  cfg.value.taskType === 'realtime' ? '单词任务' : '定时任务',
+  cfg.value.taskType === 'realtime' ? '单次任务' : '定时任务',
 )
 
 function formatDateTime(raw: unknown): string {
