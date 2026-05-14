@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import dayjs from 'dayjs'
-import { computed, onMounted, onScopeDispose, ref } from 'vue'
+import { computed, onMounted, onScopeDispose, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import TaskCreateForm from '@/views/TaskCreateForm/index.vue'
 import { platformDisplayNames, sourcePlatforms } from '@/views/TaskCreateForm/constants'
@@ -21,6 +21,11 @@ import {
 } from '@/lib/api'
 
 const tasks = ref<TaskCardModel[]>([])
+/** 列表每页条数 */
+const TASK_PAGE_SIZE = 5
+const listCurrentPage = ref(1)
+/** 「前往」页码输入草稿，需点击「确定」才翻页 */
+const jumpPageDraft = ref(1)
 const screen = ref<'list' | 'create'>('list')
 const editingTaskId = ref<number | null>(null)
 const taskDetail = ref<FeishuTaskConfigDetail | null>(null)
@@ -123,7 +128,7 @@ const taskStats = computed(() => {
   return {
     total: list.length,
     running: list.filter((t) => t.status === 'running').length,
-    stopped: list.filter((t) => t.status === 'stopped').length,
+    stopped: list.filter((t) => t.status === 'stopped' || t.status === 'pending_run').length,
   }
 })
 
@@ -135,11 +140,46 @@ const displayedTasks = computed(() => {
     case 'running':
       return tasks.value.filter((t) => t.status === 'running')
     case 'stopped':
-      return tasks.value.filter((t) => t.status === 'stopped')
+      return tasks.value.filter((t) => t.status === 'stopped' || t.status === 'pending_run')
     default:
       return tasks.value
   }
 })
+
+/** 当前筛选下的分页切片 */
+const pagedDisplayedTasks = computed(() => {
+  const list = displayedTasks.value
+  const start = (listCurrentPage.value - 1) * TASK_PAGE_SIZE
+  return list.slice(start, start + TASK_PAGE_SIZE)
+})
+
+/** 当前筛选下的总页数 */
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(displayedTasks.value.length / TASK_PAGE_SIZE)),
+)
+
+watch(listCurrentPage, (p) => {
+  jumpPageDraft.value = p
+})
+
+watch(
+  () => displayedTasks.value.length,
+  (len) => {
+    const maxPage = Math.max(1, Math.ceil(len / TASK_PAGE_SIZE))
+    if (listCurrentPage.value > maxPage) listCurrentPage.value = maxPage
+  },
+)
+
+function confirmJumpPage() {
+  const n = Number(jumpPageDraft.value)
+  if (!Number.isFinite(n) || n < 1) {
+    ElMessage.warning('请输入有效页码')
+    return
+  }
+  const clamped = Math.min(totalPages.value, Math.max(1, Math.floor(n)))
+  listCurrentPage.value = clamped
+  jumpPageDraft.value = clamped
+}
 
 const listFilterLoading = ref(false)
 
@@ -147,6 +187,7 @@ const listFilterLoading = ref(false)
 async function selectListFilter(next: 'all' | 'running' | 'stopped') {
   if (listFilterLoading.value) return
   listFilter.value = next
+  listCurrentPage.value = 1
   listFilterLoading.value = true
   try {
     await loadTaskList()
@@ -202,9 +243,12 @@ async function loadTaskList() {
   try {
     const rows = await listFeishuTaskConfigs(0, 100)
     tasks.value = mapRows(rows)
+    const maxPage = Math.max(1, Math.ceil(displayedTasks.value.length / TASK_PAGE_SIZE))
+    if (listCurrentPage.value > maxPage) listCurrentPage.value = maxPage
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载任务列表失败')
     tasks.value = []
+    listCurrentPage.value = 1
   }
 }
 
@@ -274,6 +318,7 @@ async function onPrimaryAction(row: TaskCardModel) {
         break
       }
       case 'stopped':
+      case 'pending_run':
       case 'completed':
       case 'failed': {
         const wr = await patchTaskConfig(row.id, {
@@ -287,6 +332,8 @@ async function onPrimaryAction(row: TaskCardModel) {
           showListTip('已启动')
         } else if (wr.display_status === 'completed') {
           showListTip('任务已过期或未在窗口内，请编辑生效/过期时间后再启动')
+        } else if (wr.display_status === 'pending_run') {
+          showListTip('未到生效时间，仍为待运行')
         } else if (parseBackendStoppedKind(wr) === 'before_effective') {
           showListTip('未到生效时间，仍为已停止')
         } else {
@@ -459,7 +506,7 @@ async function confirmDeleteTask() {
 
         <div v-if="displayedTasks.length > 0" class="flex flex-col gap-4">
           <TaskListCard
-            v-for="row in displayedTasks"
+            v-for="row in pagedDisplayedTasks"
             :key="row.id"
             :row="row"
             :primary-loading="isPrimaryLoadingFor(row.id)"
@@ -468,6 +515,26 @@ async function confirmDeleteTask() {
             @primary-action="onPrimaryAction"
             @delete="onDeleteTask"
           />
+          <div
+            class="task-page-bar mx-auto flex max-w-full flex-nowrap items-center justify-center gap-1.5 overflow-x-auto pt-2 text-xs text-slate-600"
+          >
+            <el-button size="small" :disabled="listCurrentPage <= 1" @click="listCurrentPage--">
+              上一页
+            </el-button>
+            <el-button size="small" :disabled="listCurrentPage >= totalPages" @click="listCurrentPage++">
+              下一页
+            </el-button>
+            <span class="shrink-0 pl-0.5">前往</span>
+            <el-input-number
+              v-model="jumpPageDraft"
+              size="small"
+              :min="1"
+              :max="totalPages"
+              :controls="false"
+              class="task-page-jump-input shrink-0"
+            />
+            <el-button size="small" type="primary" @click="confirmJumpPage">确定</el-button>
+          </div>
         </div>
         <p v-else-if="tasks.length > 0" class="py-6 text-center text-sm text-slate-400">当前筛选下暂无任务</p>
         <p v-else class="py-6 text-center text-sm text-slate-400">暂无任务</p>
@@ -475,3 +542,13 @@ async function confirmDeleteTask() {
     </template>
   </div>
 </template>
+
+<style scoped>
+.task-page-jump-input {
+  width: 3.75rem;
+}
+.task-page-jump-input :deep(.el-input__wrapper) {
+  padding-left: 0.375rem;
+  padding-right: 0.375rem;
+}
+</style>

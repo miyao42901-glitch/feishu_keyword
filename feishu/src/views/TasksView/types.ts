@@ -1,7 +1,7 @@
 /**
  * 任务列表展示模型（列表接口未返回运行态与信源时，由前端补充占位或本地推导）。
  */
-export type TaskListStatus = 'running' | 'completed' | 'stopped' | 'failed'
+export type TaskListStatus = 'running' | 'completed' | 'stopped' | 'failed' | 'pending_run'
 
 export type TaskListTaskType = 'scheduled' | 'realtime'
 

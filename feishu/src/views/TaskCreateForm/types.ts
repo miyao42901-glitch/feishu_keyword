@@ -53,7 +53,7 @@ export type VideoDuration = 'all' | 'lt1m' | '1to5m' | 'gt5m'
 export type TableMode = 'new' | 'existing'
 
 /** 列表卡片展示用运行态（由生效/过期时间与 taskPaused、失败标记推导） */
-export type TaskRunStatus = 'running' | 'completed' | 'stopped' | 'failed'
+export type TaskRunStatus = 'running' | 'completed' | 'stopped' | 'failed' | 'pending_run'
 
 /** 已停止子类：未到生效时间 vs 窗口内暂停 */
 export type TaskStoppedKind = 'before_effective' | 'paused_in_window' | 'neutral'

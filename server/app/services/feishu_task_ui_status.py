@@ -12,7 +12,7 @@ from typing import Any, Optional, Tuple
 
 from app.services.feishu_task_config_service import task_paused_from_config
 
-_DISPLAY = frozenset({"running", "stopped", "completed", "failed"})
+_DISPLAY = frozenset({"running", "stopped", "completed", "failed", "pending_run"})
 _STOPPED_KIND = frozenset({"before_effective", "paused_in_window", "neutral"})
 
 
@@ -80,7 +80,7 @@ def _derive_list_status(
         if is_failed:
             return "failed"
         if now_ms < eff_ms:
-            return "stopped"
+            return "pending_run"
         if task_paused:
             return "stopped"
         return "running"
@@ -89,7 +89,7 @@ def _derive_list_status(
         if is_failed:
             return "failed"
         if now_ms < eff_ms:
-            return "stopped"
+            return "pending_run"
         if task_paused:
             return "stopped"
         return "running"
@@ -117,6 +117,7 @@ def compute_card_status(
     """
     返回 (`display_status`, `stopped_kind`)。
     `stopped_kind` 仅在 `display_status == stopped` 时有值，否则为 None。
+    `pending_run` 表示未到 `effectiveAt`、尚未进入运行窗口（与窗口内暂停的 `stopped` 区分）。
     """
     if now_ms is None:
         now_ms = int(time.time() * 1000)

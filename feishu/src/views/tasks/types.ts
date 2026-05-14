@@ -18,6 +18,6 @@ export interface TaskCardModel {
   /** 用于主操作：重选时间 / 区分启动场景 */
   effectiveAtRaw: string | null
   expireAtRaw: string | null
-  /** 仅在 `status === 'stopped'` 时用于区分「未到生效」与「窗口内暂停」 */
+  /** 仅在 `status === 'stopped'` 时用于区分「未到生效」与「窗口内暂停」；`pending_run` 时恒为 `neutral` */
   stoppedKind: TaskStoppedKind
 }

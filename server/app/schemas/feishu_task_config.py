@@ -37,7 +37,7 @@ class FeishuTaskConfigWriteOut(BaseModel):
     id: int
     display_status: str = Field(
         ...,
-        description="保存后根据入库 config 与当前时间计算的卡片状态。",
+        description="保存后根据入库 config 与当前时间计算的卡片状态：`running`|`stopped`|`pending_run`|`completed`|`failed`。",
     )
     stopped_kind: Optional[str] = Field(
         default=None,
@@ -88,7 +88,7 @@ class FeishuTaskConfigListItemOut(BaseModel):
     )
     display_status: str = Field(
         ...,
-        description="服务端根据 config 与当前时间计算的卡片状态：`running`|`stopped`|`completed`|`failed`。",
+        description="服务端根据 config 与当前时间计算的卡片状态：`running`|`stopped`|`pending_run`|`completed`|`failed`。",
     )
     stopped_kind: Optional[str] = Field(
         default=None,
@@ -108,7 +108,7 @@ class FeishuTaskConfigDetailOut(BaseModel):
     updated_at: Optional[datetime] = None
     display_status: str = Field(
         ...,
-        description="与列表一致：服务端根据 config 与当前时间计算的卡片状态。",
+        description="与列表一致：服务端根据 config 与当前时间计算的卡片状态（含 `pending_run`）。",
     )
     stopped_kind: Optional[str] = Field(
         default=None,

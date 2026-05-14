@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Calendar, Clock, Promotion } from '@element-plus/icons-vue'
+import { computed } from 'vue'
 import type { TaskCardModel } from '@/views/tasks/types'
 import type { TaskRunStatus } from '@/views/TaskCreateForm/types'
 
@@ -43,6 +44,12 @@ const statusStyles: Record<
     wrap: 'bg-amber-50',
     text: 'text-amber-800',
   },
+  pending_run: {
+    label: '待运行',
+    dot: 'bg-[#1a73e8]',
+    wrap: 'bg-[#e8f0fe]',
+    text: 'text-[#174ea6]',
+  },
   failed: {
     label: '失败',
     dot: 'bg-red-600',
@@ -59,10 +66,20 @@ function primaryActionLabel(status: TaskRunStatus): string {
       return '重启'
     case 'stopped':
       return '启动'
+    case 'pending_run':
+      return '重试'
     case 'failed':
-      return '重启'
+      return '重试'
   }
 }
+
+/** 仅运行中展示「编辑」（禁用）；其它状态不展示编辑入口 */
+const showEditDisabled = computed(() => props.row.status === 'running')
+
+/** 运行中：停止；失败 / 待运行：重试 */
+const showPrimaryAction = computed(() =>
+  ['running', 'failed', 'pending_run'].includes(props.row.status),
+)
 
 function onPrimary() {
   emit('primaryAction', props.row)
@@ -127,13 +144,15 @@ function onPrimary() {
           查看
         </button>
         <button
+          v-if="showEditDisabled"
           type="button"
-          class="cursor-pointer rounded px-2 py-1 text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700"
-          @click.stop="emit('edit', row)"
+          disabled
+          class="cursor-not-allowed rounded px-2 py-1 text-slate-400 opacity-70"
         >
           编辑
         </button>
         <el-button
+          v-if="showPrimaryAction"
           link
           type="primary"
           class="!px-2 !py-1"

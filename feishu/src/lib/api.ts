@@ -116,15 +116,17 @@ export type FeishuTaskConfigListItem = {
   stoppedKind?: string | null
 }
 
-const BACKEND_DISPLAY = new Set(['running', 'stopped', 'completed', 'failed'])
+const BACKEND_DISPLAY = new Set(['running', 'stopped', 'completed', 'failed', 'pending_run'])
 const BACKEND_STOPPED_KIND = new Set(['before_effective', 'paused_in_window', 'neutral'])
 
 /** 列表/详情中的展示状态：仅展示后端返回值，缺省回退 `stopped` */
-export function parseBackendDisplayStatus(raw: unknown): 'running' | 'stopped' | 'completed' | 'failed' {
+export function parseBackendDisplayStatus(
+  raw: unknown,
+): 'running' | 'stopped' | 'completed' | 'failed' | 'pending_run' {
   const o = raw as Record<string, unknown> | null | undefined
   const v = (typeof raw === 'string' ? raw : o?.display_status ?? o?.displayStatus) as string | undefined
   const s = typeof v === 'string' ? v.trim().toLowerCase() : ''
-  if (BACKEND_DISPLAY.has(s)) return s as 'running' | 'stopped' | 'completed' | 'failed'
+  if (BACKEND_DISPLAY.has(s)) return s as 'running' | 'stopped' | 'completed' | 'failed' | 'pending_run'
   return 'stopped'
 }
 

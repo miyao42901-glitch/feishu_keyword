@@ -245,6 +245,7 @@ function normalizeRunStatus(raw: unknown): TaskRunStatus {
   if (raw === 'running' || raw === 'completed' || raw === 'stopped' || raw === 'failed') {
     return raw
   }
+  if (raw === 'pending_run') return 'stopped'
   return 'stopped'
 }
 
