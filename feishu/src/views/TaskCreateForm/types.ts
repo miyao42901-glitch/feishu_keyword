@@ -37,7 +37,7 @@ export type SourceFieldKey =
   | 'noteType'
   | 'mentionedUsers'
 
-/** 定时任务需填写生效/过期时间；实时任务不展示时间选择 */
+/** 定时任务需填写开始/结束时间；单词任务不展示时间选择 */
 export type TaskType = 'scheduled' | 'realtime'
 
 /** 列表排序口径 */
@@ -62,6 +62,10 @@ export type TaskStoppedKind = 'before_effective' | 'paused_in_window' | 'neutral
 export interface TaskCreateFormModel {
   /** 方案展示名，同步到服务端 `plan_name` */
   planName: string
+  /** 任务完成后是否推送飞书群机器人消息 */
+  feishuNotifyEnabled: boolean
+  /** 飞书自定义机器人 Webhook；仅在 `feishuNotifyEnabled` 时必填 */
+  feishuWebhookUrl: string
   taskType: TaskType
   /** 分钟间隔字符串：`1`|`5`|`10`|`30`|`60` */
   crawlFrequency: string

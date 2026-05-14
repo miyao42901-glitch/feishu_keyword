@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 折叠块「信源选择」：抖音 / 小红书；各平台用下拉多选（扁平列表，必选灰显）。
+ * 信源：按 `mode` 仅展示「采集平台」勾选，或仅展示各平台「选择采集字段」。
  */
 import { ref } from 'vue'
 import PlatformIcon from '@/components/PlatformIcon.vue'
@@ -15,6 +15,8 @@ defineOptions({ name: 'SourceSelectionSection' })
 const props = defineProps<{
   form: TaskCreateFormModel
   orderedPlatforms: { id: PlatformKey; label: string }[]
+  /** `platforms`：采集平台勾选；`fields`：已选平台下的采集字段 */
+  mode: 'platforms' | 'fields'
 }>()
 
 /** 当前展开的下拉（同时只展开一个） */
@@ -60,8 +62,9 @@ function setChecked(
 
 <template>
   <div>
+    <template v-if="props.mode === 'platforms'">
     <p class="mb-3 text-xs leading-relaxed text-slate-500">
-      当前仅支持抖音与小红书。请在各平台下拉框中选择需要写入表格的采集字段；必选字段不可取消。
+      当前仅支持抖音与小红书。请勾选需要采集的平台。
     </p>
     <el-checkbox-group v-model="form.selectedSources" class="source-platform-group">
       <div class="flex flex-wrap gap-3">
@@ -73,8 +76,15 @@ function setChecked(
         </el-checkbox>
       </div>
     </el-checkbox-group>
+    </template>
 
-    <div v-if="orderedPlatforms.length" class="mt-5 space-y-4">
+    <template v-else>
+    <p v-if="orderedPlatforms.length" class="mb-3 text-xs leading-relaxed text-slate-500">
+      请在各平台下拉框中选择需要写入表格的采集字段；必选字段不可取消。
+    </p>
+    <p v-else class="mb-3 text-sm text-slate-500">请先在「基础设置」中选择采集平台。</p>
+
+    <div v-if="orderedPlatforms.length" class="mt-1 space-y-4">
       <div
         v-for="p in orderedPlatforms"
         :key="p.id"
@@ -162,6 +172,7 @@ function setChecked(
         </el-popover>
       </div>
     </div>
+    </template>
   </div>
 </template>
 

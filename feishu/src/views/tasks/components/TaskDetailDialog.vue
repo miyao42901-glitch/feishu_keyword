@@ -30,7 +30,7 @@ const planName = computed(() => {
 const isRealtime = computed(() => cfg.value.taskType === 'realtime')
 
 const taskTypeLabel = computed(() =>
-  cfg.value.taskType === 'realtime' ? '实时任务' : '定时任务',
+  cfg.value.taskType === 'realtime' ? '单词任务' : '定时任务',
 )
 
 function formatDateTime(raw: unknown): string {
@@ -106,11 +106,11 @@ const excludeTags = computed(() => {
       </div>
       <template v-if="!isRealtime">
         <div>
-          <div class="mb-1 text-xs text-slate-400">生效时间</div>
+          <div class="mb-1 text-xs text-slate-400">开始时间</div>
           <div class="text-slate-800">{{ effectiveAtLabel }}</div>
         </div>
         <div>
-          <div class="mb-1 text-xs text-slate-400">过期时间</div>
+          <div class="mb-1 text-xs text-slate-400">结束时间</div>
           <div class="text-slate-800">{{ expireAtLabel }}</div>
         </div>
       </template>

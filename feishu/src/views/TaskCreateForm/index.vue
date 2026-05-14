@@ -16,12 +16,16 @@ import { useAccountPointsStore } from '@/stores/accountPoints'
 import { estimateTaskPointsBreakdown } from '@/lib/task-estimate-points'
 
 import BasicInfoSection from '@/views/TaskCreateForm/components/BasicInfoSection.vue'
+import FeishuNotifySection from '@/views/TaskCreateForm/components/FeishuNotifySection.vue'
 import KeywordsSection from '@/views/TaskCreateForm/components/KeywordsSection.vue'
 import FilterSettingsSection from '@/views/TaskCreateForm/components/FilterSettingsSection.vue'
+import CrawlScheduleSection from '@/views/TaskCreateForm/components/CrawlScheduleSection.vue'
 import SourceSelectionSection from '@/views/TaskCreateForm/components/SourceSelectionSection.vue'
 import DataRetentionSection from '@/views/TaskCreateForm/components/DataRetentionSection.vue'
 import TaskConfigPreviewDialog from '@/views/TaskCreateForm/components/TaskConfigPreviewDialog.vue'
+import TaskConfigConfirmDialog from '@/views/TaskCreateForm/components/TaskConfigConfirmDialog.vue'
 import {
+  buildTaskConfigConfirmRows,
   buildTaskConfigPreviewRows,
   snapshotForPreview,
 } from '@/views/TaskCreateForm/build-preview-rows'
@@ -71,6 +75,8 @@ function emptySourceFieldSelection(): Record<PlatformKey, SourceFieldKey[]> {
 function initialForm(): TaskCreateFormModel {
   return {
     planName: '',
+    feishuNotifyEnabled: false,
+    feishuWebhookUrl: '',
     taskType: 'scheduled',
     crawlFrequency: '5',
     effectiveAt: '',
@@ -112,9 +118,25 @@ const orderedSelectedPlatforms = computed(() =>
 const accountPoints = useAccountPointsStore()
 const pointsEstimate = computed(() => estimateTaskPointsBreakdown(form))
 
-/** 仅定时任务校验生效/过期时间；实时任务不展示时间字段 */
+/** 仅定时任务校验开始/结束时间；单词任务不展示时间字段 */
 const rules = computed<FormRules>(() => ({
   planName: [{ required: true, message: '请输入方案名称', trigger: 'blur' }],
+  feishuWebhookUrl: [
+    {
+      validator: (_rule, value, callback) => {
+        if (!form.feishuNotifyEnabled) {
+          callback()
+          return
+        }
+        if (!String(value ?? '').trim()) {
+          callback(new Error('请输入飞书机器人Webhook地址'))
+          return
+        }
+        callback()
+      },
+      trigger: ['blur', 'change'],
+    },
+  ],
   ...(form.taskType === 'scheduled'
     ? {
         effectiveAt: effectiveAtFormItemRules(),
@@ -123,19 +145,19 @@ const rules = computed<FormRules>(() => ({
     : {}),
 }))
 
-/** 分步向导：0 基础 → … → 4 数据沉淀 */
-const LAST_STEP = 4
+/** 分步向导：基础设置 → 过滤设置 → 采集配置 */
+const LAST_STEP = 2
 const currentStep = ref(0)
-const stepTitles = [
-  '基础信息',
-  '关键词',
-  '过滤设置',
-  '信源',
-  '数据沉淀',
-] as const
+const stepTitles = ['基础设置', '过滤设置', '采集配置'] as const
 
 /** 新建首次保存后由接口返回的 id，用于再次保存走 PUT */
 const internalConfigId = ref<number | null>(null)
+
+/** 保存前确认弹框 */
+const confirmVisible = ref(false)
+const confirmDisplayRows = computed(() =>
+  buildTaskConfigConfirmRows(snapshotForPreview(snapshotForm() as Record<string, unknown>)),
+)
 
 /** 保存成功后的预览弹框 */
 const previewVisible = ref(false)
@@ -272,6 +294,14 @@ function mergeConfigIntoForm(raw: Record<string, unknown>) {
   ensureSourceFieldSelectionForAllSelected(form)
   const tt = raw.taskType
   form.taskType = tt === 'realtime' ? 'realtime' : 'scheduled'
+  form.feishuNotifyEnabled =
+    raw.feishuNotifyEnabled === true ||
+    raw.feishuNotifyEnabled === 1 ||
+    String(raw.feishuNotifyEnabled ?? '')
+      .trim()
+      .toLowerCase() === 'true'
+  form.feishuWebhookUrl =
+    typeof raw.feishuWebhookUrl === 'string' ? raw.feishuWebhookUrl.trim() : ''
 }
 
 watch(
@@ -292,6 +322,13 @@ watch(
         formRef.value?.clearValidate(['effectiveAt', 'expireAt'])
       })
     }
+  },
+)
+
+watch(
+  () => form.feishuNotifyEnabled,
+  (on) => {
+    if (!on) void nextTick(() => formRef.value?.clearValidate(['feishuWebhookUrl']))
   },
 )
 
@@ -331,12 +368,29 @@ function snapshotForm(): Record<string, unknown> {
   return base
 }
 
-/** 校验通过后调用创建或更新接口；成功后打开预览弹框（不立即返回列表） */
-async function saveConfig() {
+/** 打开保存前确认弹框（校验 API-Key 与表单） */
+async function openSaveConfirm() {
   if (!formRef.value || saving.value) return
   const globalSettings = useGlobalSettingsStore()
   if (!String(globalSettings.authCode ?? '').trim()) {
     showSaveError('请先在顶部填写 API-Key（授权码）')
+    return
+  }
+  try {
+    await formRef.value.validate()
+  } catch {
+    return
+  }
+  confirmVisible.value = true
+}
+
+/** 确认弹框内「开始执行」：落库后打开预览弹框（是否立即分配任务） */
+async function persistFromConfirmDialog() {
+  if (!formRef.value || saving.value) return
+  const globalSettings = useGlobalSettingsStore()
+  if (!String(globalSettings.authCode ?? '').trim()) {
+    showSaveError('请先在顶部填写 API-Key（授权码）')
+    confirmVisible.value = false
     return
   }
   try {
@@ -359,6 +413,7 @@ async function saveConfig() {
     }
     savedTaskIdForPreview.value = targetId
     previewRows.value = buildTaskConfigPreviewRows(snapshotForPreview(payload as Record<string, unknown>))
+    confirmVisible.value = false
     showSaveSuccess()
     previewVisible.value = true
   } catch (e) {
@@ -399,6 +454,7 @@ function leavePreviewWithoutExecute() {
 }
 
 function onBackRequested() {
+  if (confirmVisible.value) confirmVisible.value = false
   if (previewVisible.value) previewVisible.value = false
   emit('back')
 }
@@ -429,6 +485,15 @@ function onBackRequested() {
       @close="saveBanner = null"
     />
 
+    <TaskConfigConfirmDialog
+      v-model="confirmVisible"
+      :rows="confirmDisplayRows"
+      :estimated-points="pointsEstimate.total"
+      :balance-points="accountPoints.currentBalancePoints"
+      :confirming="saving"
+      @confirm="persistFromConfirmDialog"
+    />
+
     <TaskConfigPreviewDialog
       v-model="previewVisible"
       :rows="previewRows"
@@ -449,26 +514,38 @@ function onBackRequested() {
 
       <div v-show="currentStep === 0">
         <BasicInfoSection :form="form" />
-      </div>
-      <div v-show="currentStep === 1">
+        <p class="mb-2 mt-6 text-sm font-medium text-slate-800">采集平台</p>
+        <SourceSelectionSection
+          mode="platforms"
+          :form="form"
+          :ordered-platforms="orderedSelectedPlatforms"
+        />
+        <p class="mb-2 mt-6 text-sm font-medium text-slate-800">关键词</p>
         <KeywordsSection
           :form="form"
           :keyword-draft="keywordDraft"
           @update:keyword-draft="keywordDraft = $event"
         />
+        <FeishuNotifySection :form="form" />
       </div>
-      <div v-show="currentStep === 2">
+      <div v-show="currentStep === 1">
         <FilterSettingsSection
           :form="form"
           :exclude-keyword-draft="excludeKeywordDraft"
           @update:exclude-keyword-draft="excludeKeywordDraft = $event"
         />
       </div>
-      <div v-show="currentStep === 3">
-        <SourceSelectionSection :form="form" :ordered-platforms="orderedSelectedPlatforms" />
-      </div>
-      <div v-show="currentStep === 4">
-        <DataRetentionSection :form="form" />
+      <div v-show="currentStep === 2">
+        <CrawlScheduleSection :form="form" />
+        <p class="mb-2 mt-2 text-sm font-medium text-slate-800">采集字段</p>
+        <SourceSelectionSection
+          mode="fields"
+          :form="form"
+          :ordered-platforms="orderedSelectedPlatforms"
+        />
+        <div class="mt-8">
+          <DataRetentionSection :form="form" />
+        </div>
       </div>
     </el-form>
 
@@ -481,30 +558,18 @@ function onBackRequested() {
         </span>
         <span>当前余额: {{ accountPoints.currentBalancePoints }}点</span>
       </div>
-      <div class="mb-3 flex flex-wrap items-center gap-2">
-        <el-button :disabled="currentStep === 0" @click="goPrevStep">上一步</el-button>
-        <el-button v-if="currentStep < LAST_STEP" type="primary" @click="goNextStep">下一步</el-button>
-        <span v-if="currentStep < LAST_STEP" class="text-xs text-slate-500">完成全部步骤后可点击「保存配置」</span>
-      </div>
       <div class="flex w-full gap-3">
-        <el-button class="flex-1" @click="resetForm">重置</el-button>
-        <el-tooltip
-          :disabled="currentStep === LAST_STEP"
-          content="请先通过「下一步」完成全部步骤"
-          placement="top"
-        >
-          <span class="inline-flex flex-1">
-            <el-button
-              type="primary"
-              class="w-full"
-              :loading="saving"
-              :disabled="currentStep !== LAST_STEP"
-              @click="saveConfig"
-            >
-              保存配置
-            </el-button>
-          </span>
-        </el-tooltip>
+        <template v-if="currentStep === 0">
+          <el-button type="primary" class="flex-1" @click="goNextStep">下一步</el-button>
+        </template>
+        <template v-else-if="currentStep === 1">
+          <el-button class="flex-1" @click="goPrevStep">上一步</el-button>
+          <el-button type="primary" class="flex-1" @click="goNextStep">下一步</el-button>
+        </template>
+        <template v-else>
+          <el-button class="flex-1" @click="goPrevStep">上一步</el-button>
+          <el-button type="primary" class="flex-1" @click="openSaveConfirm">保存配置</el-button>
+        </template>
       </div>
     </div>
   </div>

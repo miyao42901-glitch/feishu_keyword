@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 全局 API-Key（授权码），位于主导航上方；「获取 API-Key」跳转登录页以拉取 api_key。
+ * 全局 API-Key（授权码）；「获取 API-Key」跳转登录页以拉取 api_key。
  */
 import { ref } from 'vue'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
@@ -19,7 +19,7 @@ const authCodeHelpImageUrl =
 </script>
 
 <template>
-  <section class="w-full" aria-labelledby="global-api-key-heading">
+  <section class="w-full space-y-4" aria-labelledby="global-api-key-heading">
     <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
       <div class="min-w-0 flex-1">
         <div class="mb-1 flex items-center gap-1.5">
@@ -49,7 +49,7 @@ const authCodeHelpImageUrl =
         获取API-Key
       </el-button>
     </div>
-    <p class="mt-1.5 text-xs text-slate-500">授权码用于 API 接口调用认证</p>
+    <p class="text-xs text-slate-500">授权码用于 API 接口调用认证</p>
 
     <el-dialog
       v-model="authHelpVisible"

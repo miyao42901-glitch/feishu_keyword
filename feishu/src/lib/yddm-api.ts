@@ -53,6 +53,18 @@ export interface YddmLoginData {
   user: YddmLoginUser
 }
 
+/**
+ * `GET /users/me` 成功时 `data` 形态（与上游字段对齐；未文档字段可出现在对象上）。
+ */
+export interface YddmMeUser {
+  id: number
+  email?: string | null
+  phone_num?: string | null
+  api_key?: string
+  balance_cents?: number
+  [key: string]: unknown
+}
+
 type YddmEnvelope<T> = {
   code: number
   message?: string
@@ -75,6 +87,17 @@ function unwrapYddm<T>(body: unknown): T {
   return o.data as T
 }
 
+async function yddmParseJsonResponse<T>(res: Response, parsed: unknown): Promise<T> {
+  if (parsed && typeof parsed === 'object' && parsed !== null && 'code' in parsed) {
+    return unwrapYddm<T>(parsed)
+  }
+  if (!res.ok) {
+    const detail = typeof parsed === 'string' ? parsed : JSON.stringify(parsed)
+    throw new Error(`HTTP ${res.status}${detail ? `：${detail}` : ''}`)
+  }
+  return parsed as T
+}
+
 export async function yddmPostJson<T>(path: string, body: unknown): Promise<T> {
   const url = `${getYddmApiBase()}${path.startsWith('/') ? path : `/${path}`}`
   const res = await fetch(url, {
@@ -91,14 +114,31 @@ export async function yddmPostJson<T>(path: string, body: unknown): Promise<T> {
       parsed = text
     }
   }
-  if (parsed && typeof parsed === 'object' && parsed !== null && 'code' in parsed) {
-    return unwrapYddm<T>(parsed)
+  return yddmParseJsonResponse<T>(res, parsed)
+}
+
+/** `GET` 请求；需鉴权时传入 `accessToken`（`Authorization: Bearer …`）。 */
+export async function yddmGetJson<T>(path: string, opts?: { accessToken?: string }): Promise<T> {
+  const url = `${getYddmApiBase()}${path.startsWith('/') ? path : `/${path}`}`
+  const headers: Record<string, string> = { Accept: 'application/json' }
+  const token = opts?.accessToken?.trim()
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(url, { method: 'GET', headers })
+  const text = await res.text()
+  let parsed: unknown = null
+  if (text) {
+    try {
+      parsed = JSON.parse(text) as unknown
+    } catch {
+      parsed = text
+    }
   }
-  if (!res.ok) {
-    const detail = typeof parsed === 'string' ? parsed : JSON.stringify(parsed)
-    throw new Error(`HTTP ${res.status}${detail ? `：${detail}` : ''}`)
-  }
-  return parsed as T
+  return yddmParseJsonResponse<T>(res, parsed)
+}
+
+/** `GET /users/me` — 需登录态 `access_token`。 */
+export function yddmFetchMe(accessToken: string) {
+  return yddmGetJson<YddmMeUser>('/users/me', { accessToken })
 }
 
 /** `POST /auth/register` */

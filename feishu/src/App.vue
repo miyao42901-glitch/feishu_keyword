@@ -22,21 +22,21 @@ const accountPoints = useAccountPointsStore()
     <div class="shrink-0 border-b border-slate-200 bg-white px-4 py-3">
       <GlobalApiKeyBar @go-login="activeTab = 'yddmAuth'" />
     </div>
-    <div class="grid shrink-0 grid-cols-2 border-b border-slate-200 bg-slate-50">
+    <div class="grid shrink-0 grid-cols-2 border-b border-slate-200 bg-white">
       <button
         type="button"
         class="flex justify-center py-3 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40"
         @click="activeTab = 'tasks'"
       >
         <span
-          class="inline-block border-b-2 pb-0.5 transition-colors"
+          class="inline-block border-b-[3px] pb-2 transition-colors"
           :class="
             activeTab === 'tasks'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-600 hover:text-slate-800'
+              ? 'border-[#2563eb] font-medium text-[#2563eb]'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
           "
         >
-          任务
+          任务配置
         </span>
       </button>
       <button
@@ -45,18 +45,18 @@ const accountPoints = useAccountPointsStore()
         @click="activeTab = 'yddmAuth'"
       >
         <span
-          class="inline-block border-b-2 pb-0.5 transition-colors"
+          class="inline-block border-b-[3px] pb-2 transition-colors"
           :class="
             activeTab === 'yddmAuth'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-600 hover:text-slate-800'
+              ? 'border-[#2563eb] font-medium text-[#2563eb]'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
           "
         >
           登录账户
         </span>
       </button>
     </div>
-    <main class="min-h-0 flex-1 overflow-auto bg-white p-4">
+    <main class="min-h-0 flex-1 overflow-auto bg-[#f4f5f7] p-4">
       <TasksView v-if="activeTab === 'tasks'" />
       <YddmAuthView v-else />
     </main>

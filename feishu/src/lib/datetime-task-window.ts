@@ -89,19 +89,19 @@ export function disabledTimeExpireDateTime(date: Date, effectiveAtStr: string): 
   return makeDisabledTimeFromBoundary(date, boundary)
 }
 
-/** 生效时间：`el-form` 规则（必填 + 不早于当前） */
+/** 开始时间：`el-form` 规则（必填 + 不早于当前） */
 export function effectiveAtFormItemRules(): FormItemRule[] {
   return [
-    { required: true, message: '请选择生效时间', trigger: 'change' },
+    { required: true, message: '请选择开始时间', trigger: 'change' },
     {
       validator: (_rule, value: string, callback) => {
         const d = parseTaskDateTimeString(value)
         if (!d) {
-          callback(new Error('生效时间格式不正确'))
+          callback(new Error('开始时间格式不正确'))
           return
         }
         if (d.valueOf() < Date.now()) {
-          callback(new Error('生效时间不能早于当前时间'))
+          callback(new Error('开始时间不能早于当前时间'))
           return
         }
         callback()
@@ -112,26 +112,26 @@ export function effectiveAtFormItemRules(): FormItemRule[] {
 }
 
 /**
- * 过期时间：`el-form` 规则（必填 + 不早于当前 + 不早于生效）。
- * @param getEffectiveAt - 读取当前生效时间字符串（如 `() => form.effectiveAt`）
+ * 结束时间：`el-form` 规则（必填 + 不早于当前 + 不早于开始时间）。
+ * @param getEffectiveAt - 读取当前开始时间字符串（如 `() => form.effectiveAt`）
  */
 export function expireAtFormItemRules(getEffectiveAt: () => string): FormItemRule[] {
   return [
-    { required: true, message: '请选择过期时间', trigger: 'change' },
+    { required: true, message: '请选择结束时间', trigger: 'change' },
     {
       validator: (_rule, value: string, callback) => {
         const d = parseTaskDateTimeString(value)
         if (!d) {
-          callback(new Error('过期时间格式不正确'))
+          callback(new Error('结束时间格式不正确'))
           return
         }
         if (d.valueOf() < Date.now()) {
-          callback(new Error('过期时间不能早于当前时间'))
+          callback(new Error('结束时间不能早于当前时间'))
           return
         }
         const eff = parseTaskDateTimeString(getEffectiveAt())
         if (eff && d.isBefore(eff)) {
-          callback(new Error('过期时间不能早于生效时间'))
+          callback(new Error('结束时间不能早于开始时间'))
           return
         }
         callback()
