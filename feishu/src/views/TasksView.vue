@@ -9,6 +9,7 @@ import { platformDisplayNames, sourcePlatforms } from '@/views/TaskCreateForm/co
 import TaskDetailDialog from '@/views/tasks/components/TaskDetailDialog.vue'
 import TaskListCard from '@/views/tasks/components/TaskListCard.vue'
 import type { TaskCardModel, TaskStoppedKind } from '@/views/tasks/types'
+import type { PlatformKey } from '@/components/PlatformIcon.vue'
 import {
   deleteFeishuTaskConfig,
   feishuDetailToListItem,
@@ -21,6 +22,12 @@ import {
   type FeishuTaskConfigListItem,
   type FeishuTaskConfigWriteResult,
 } from '@/lib/api'
+import {
+  appendTestFeedRowsToBitable,
+  pruneTestFeedAppendState,
+  type TestFeedBitableDeps,
+} from '@/lib/feishu-bitable-append-feed'
+import { buildTestDataFeedFromConfig, taskUsesOnlyTestDataPlatforms, type TestFeedRow } from '@/lib/test-data-feed'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
 
 const tasks = ref<TaskCardModel[]>([])
@@ -33,6 +40,105 @@ const taskDetail = ref<FeishuTaskConfigDetail | null>(null)
 
 const globalSettings = useGlobalSettingsStore()
 const { authCode } = storeToRefs(globalSettings)
+
+/** 运行中且仅抖音/小红书：按 test_data 与任务配置写入飞书表并更新条数统计 */
+let testFeedDebounce: ReturnType<typeof setTimeout> | null = null
+/** 运行中任务定时同步 test_data → 飞书（列表页） */
+let testFeedPollTimer: ReturnType<typeof setInterval> | null = null
+
+async function persistPlatformTableReference(input: {
+  taskId: number
+  platform: PlatformKey
+  tableId: string
+}): Promise<void> {
+  const detail = await getFeishuTaskConfig(input.taskId)
+  const raw = detail.config
+  const cfg =
+    raw != null && typeof raw === 'object' && !Array.isArray(raw)
+      ? ({ ...raw } as Record<string, unknown>)
+      : {}
+  const rawIds = cfg.platformExistingTableIds ?? cfg.platform_existing_table_ids
+  const ids: Record<string, unknown> =
+    rawIds && typeof rawIds === 'object' && !Array.isArray(rawIds) ? { ...(rawIds as Record<string, unknown>) } : {}
+  ids[input.platform] = input.tableId
+  cfg.platformExistingTableIds = ids
+  await updateFeishuTaskConfig(input.taskId, cfg)
+}
+
+const testFeedBitableDeps: TestFeedBitableDeps = {
+  persistPlatformTableReference,
+}
+
+function syncTestFeedPollTimer() {
+  const want =
+    screen.value === 'list' &&
+    authCode.value.trim() &&
+    tasks.value.some((t) => t.status === 'running' && taskUsesOnlyTestDataPlatforms(t.platformKeys))
+  if (want && !testFeedPollTimer) {
+    testFeedPollTimer = setInterval(() => {
+      void refreshTestDataFeed()
+    }, 12_000)
+  }
+  if (!want && testFeedPollTimer) {
+    clearInterval(testFeedPollTimer)
+    testFeedPollTimer = null
+  }
+}
+
+async function refreshTestDataFeed() {
+  if (screen.value !== 'list') return
+  const targets = tasks.value.filter(
+    (t) => t.status === 'running' && taskUsesOnlyTestDataPlatforms(t.platformKeys),
+  )
+  pruneTestFeedAppendState(new Set(targets.map((t) => t.id)))
+  if (!targets.length) {
+    tasks.value = tasks.value.map((c) =>
+      c.status === 'running' && c.notificationCount !== 0 ? { ...c, notificationCount: 0 } : c,
+    )
+    return
+  }
+  const counts = new Map<number, number>()
+  const configByTaskId = new Map<number, Record<string, unknown>>()
+  const rows: TestFeedRow[] = []
+  for (const t of targets) {
+    try {
+      const detail = await getFeishuTaskConfig(t.id)
+      const cfg =
+        detail.config != null && typeof detail.config === 'object' && !Array.isArray(detail.config)
+          ? (detail.config as Record<string, unknown>)
+          : {}
+      configByTaskId.set(t.id, cfg)
+      const part = await buildTestDataFeedFromConfig({
+        taskId: t.id,
+        taskName: t.name,
+        config: cfg,
+      })
+      counts.set(t.id, part.length)
+      rows.push(...part)
+    } catch {
+      /* 忽略单任务失败 */
+    }
+  }
+  rows.sort((a, b) => b.publishMs - a.publishMs)
+  const displayRows = rows.slice(0, 120)
+  void appendTestFeedRowsToBitable(displayRows, configByTaskId, testFeedBitableDeps).catch(() => {
+    /* 非插件环境或表结构不匹配时静默失败 */
+  })
+  tasks.value = tasks.value.map((c) => {
+    if (c.status !== 'running') return c
+    const n = counts.get(c.id)
+    if (n == null) return c.notificationCount === 0 ? c : { ...c, notificationCount: 0 }
+    return { ...c, notificationCount: n }
+  })
+}
+
+function scheduleRefreshTestDataFeed() {
+  if (testFeedDebounce != null) clearTimeout(testFeedDebounce)
+  testFeedDebounce = setTimeout(() => {
+    testFeedDebounce = null
+    void refreshTestDataFeed()
+  }, 350)
+}
 
 const detailDialogVisible = ref(false)
 const detailDialogLoading = ref(false)
@@ -63,6 +169,10 @@ function showListTip(msg: string) {
 
 onScopeDispose(() => {
   if (listTipTimer != null) clearTimeout(listTipTimer)
+  if (testFeedDebounce != null) {
+    clearTimeout(testFeedDebounce)
+    testFeedDebounce = null
+  }
 })
 
 const primaryActionRowId = ref<number | null>(null)
@@ -244,9 +354,13 @@ function mapRows(rows: FeishuTaskConfigListItem[]): TaskCardModel[] {
     const stoppedKind: TaskStoppedKind =
       status === 'stopped' ? parseBackendStoppedKind(o) : 'neutral'
 
+    const pk = Array.isArray(r.platform_keys)
+      ? r.platform_keys.filter((x): x is string => typeof x === 'string').map((s) => s.trim()).filter(Boolean)
+      : []
     return {
       id: r.id,
       name: r.plan_name?.trim() || '未命名任务',
+      platformKeys: pk,
       platformsLabel: formatPlatformsLabel(r.platform_keys ?? undefined),
       taskTypeLabel: isRealtime ? '单次任务' : '定时任务',
       dateLabel: isRealtime ? '—' : formatCardDate(r.effective_at ?? undefined),
@@ -270,6 +384,7 @@ async function loadTaskList() {
     tasks.value = mapRows(rows)
     const maxPage = Math.max(1, Math.ceil(displayedTasks.value.length / pageSize.value))
     if (listCurrentPage.value > maxPage) listCurrentPage.value = maxPage
+    scheduleRefreshTestDataFeed()
   } catch (e) {
     const msg = e instanceof Error ? e.message : '加载任务列表失败'
     ElMessage.error(msg)
@@ -280,10 +395,32 @@ async function loadTaskList() {
 
 watch(authCode, () => {
   void loadTaskList()
+  syncTestFeedPollTimer()
+})
+
+watch(
+  () => tasks.value.map((t) => `${t.id}:${t.status}:${t.platformKeys.join(',')}`).join('|'),
+  () => {
+    scheduleRefreshTestDataFeed()
+    syncTestFeedPollTimer()
+  },
+)
+
+watch(screen, (s) => {
+  if (s === 'list') scheduleRefreshTestDataFeed()
+  syncTestFeedPollTimer()
+})
+
+onScopeDispose(() => {
+  if (testFeedPollTimer) {
+    clearInterval(testFeedPollTimer)
+    testFeedPollTimer = null
+  }
 })
 
 onMounted(() => {
   void loadTaskList()
+  syncTestFeedPollTimer()
 })
 
 function onCreateTask() {

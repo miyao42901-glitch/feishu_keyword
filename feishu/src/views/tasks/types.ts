@@ -9,6 +9,8 @@ export type { TaskRunStatus, TaskStoppedKind } from '@/views/TaskCreateForm/type
 export interface TaskCardModel {
   id: number
   name: string
+  /** 列表接口 `platform_keys`，用于本地演示数据等逻辑 */
+  platformKeys: string[]
   platformsLabel: string
   taskTypeLabel: string
   dateLabel: string
