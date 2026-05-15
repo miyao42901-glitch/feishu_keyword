@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /**
- * 全局 API-Key（授权码）；「获取 API-Key」跳转登录页以拉取 api_key。
+ * 首页「关键词监控」下 API-Key：无授权码时引导获取；有授权码时完整展示（过长省略）并可跳转重新登陆。
  */
-import { ref } from 'vue'
+import { computed } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
 
 defineOptions({ name: 'GlobalApiKeyBar' })
@@ -12,75 +13,171 @@ const emit = defineEmits<{
 }>()
 
 const globalSettings = useGlobalSettingsStore()
-const authHelpVisible = ref(false)
+const { authCode } = storeToRefs(globalSettings)
 
-const authCodeHelpImageUrl =
-  'https://ext.baseopendev.com/ext/k741350093_keyword-search-fe_1777360332062_924/1777360354886/image.png'
+const hasAuthCode = computed(() => authCode.value.trim().length > 0)
+
+const authCodeDisplay = computed(() => authCode.value.trim())
 </script>
 
 <template>
-  <section class="w-full space-y-4" aria-labelledby="global-api-key-heading">
-    <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
-      <div class="min-w-0 flex-1">
-        <div class="mb-1 flex items-center gap-1.5">
-          <span id="global-api-key-heading" class="text-xs font-medium text-slate-700">API-Key</span>
-          <el-tooltip content="点击查看如何获取授权码" placement="top">
-            <button
-              type="button"
-              class="inline-flex size-5 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-xs font-semibold text-slate-500 transition-colors hover:border-indigo-400 hover:text-indigo-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40"
-              aria-label="如何获取授权码"
-              @click="authHelpVisible = true"
-            >
-              ?
-            </button>
-          </el-tooltip>
-        </div>
-        <el-input
-          v-model="globalSettings.authCode"
-          type="password"
-          show-password
-          placeholder="请输入 API-Key"
-          clearable
-          autocomplete="off"
-          class="w-full"
-        />
-      </div>
-      <el-button type="primary" class="w-full shrink-0 sm:w-auto" @click="emit('goLogin')">
-        获取API-Key
-      </el-button>
+  <section
+    v-if="hasAuthCode"
+    class="auth-code-card"
+    aria-label="授权码"
+  >
+    <div class="auth-code-row">
+      <span class="auth-code-label">授权码：</span>
+      <span class="auth-code-value">{{ authCodeDisplay }}</span>
+      <button type="button" class="auth-code-relogin" @click="emit('goLogin')">重新登陆</button>
     </div>
-    <p class="text-xs text-slate-500">授权码用于 API 接口调用认证</p>
+  </section>
 
-    <el-dialog
-      v-model="authHelpVisible"
-      title="如何获取授权码"
-      width="520px"
-      append-to-body
-      destroy-on-close
-      class="auth-code-help-dialog"
-      align-center
-    >
-      <div class="max-h-[min(85vh,800px)] overflow-y-auto">
-        <img
-          :src="authCodeHelpImageUrl"
-          alt="如何获取授权码"
-          class="w-full rounded border border-slate-100"
-          loading="lazy"
-          decoding="async"
-          referrerpolicy="no-referrer-when-downgrade"
-        />
-      </div>
-    </el-dialog>
+  <section
+    v-else
+    class="api-key-promo"
+    aria-labelledby="api-key-promo-heading"
+  >
+    <h2 id="api-key-promo-heading" class="sr-only">API-Key</h2>
+    <button type="button" class="api-key-promo__btn" @click="emit('goLogin')">获取API-Key</button>
+    <p class="api-key-promo__hint">请先登录，以获取API接口调用资格</p>
   </section>
 </template>
 
-<style>
-.auth-code-help-dialog.el-dialog {
-  max-width: calc(100vw - 24px);
+<style scoped>
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
-.auth-code-help-dialog .el-dialog__body {
-  padding-top: 0.5rem;
-  padding-bottom: 1rem;
+.auth-code-card {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 378px;
+  margin-right: auto;
+  margin-left: auto;
+  padding: 10px 12px;
+  background: #eff0f1;
+  border-radius: 4px;
+}
+
+.auth-code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.auth-code-label {
+  flex-shrink: 0;
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #646a73;
+  text-align: left;
+}
+
+.auth-code-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #2b2f36;
+  text-align: left;
+}
+
+.auth-code-relogin {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #1f22f6;
+  text-align: right;
+}
+
+.auth-code-relogin:hover {
+  text-decoration: underline;
+}
+
+.auth-code-relogin:focus-visible {
+  outline: 2px solid rgba(31, 34, 246, 0.35);
+  outline-offset: 2px;
+}
+
+.api-key-promo {
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  max-width: 378px;
+  height: 92px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0;
+  margin-right: auto;
+  margin-left: auto;
+  padding: 0 12px;
+  background: #ededfe;
+  border-radius: 0;
+}
+
+.api-key-promo__btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  width: 135px;
+  height: 38px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #1456f0 0%, #4014f0 100%);
+  color: #ffffff;
+  font-weight: 400;
+  font-size: 16px;
+  text-align: center;
+  font-style: normal;
+  text-transform: none;
+  line-height: 1;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.api-key-promo__btn:hover {
+  filter: brightness(1.05);
+}
+
+.api-key-promo__btn:active {
+  filter: brightness(0.96);
+}
+
+.api-key-promo__hint {
+  margin: 8px 0 0;
+  max-width: 100%;
+  padding: 0 4px;
+  font-size: 10px;
+  color: #646a73;
+  text-align: center;
+  font-style: normal;
+  line-height: 1.4;
 }
 </style>

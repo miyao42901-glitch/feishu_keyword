@@ -37,7 +37,7 @@ function joinArr(v: unknown): string {
 export function buildTaskConfigPreviewRows(cfg: Record<string, unknown>): { label: string; value: string }[] {
   const rows: { label: string; value: string }[] = []
   const planName = typeof cfg.planName === 'string' ? cfg.planName.trim() : ''
-  rows.push({ label: '方案名称', value: planName || '—' })
+  rows.push({ label: '任务名称', value: planName || '—' })
 
   const taskType = cfg.taskType === 'realtime' ? '单次任务' : '定时任务'
   rows.push({ label: '任务类型', value: taskType })
@@ -110,11 +110,6 @@ export function snapshotForPreview(raw: Record<string, unknown>): Record<string,
   return o
 }
 
-/** 确认弹框：单行展示（文本或关键词标签） */
-export type TaskConfigConfirmRow =
-  | { kind: 'text'; label: string; value: string }
-  | { kind: 'tags'; label: string; tags: string[] }
-
 function formatTaskWindowDuration(effectiveAt: string, expireAt: string): string {
   const a = effectiveAt.trim()
   const b = expireAt.trim()
@@ -141,76 +136,93 @@ function formatDataRangeLabel(cfg: Record<string, unknown>): string {
   return Number.isFinite(n) && n > 0 ? `${Math.floor(n)}条` : '—'
 }
 
+/** 确认弹框：标签 + 展示值 */
+export type TaskConfigConfirmRow = { label: string; value: string }
+
+function formatTargetTable(cfg: Record<string, unknown>): string {
+  const src = cfg.selectedSources
+  if (!Array.isArray(src) || src.length === 0) return '—'
+  const platforms = src.filter(
+    (x): x is PlatformKey => typeof x === 'string' && x in platformDisplayNames,
+  )
+  if (!platforms.length) return '—'
+
+  if (cfg.tableMode === 'new') {
+    const names = cfg.platformNewTableNames
+    if (names && typeof names === 'object' && !Array.isArray(names)) {
+      const parts = platforms
+        .map((p) => {
+          const n = String((names as Record<string, unknown>)[p] ?? '').trim()
+          return n ? `${platformDisplayNames[p]}：${n}` : null
+        })
+        .filter((x): x is string => !!x)
+      if (parts.length) return parts.join('；')
+    }
+    return '自动新建'
+  }
+
+  if (cfg.tableMode === 'existing') {
+    const ids = cfg.platformExistingTableIds
+    if (ids && typeof ids === 'object' && !Array.isArray(ids)) {
+      const parts = platforms.map((p) => {
+        const id = String((ids as Record<string, unknown>)[p] ?? '').trim()
+        return id
+          ? `${platformDisplayNames[p]}：已关联`
+          : `${platformDisplayNames[p]}：未选择`
+      })
+      return parts.join('；')
+    }
+    return '—'
+  }
+
+  return '—'
+}
+
 /**
- * 「确认任务配置」弹框用：与设计稿一致的字段顺序与展示（关键词为标签）。
+ * 「确认任务配置」弹框：与设计稿一致的字段顺序与展示。
  */
 export function buildTaskConfigConfirmRows(cfg: Record<string, unknown>): TaskConfigConfirmRow[] {
   const rows: TaskConfigConfirmRow[] = []
   const isRealtime = cfg.taskType === 'realtime'
 
-  const taskTypeLabel = isRealtime ? '单次任务' : '定时任务'
-  rows.push({ kind: 'text', label: '任务类型', value: taskTypeLabel })
-
   const planName = typeof cfg.planName === 'string' ? cfg.planName.trim() : ''
-  rows.push({ kind: 'text', label: '方案名称', value: planName || '—' })
+  rows.push({ label: '任务名称', value: planName || '—' })
 
-  if (!isRealtime) {
-    rows.push({
-      kind: 'text',
-      label: '采集频率',
-      value: optLabel(frequencyOptions, cfg.crawlFrequency),
-    })
-    const eff = typeof cfg.effectiveAt === 'string' ? cfg.effectiveAt.trim() : ''
-    const exp = typeof cfg.expireAt === 'string' ? cfg.expireAt.trim() : ''
-    rows.push({ kind: 'text', label: '开始时间', value: eff || '—' })
-    rows.push({ kind: 'text', label: '结束时间', value: exp || '—' })
-    rows.push({
-      kind: 'text',
-      label: '任务时长',
-      value: eff && exp ? formatTaskWindowDuration(eff, exp) : '—',
-    })
-  }
+  rows.push({ label: '任务类型', value: isRealtime ? '单次任务' : '定时任务' })
 
-  const kw = Array.isArray(cfg.keywords)
-    ? cfg.keywords.filter((x): x is string => typeof x === 'string').map((s) => s.trim()).filter(Boolean)
-    : []
-  rows.push({ kind: 'tags', label: '关键词', tags: kw })
+  const eff = typeof cfg.effectiveAt === 'string' ? cfg.effectiveAt.trim() : ''
+  const exp = typeof cfg.expireAt === 'string' ? cfg.expireAt.trim() : ''
+  rows.push({
+    label: '任务开始时间',
+    value: !isRealtime && eff ? eff : '—',
+  })
+  rows.push({
+    label: '任务结束时间',
+    value: !isRealtime && exp ? exp : '—',
+  })
+  rows.push({
+    label: '任务时长',
+    value: !isRealtime && eff && exp ? formatTaskWindowDuration(eff, exp) : '—',
+  })
 
-  rows.push({
-    kind: 'text',
-    label: '排除词',
-    value: joinArr(cfg.excludeKeywords),
-  })
-  rows.push({
-    kind: 'text',
-    label: '排序方式',
-    value: optLabel(sortOrderOptions, cfg.sortOrder),
-  })
-  rows.push({
-    kind: 'text',
-    label: '发布时间',
-    value: optLabel(publishTimeOptions, cfg.publishTime),
-  })
-  rows.push({
-    kind: 'text',
-    label: '视频时长',
-    value: optLabel(videoDurationOptions, cfg.videoDuration),
-  })
-  rows.push({ kind: 'text', label: '选择条数', value: formatDataRangeLabel(cfg) })
+  rows.push({ label: '监控关键词', value: joinArr(cfg.keywords) })
+  rows.push({ label: '排除词', value: joinArr(cfg.excludeKeywords) })
+  rows.push({ label: '排序方式', value: optLabel(sortOrderOptions, cfg.sortOrder) })
+  rows.push({ label: '发布时间', value: optLabel(publishTimeOptions, cfg.publishTime) })
+  rows.push({ label: '视频时长', value: optLabel(videoDurationOptions, cfg.videoDuration) })
+  rows.push({ label: '选择条数', value: formatDataRangeLabel(cfg) })
 
   const src = cfg.selectedSources
   if (Array.isArray(src) && src.length) {
     const labels = src
       .filter((x): x is PlatformKey => typeof x === 'string' && x in platformDisplayNames)
       .map((k) => platformDisplayNames[k])
-    rows.push({ kind: 'text', label: '采集平台', value: labels.join('、') })
+    rows.push({ label: '采集平台', value: labels.join('、') })
   } else {
-    rows.push({ kind: 'text', label: '采集平台', value: '—' })
+    rows.push({ label: '采集平台', value: '—' })
   }
 
-  const tableLabel =
-    cfg.tableMode === 'new' ? '新建表格' : cfg.tableMode === 'existing' ? '关联已有表' : '—'
-  rows.push({ kind: 'text', label: '目标表格', value: tableLabel })
+  rows.push({ label: '目标表格', value: formatTargetTable(cfg) })
 
   const notifyOn =
     cfg.feishuNotifyEnabled === true ||
@@ -218,19 +230,13 @@ export function buildTaskConfigConfirmRows(cfg: Record<string, unknown>): TaskCo
     String(cfg.feishuNotifyEnabled ?? '')
       .trim()
       .toLowerCase() === 'true'
+  rows.push({ label: '飞书通知', value: notifyOn ? '开启' : '关闭' })
+
+  const wh = typeof cfg.feishuWebhookUrl === 'string' ? cfg.feishuWebhookUrl.trim() : ''
   rows.push({
-    kind: 'text',
-    label: '飞书通知',
-    value: notifyOn ? '开启（任务完成后推送）' : '关闭',
+    label: 'Webhook地址',
+    value: notifyOn && wh ? wh : '—',
   })
-  if (notifyOn) {
-    const wh = typeof cfg.feishuWebhookUrl === 'string' ? cfg.feishuWebhookUrl.trim() : ''
-    rows.push({
-      kind: 'text',
-      label: 'Webhook',
-      value: wh ? '已填写' : '未填写',
-    })
-  }
 
   return rows
 }

@@ -2,62 +2,18 @@
 import { CircleCheck } from '@element-plus/icons-vue'
 import { onMounted, reactive, ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
+import {
+  EMAIL_RE,
+  normalizeCnMobileInput,
+  validateLoginPhoneOrEmail,
+  validateRegisterPhoneOptional,
+  YDDM_PASSWORD_MAX_LEN,
+} from '@/lib/yddm-auth-validators'
 import { yddmLogin, yddmRegister, type YddmLoginRequest, type YddmRegisterRequest } from '@/lib/yddm-api'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
 import { useYddmAuthStore } from '@/stores/yddmAuth'
 
 defineOptions({ name: 'YddmAuthView' })
-
-/** 与 YDDM `/auth/login` 等接口 body 校验一致，避免提交超长密码触发 422 */
-const YDDM_PASSWORD_MAX_LEN = 32
-
-/** 中国大陆手机号：可选 +86 / 86 前缀与空格，主体须为 1[3-9] + 9 位数字 */
-const CN_MOBILE_RE = /^1[3-9]\d{9}$/
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-function normalizeCnMobileInput(raw: string): string {
-  let t = raw.trim().replace(/\s+/g, '')
-  if (t.startsWith('+86')) t = t.slice(3)
-  else if (t.startsWith('86') && t.length === 13 && t[2] === '1') t = t.slice(2)
-  return t
-}
-
-function validateLoginPhoneOrEmail(_rule: unknown, value: unknown, callback: (e?: Error) => void) {
-  const raw = typeof value === 'string' ? value : ''
-  const s = raw.trim()
-  if (!s) {
-    callback(new Error('请输入手机号或邮箱'))
-    return
-  }
-  if (s.includes('@')) {
-    if (!EMAIL_RE.test(s)) {
-      callback(new Error('邮箱格式不正确'))
-      return
-    }
-    callback()
-    return
-  }
-  const mobile = normalizeCnMobileInput(s)
-  if (!CN_MOBILE_RE.test(mobile)) {
-    callback(new Error('请输入11位中国大陆手机号（或带 @ 的邮箱）'))
-    return
-  }
-  callback()
-}
-
-function validateRegisterPhoneOptional(_rule: unknown, value: unknown, callback: (e?: Error) => void) {
-  const s = typeof value === 'string' ? value.trim() : ''
-  if (!s) {
-    callback()
-    return
-  }
-  const mobile = normalizeCnMobileInput(s)
-  if (!CN_MOBILE_RE.test(mobile)) {
-    callback(new Error('请输入11位中国大陆手机号'))
-    return
-  }
-  callback()
-}
 
 const globalSettings = useGlobalSettingsStore()
 const yddmAuth = useYddmAuthStore()
@@ -225,7 +181,6 @@ async function onRegister() {
     registerSubmitting.value = false
   }
 }
-
 </script>
 
 <template>
@@ -299,7 +254,7 @@ async function onRegister() {
             <el-input
               v-model="loginForm.phone_num"
               size="large"
-              placeholder="11位手机号或邮箱"
+              placeholder="手机号/邮箱"
               clearable
               class="auth-input"
               maxlength="128"
@@ -311,7 +266,7 @@ async function onRegister() {
               type="password"
               show-password
               size="large"
-              placeholder="密码（最多32位）"
+              placeholder="密码"
               clearable
               class="auth-input"
               :maxlength="YDDM_PASSWORD_MAX_LEN"

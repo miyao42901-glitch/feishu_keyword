@@ -2,7 +2,7 @@
 /**
  * 保存前「确认任务配置」：配置摘要、预估点数与余额、取消 / 开始执行（落库）。
  */
-import { DocumentCopy, Histogram } from '@element-plus/icons-vue'
+import { Close } from '@element-plus/icons-vue'
 import type { TaskConfigConfirmRow } from '@/views/TaskCreateForm/build-preview-rows'
 
 defineOptions({ name: 'TaskConfigConfirmDialog' })
@@ -37,95 +37,257 @@ function handleClose() {
     :show-close="false"
   >
     <template #header>
-      <div class="flex items-center justify-between border-b border-slate-200 pb-3">
-        <div class="flex items-center gap-2 text-slate-900">
-          <el-icon class="text-[#3355FF]" :size="18">
-            <DocumentCopy />
-          </el-icon>
-          <span class="text-base font-semibold">确认任务配置</span>
-        </div>
-        <el-button
-          text
-          circle
-          class="!ml-0 !h-8 !w-8"
+      <div class="task-config-confirm-dialog__header">
+        <span class="task-config-confirm-dialog__title">确认任务配置</span>
+        <button
+          type="button"
+          class="task-config-confirm-dialog__close"
           aria-label="关闭"
           :disabled="confirming"
           @click="handleClose"
         >
-          <span class="text-lg leading-none text-slate-400 hover:text-slate-600">×</span>
-        </el-button>
+          <el-icon :size="14"><Close /></el-icon>
+        </button>
       </div>
     </template>
 
-    <div class="pt-1">
-      <div class="mb-3 flex items-center gap-2 text-sm font-medium text-slate-800">
-        <el-icon class="text-[#3355FF]" :size="16">
-          <Histogram />
-        </el-icon>
-        <span>配置详情</span>
+    <div class="task-config-confirm-dialog__fields">
+      <div v-for="(row, idx) in rows" :key="idx" class="task-config-confirm-dialog__field">
+        <p class="task-config-confirm-dialog__label">{{ row.label }}</p>
+        <p class="task-config-confirm-dialog__value">{{ row.value }}</p>
       </div>
+    </div>
 
-      <div class="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
-        <div
-          v-for="(row, idx) in rows"
-          :key="idx"
-          class="flex gap-3 border-b border-slate-100 py-2.5 text-sm last:border-b-0"
-          :class="row.kind === 'tags' ? 'items-start' : 'items-center'"
-        >
-          <span class="w-24 shrink-0 text-slate-500">{{ row.label }}</span>
-          <div class="min-w-0 flex-1 text-right text-slate-900">
-            <template v-if="row.kind === 'text'">{{ row.value }}</template>
-            <template v-else>
-              <div v-if="row.tags.length" class="flex flex-wrap justify-end gap-1.5">
-                <el-tag
-                  v-for="(t, i) in row.tags"
-                  :key="`${t}-${i}`"
-                  type="primary"
-                  effect="plain"
-                  size="small"
-                  class="!border-[#CCD6FF] !bg-[#EEF1FF] !text-[#3355FF]"
-                >
-                  {{ t }}
-                </el-tag>
-              </div>
-              <span v-else>—</span>
-            </template>
-          </div>
-        </div>
-      </div>
-
-      <div
-        class="mt-4 flex items-center justify-between rounded-lg border border-[#CCD6FF] bg-[#EEF4FF] px-4 py-3 text-sm"
-      >
-        <span class="text-slate-700">
-          预估消耗：<span class="font-semibold text-[#3355FF]">~{{ estimatedPoints }}点</span>
+    <div class="task-config-confirm-dialog__points">
+      <div class="task-config-confirm-dialog__points-row">
+        <span class="task-config-confirm-dialog__points-label">预估消耗</span>
+        <span class="task-config-confirm-dialog__points-value">
+          <span class="task-config-confirm-dialog__points-num">{{ estimatedPoints }}</span>
+          <span class="task-config-confirm-dialog__points-unit">点</span>
         </span>
-        <span class="text-slate-700">
-          当前余额：<span class="font-semibold text-[#3355FF]">{{ balancePoints }}点</span>
+      </div>
+      <div class="task-config-confirm-dialog__points-row">
+        <span class="task-config-confirm-dialog__points-label">当前余额</span>
+        <span class="task-config-confirm-dialog__points-value">
+          <span class="task-config-confirm-dialog__points-num">{{ balancePoints }}</span>
+          <span class="task-config-confirm-dialog__points-unit">点</span>
         </span>
       </div>
     </div>
 
     <template #footer>
-      <div class="flex w-full gap-3 border-t border-slate-100 pt-4">
-        <el-button class="flex-1" :disabled="confirming" @click="handleClose">取消</el-button>
-        <el-button type="primary" class="flex-1" :loading="confirming" @click="emit('confirm')">
-          开始执行
-        </el-button>
+      <div class="task-config-confirm-dialog__footer">
+        <button
+          type="button"
+          class="task-config-confirm-dialog__btn task-config-confirm-dialog__btn--cancel"
+          :disabled="confirming"
+          @click="handleClose"
+        >
+          取消
+        </button>
+        <button
+          type="button"
+          class="task-config-confirm-dialog__btn task-config-confirm-dialog__btn--primary"
+          :disabled="confirming"
+          @click="emit('confirm')"
+        >
+          {{ confirming ? '提交中…' : '开始执行' }}
+        </button>
       </div>
     </template>
   </el-dialog>
 </template>
 
 <style scoped>
-.task-config-confirm-dialog :deep(.el-dialog__header) {
+.task-config-confirm-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-config-confirm-dialog__title {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #0f1114;
+  text-align: left;
+  font-style: normal;
+  text-transform: none;
+}
+
+.task-config-confirm-dialog__close {
+  box-sizing: border-box;
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 1px dashed #c9cdd4;
+  border-radius: 2px;
+  background: transparent;
+  color: #8f959e;
+  cursor: pointer;
+}
+
+.task-config-confirm-dialog__close:hover:not(:disabled) {
+  color: #646a73;
+  border-color: #bbbfc4;
+}
+
+.task-config-confirm-dialog__close:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.task-config-confirm-dialog__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.task-config-confirm-dialog__field {
+  margin: 0;
+}
+
+.task-config-confirm-dialog__label {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #646a73;
+  text-align: left;
+  font-style: normal;
+  text-transform: none;
+}
+
+.task-config-confirm-dialog__value {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #0f1114;
+  text-align: left;
+  font-style: normal;
+  text-transform: none;
+  word-break: break-all;
+}
+
+.task-config-confirm-dialog__points {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  background: #f8f9fa;
+}
+
+.task-config-confirm-dialog__points-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-config-confirm-dialog__points-label {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #0f1114;
+}
+
+.task-config-confirm-dialog__points-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.task-config-confirm-dialog__points-num {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: #1f22f6;
+}
+
+.task-config-confirm-dialog__points-unit {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #0f1114;
+}
+
+.task-config-confirm-dialog__footer {
+  display: flex;
+  width: 100%;
+  gap: 12px;
+}
+
+.task-config-confirm-dialog__btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  min-width: 0;
+  height: 46px;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    opacity 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.task-config-confirm-dialog__btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.task-config-confirm-dialog__btn--cancel {
+  border: 1px solid #dee0e3;
+  background: #ffffff;
+  color: #0f1114;
+}
+
+.task-config-confirm-dialog__btn--cancel:hover:not(:disabled) {
+  border-color: #bbbfc4;
+}
+
+.task-config-confirm-dialog__btn--primary {
+  border: none;
+  background-image: linear-gradient(90deg, #1456f0 0%, #4014f0 100%);
+  color: #ffffff;
+}
+
+.task-config-confirm-dialog__btn--primary:hover:not(:disabled) {
+  background-image: linear-gradient(90deg, #1a5df8 0%, #4d22f5 100%);
+}
+</style>
+
+<style>
+.task-config-confirm-dialog.el-dialog {
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.task-config-confirm-dialog .el-dialog__header {
   margin-right: 0;
-  padding-bottom: 0;
+  padding: 20px 20px 16px;
 }
-.task-config-confirm-dialog :deep(.el-dialog__body) {
-  padding-top: 0.75rem;
+
+.task-config-confirm-dialog .el-dialog__body {
+  padding: 0 20px 4px;
 }
-.task-config-confirm-dialog :deep(.el-dialog__footer) {
-  padding-top: 0;
+
+.task-config-confirm-dialog .el-dialog__footer {
+  padding: 16px 20px 20px;
 }
 </style>

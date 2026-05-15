@@ -3,11 +3,10 @@
  * 新建 / 编辑任务：整页表单入口，负责状态、校验、保存与子区块编排。
  */
 import { computed, nextTick, onScopeDispose, reactive, ref, watch } from 'vue'
-import type { FormInstance, FormRules } from 'element-plus'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
 import {
   createFeishuTaskConfig,
-  getFeishuTaskConfig,
   updateFeishuTaskConfig,
 } from '@/lib/api'
 import type { FeishuTaskConfigDetail } from '@/lib/api'
@@ -22,11 +21,9 @@ import FilterSettingsSection from '@/views/TaskCreateForm/components/FilterSetti
 import CrawlScheduleSection from '@/views/TaskCreateForm/components/CrawlScheduleSection.vue'
 import SourceSelectionSection from '@/views/TaskCreateForm/components/SourceSelectionSection.vue'
 import DataRetentionSection from '@/views/TaskCreateForm/components/DataRetentionSection.vue'
-import TaskConfigPreviewDialog from '@/views/TaskCreateForm/components/TaskConfigPreviewDialog.vue'
 import TaskConfigConfirmDialog from '@/views/TaskCreateForm/components/TaskConfigConfirmDialog.vue'
 import {
   buildTaskConfigConfirmRows,
-  buildTaskConfigPreviewRows,
   snapshotForPreview,
 } from '@/views/TaskCreateForm/build-preview-rows'
 
@@ -71,6 +68,17 @@ function emptySourceFieldSelection(): Record<PlatformKey, SourceFieldKey[]> {
   }
 }
 
+function emptyPlatformStringMap(): Record<PlatformKey, string> {
+  return {
+    xiaohongshu: '',
+    weibo: '',
+    douyin: '',
+    gzh: '',
+    shipinhao: '',
+    kuaishou: '',
+  }
+}
+
 /** 表单默认值工厂（重置、合并前打底） */
 function initialForm(): TaskCreateFormModel {
   return {
@@ -93,8 +101,10 @@ function initialForm(): TaskCreateFormModel {
     dataRange: dataRangeOptions[1],
     selectedSources: [],
     sourceFieldSelection: emptySourceFieldSelection(),
-    tableMode: 'existing',
+    tableMode: 'new',
     existingTableId: '',
+    platformNewTableNames: emptyPlatformStringMap(),
+    platformExistingTableIds: emptyPlatformStringMap(),
     runStatus: 'stopped',
     taskPaused: false,
     taskAbnormal: false,
@@ -120,7 +130,7 @@ const pointsEstimate = computed(() => estimateTaskPointsBreakdown(form))
 
 /** 仅定时任务校验开始/结束时间；单次任务不展示时间字段 */
 const rules = computed<FormRules>(() => ({
-  planName: [{ required: true, message: '请输入方案名称', trigger: 'blur' }],
+  planName: [{ required: true, message: '请输入任务名称', trigger: 'blur' }],
   feishuWebhookUrl: [
     {
       validator: (_rule, value, callback) => {
@@ -145,10 +155,10 @@ const rules = computed<FormRules>(() => ({
     : {}),
 }))
 
-/** 分步向导：基础设置 → 过滤设置 → 采集配置 */
+/** 分步向导：① 基础/平台/关键词/飞书 → ② 排除词、排序方式、发布时间、视频时长、选择条数 → ③ 采集字段与沉淀（共 3 步） */
 const LAST_STEP = 2
+const totalWizardSteps = LAST_STEP + 1
 const currentStep = ref(0)
-const stepTitles = ['基础设置', '过滤设置', '采集配置'] as const
 
 /** 新建首次保存后由接口返回的 id，用于再次保存走 PUT */
 const internalConfigId = ref<number | null>(null)
@@ -158,12 +168,6 @@ const confirmVisible = ref(false)
 const confirmDisplayRows = computed(() =>
   buildTaskConfigConfirmRows(snapshotForPreview(snapshotForm() as Record<string, unknown>)),
 )
-
-/** 保存成功后的预览弹框 */
-const previewVisible = ref(false)
-const previewRows = ref<{ label: string; value: string }[]>([])
-const savedTaskIdForPreview = ref<number | null>(null)
-const previewExecuting = ref(false)
 
 /** 保存中，防止连点导致重复提示 */
 const saving = ref(false)
@@ -179,20 +183,28 @@ function clearSaveSuccessTimer() {
   }
 }
 
-function showSaveSuccess() {
-  clearSaveSuccessTimer()
-  saveBanner.value = 'success'
-  saveErrorText.value = ''
-  saveSuccessClearTimer = setTimeout(() => {
-    saveBanner.value = null
-    saveSuccessClearTimer = null
-  }, 4000)
-}
-
 function showSaveError(msg: string) {
   clearSaveSuccessTimer()
   saveBanner.value = 'error'
   saveErrorText.value = msg
+}
+
+/** 表单校验未通过时：弹提示（优先展示首个字段的校验文案） */
+function notifyFormValidationFailed(invalidFields: unknown) {
+  const fallback = '请完善必填项后再保存任务'
+  if (invalidFields && typeof invalidFields === 'object' && !Array.isArray(invalidFields)) {
+    const record = invalidFields as Record<string, { message?: string }[] | undefined>
+    for (const key of Object.keys(record)) {
+      const errs = record[key]
+      const first = Array.isArray(errs) ? errs[0] : undefined
+      const msg = first && typeof first.message === 'string' ? first.message.trim() : ''
+      if (msg) {
+        ElMessage.warning(msg)
+        return
+      }
+    }
+  }
+  ElMessage.warning(fallback)
 }
 
 onScopeDispose(() => {
@@ -249,7 +261,6 @@ function normalizeRunStatus(raw: unknown): TaskRunStatus {
   return 'stopped'
 }
 
-/** 与后端 `task_paused_from_config` 一致，避免库存非严格 bool 时表单误判为未暂停 */
 function coerceTaskPausedFlag(raw: Record<string, unknown>): boolean {
   for (const key of ['taskPaused', 'task_paused'] as const) {
     const v = raw[key]
@@ -262,6 +273,19 @@ function coerceTaskPausedFlag(raw: Record<string, unknown>): boolean {
     if (typeof v === 'number' && (v === 1 || v === 0)) return v === 1
   }
   return false
+}
+
+function normalizePlatformStringMap(
+  raw: unknown,
+  fallback: Record<PlatformKey, string>,
+): Record<PlatformKey, string> {
+  const base = { ...emptyPlatformStringMap(), ...fallback }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base
+  for (const key of Object.keys(base) as PlatformKey[]) {
+    const v = (raw as Record<string, unknown>)[key]
+    if (typeof v === 'string') base[key] = v
+  }
+  return base
 }
 
 function mergeConfigIntoForm(raw: Record<string, unknown>) {
@@ -303,6 +327,14 @@ function mergeConfigIntoForm(raw: Record<string, unknown>) {
       .toLowerCase() === 'true'
   form.feishuWebhookUrl =
     typeof raw.feishuWebhookUrl === 'string' ? raw.feishuWebhookUrl.trim() : ''
+  form.platformNewTableNames = normalizePlatformStringMap(
+    raw.platformNewTableNames,
+    form.platformNewTableNames,
+  )
+  form.platformExistingTableIds = normalizePlatformStringMap(
+    raw.platformExistingTableIds,
+    form.platformExistingTableIds,
+  )
 }
 
 watch(
@@ -379,13 +411,14 @@ async function openSaveConfirm() {
   }
   try {
     await formRef.value.validate()
-  } catch {
+  } catch (invalidFields) {
+    notifyFormValidationFailed(invalidFields)
     return
   }
   confirmVisible.value = true
 }
 
-/** 确认弹框内「开始执行」：落库后打开预览弹框（是否立即分配任务） */
+/** 确认弹框内「开始执行」：落库并提交运行，回到任务列表 */
 async function persistFromConfirmDialog() {
   if (!formRef.value || saving.value) return
   const globalSettings = useGlobalSettingsStore()
@@ -396,12 +429,19 @@ async function persistFromConfirmDialog() {
   }
   try {
     await formRef.value.validate()
-  } catch {
+  } catch (invalidFields) {
+    notifyFormValidationFailed(invalidFields)
+    confirmVisible.value = false
     return
   }
   saving.value = true
   try {
     const payload = snapshotForm()
+    Object.assign(payload, {
+      taskPaused: false,
+      taskAbnormal: false,
+      runStatus: 'stopped',
+    })
     const existingId = effectiveTaskConfigId()
     let targetId: number
     if (existingId != null) {
@@ -412,72 +452,22 @@ async function persistFromConfirmDialog() {
       internalConfigId.value = id
       targetId = id
     }
-    savedTaskIdForPreview.value = targetId
-    previewRows.value = buildTaskConfigPreviewRows(snapshotForPreview(payload as Record<string, unknown>))
     confirmVisible.value = false
-    showSaveSuccess()
-    previewVisible.value = true
+    saveBanner.value = null
+    saveErrorText.value = ''
+    emit('saved', targetId)
   } catch (e) {
     showSaveError(e instanceof Error ? e.message : '保存失败')
   } finally {
     saving.value = false
   }
 }
-
-/** 与任务列表「启动」一致：解除暂停并清除异常标记，由服务端推导运行态 */
-async function executeFromPreview() {
-  const id = savedTaskIdForPreview.value
-  if (id == null || previewExecuting.value) return
-  previewExecuting.value = true
-  try {
-    const detail = await getFeishuTaskConfig(id)
-    const cfg = JSON.parse(JSON.stringify(detail.config)) as Record<string, unknown>
-    Object.assign(cfg, {
-      taskPaused: false,
-      taskAbnormal: false,
-      runStatus: 'stopped',
-    })
-    await updateFeishuTaskConfig(id, cfg)
-    ElMessage.success('已开始分配任务')
-    previewVisible.value = false
-    emit('saved', id)
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '启动失败')
-  } finally {
-    previewExecuting.value = false
-  }
-}
-
-function leavePreviewWithoutExecute() {
-  const id = savedTaskIdForPreview.value
-  previewVisible.value = false
-  if (id != null) emit('saved', id)
-}
-
-function onBackRequested() {
-  if (confirmVisible.value) confirmVisible.value = false
-  if (previewVisible.value) previewVisible.value = false
-  emit('back')
-}
 </script>
 
 <template>
   <div class="flex min-h-0 flex-col gap-6 pb-8">
-    <div class="flex items-center gap-3">
-      <el-button link type="primary" @click="onBackRequested">← 返回任务列表</el-button>
-    </div>
-
     <el-alert
-      v-if="saveBanner === 'success'"
-      type="success"
-      title="配置已保存，请预览后选择是否立即执行"
-      show-icon
-      closable
-      class="save-banner sticky top-0 z-20 mb-3 max-w-3xl shadow-sm"
-      @close="saveBanner = null"
-    />
-    <el-alert
-      v-else-if="saveBanner === 'error'"
+      v-if="saveBanner === 'error'"
       type="error"
       :title="saveErrorText"
       show-icon
@@ -495,41 +485,41 @@ function onBackRequested() {
       @confirm="persistFromConfirmDialog"
     />
 
-    <TaskConfigPreviewDialog
-      v-model="previewVisible"
-      :rows="previewRows"
-      :executing="previewExecuting"
-      @execute="executeFromPreview"
-      @leave="leavePreviewWithoutExecute"
-    />
+    <div
+      class="task-config-step-header flex max-w-3xl shrink-0 items-center justify-between gap-3 pt-1"
+    >
+      <span class="text-base font-semibold text-slate-900">任务配置</span>
+      <p class="m-0 text-sm text-slate-400">
+        第
+        <span class="font-semibold text-blue-600 tabular-nums">{{ currentStep + 1 }}</span>
+        /{{ totalWizardSteps }} 步
+      </p>
+    </div>
 
-    <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="max-w-3xl">
-      <el-steps
-        :active="currentStep"
-        finish-status="success"
-        align-center
-        class="task-create-steps mb-6"
-      >
-        <el-step v-for="(t, i) in stepTitles" :key="i" :title="t" />
-      </el-steps>
-
+    <el-form
+      ref="formRef"
+      :model="form"
+      :rules="rules"
+      label-position="top"
+      class="task-create-form max-w-3xl"
+    >
       <div v-show="currentStep === 0">
         <BasicInfoSection :form="form" />
-        <p class="mb-2 mt-6 text-sm font-medium text-slate-800">采集平台</p>
+        <CrawlScheduleSection :form="form" />
+        <p class="task-form-field-title mb-2 mt-6">采集平台</p>
         <SourceSelectionSection
           mode="platforms"
           :form="form"
           :ordered-platforms="orderedSelectedPlatforms"
         />
-        <p class="mb-2 mt-6 text-sm font-medium text-slate-800">关键词</p>
+        <p class="task-form-field-title mb-2 mt-6">关键词</p>
         <KeywordsSection
           :form="form"
           :keyword-draft="keywordDraft"
           @update:keyword-draft="keywordDraft = $event"
         />
-        <FeishuNotifySection :form="form" />
       </div>
-      <div v-show="currentStep === 1">
+      <div v-if="currentStep === 1" class="task-wizard-step-filters">
         <FilterSettingsSection
           :form="form"
           :exclude-keyword-draft="excludeKeywordDraft"
@@ -537,39 +527,48 @@ function onBackRequested() {
         />
       </div>
       <div v-show="currentStep === 2">
-        <CrawlScheduleSection :form="form" />
-        <p class="mb-2 mt-2 text-sm font-medium text-slate-800">采集字段</p>
-        <SourceSelectionSection
-          mode="fields"
-          :form="form"
-          :ordered-platforms="orderedSelectedPlatforms"
-        />
-        <div class="mt-8">
-          <DataRetentionSection :form="form" />
+        <template v-if="orderedSelectedPlatforms.length">
+          <SourceSelectionSection
+            mode="fields"
+            :form="form"
+            :ordered-platforms="orderedSelectedPlatforms"
+          />
+        </template>
+        <div class="mt-8" :class="{ 'mt-2': !orderedSelectedPlatforms.length }">
+          <p class="task-form-field-title mb-3">采集数据写入表格</p>
+          <DataRetentionSection :form="form" :ordered-platforms="orderedSelectedPlatforms" />
         </div>
+        <FeishuNotifySection :form="form" class="mt-8" />
       </div>
     </el-form>
 
     <div class="footer-actions max-w-3xl border-t border-slate-100 pt-6">
-      <div
-        class="mb-3 flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800"
-      >
-        <span>
-          预估消耗：<span class="font-medium text-[#3355FF]">~{{ pointsEstimate.total }}条</span>
-        </span>
-        <span>当前余额: {{ accountPoints.currentBalancePoints }}点</span>
-      </div>
       <div class="flex w-full gap-3">
         <template v-if="currentStep === 0">
-          <el-button type="primary" class="flex-1" @click="goNextStep">下一步</el-button>
+          <el-button
+            type="primary"
+            class="task-footer-primary task-footer-step-btn flex-1"
+            @click="goNextStep"
+            >下一步</el-button
+          >
         </template>
         <template v-else-if="currentStep === 1">
-          <el-button class="flex-1" @click="goPrevStep">上一步</el-button>
-          <el-button type="primary" class="flex-1" @click="goNextStep">下一步</el-button>
+          <el-button class="task-footer-step-btn flex-1" @click="goPrevStep">上一步</el-button>
+          <el-button
+            type="primary"
+            class="task-footer-primary task-footer-step-btn flex-1"
+            @click="goNextStep"
+            >下一步</el-button
+          >
         </template>
         <template v-else>
-          <el-button class="flex-1" @click="goPrevStep">上一步</el-button>
-          <el-button type="primary" class="flex-1" @click="openSaveConfirm">保存配置</el-button>
+          <el-button class="task-footer-step-btn flex-1" @click="goPrevStep">上一步</el-button>
+          <el-button
+            type="primary"
+            class="task-footer-primary task-footer-step-btn flex-1"
+            @click="openSaveConfirm"
+            >保存任务</el-button
+          >
         </template>
       </div>
     </div>
@@ -577,35 +576,70 @@ function onBackRequested() {
 </template>
 
 <style scoped>
+.task-create-form :deep(.el-form-item__content .el-select) {
+  width: 100%;
+}
+
+.task-create-form :deep(.el-form-item__content .el-date-editor) {
+  width: 100%;
+  max-width: 100%;
+}
+
+.task-create-form :deep(.el-form-item__content .el-input) {
+  width: 100%;
+  max-width: 100%;
+}
+
+.footer-actions :deep(.task-footer-step-btn.el-button) {
+  height: 46px;
+  min-height: 46px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.footer-actions :deep(.task-footer-primary.el-button--primary) {
+  border: none;
+  border-radius: 4px;
+  background-color: transparent;
+  background-image: linear-gradient(90deg, #1456f0 0%, #4014f0 100%);
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
+  --el-button-hover-bg-color: transparent;
+  --el-button-hover-border-color: transparent;
+}
+
+.footer-actions :deep(.task-footer-primary.el-button--primary:hover),
+.footer-actions :deep(.task-footer-primary.el-button--primary:focus) {
+  background-image: linear-gradient(90deg, #1a5df8 0%, #4d22f5 100%);
+  color: #ffffff;
+}
+
+.footer-actions :deep(.task-footer-primary.el-button--primary:active) {
+  background-image: linear-gradient(90deg, #124ecf 0%, #3612d8 100%);
+}
+
 .save-banner :deep(.el-alert__title) {
   font-size: 0.875rem;
 }
+</style>
 
-/* 飞书窄容器内避免步骤标题换行：略缩字号 + 单行 */
-.task-create-steps :deep(.el-step__title) {
-  font-size: 0.6875rem;
-  line-height: 1.2;
-  white-space: nowrap;
-  margin-top: 0.25rem;
-  padding: 0 0.125rem;
+<style>
+/* 任务配置表单：表单项 label 与独立区块标题（子组件也在此 el-form 内） */
+.task-create-form.el-form .el-form-item__label {
+  font-weight: 500;
+  font-size: 12px;
+  color: #2b2f36;
+  text-align: left;
+  font-style: normal;
+  text-transform: none;
 }
 
-.task-create-steps :deep(.el-step__head) {
-  margin-right: 0;
-}
-
-.task-create-steps :deep(.el-step__line) {
-  margin: 0 0.125rem;
-}
-
-.task-create-steps :deep(.el-step__icon) {
-  width: 1.375rem;
-  height: 1.375rem;
-  font-size: 0.6875rem;
-}
-
-.task-create-steps :deep(.el-step__icon-inner) {
-  font-size: 0.6875rem;
-  font-weight: 600;
+.task-create-form .task-form-field-title {
+  font-weight: 500;
+  font-size: 12px;
+  color: #2b2f36;
+  text-align: left;
+  font-style: normal;
+  text-transform: none;
 }
 </style>

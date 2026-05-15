@@ -80,6 +80,9 @@ def _derive_list_status(
         if is_failed:
             return "failed"
         if now_ms < eff_ms:
+            # 未到生效时间：用户仍可点「停止」写入 taskPaused，应展示为已停止（子类 before_effective）
+            if task_paused:
+                return "stopped"
             return "pending_run"
         if task_paused:
             return "stopped"
@@ -89,6 +92,8 @@ def _derive_list_status(
         if is_failed:
             return "failed"
         if now_ms < eff_ms:
+            if task_paused:
+                return "stopped"
             return "pending_run"
         if task_paused:
             return "stopped"

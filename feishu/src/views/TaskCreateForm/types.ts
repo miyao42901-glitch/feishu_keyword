@@ -60,7 +60,7 @@ export type TaskStoppedKind = 'before_effective' | 'paused_in_window' | 'neutral
 
 /** 整条任务配置快照（序列化后进库） */
 export interface TaskCreateFormModel {
-  /** 方案展示名，同步到服务端 `plan_name` */
+  /** 任务展示名，同步到服务端 `plan_name` */
   planName: string
   /** 任务完成后是否推送飞书群机器人消息 */
   feishuNotifyEnabled: boolean
@@ -87,8 +87,12 @@ export interface TaskCreateFormModel {
   /** 各平台已选采集字段 */
   sourceFieldSelection: Record<PlatformKey, SourceFieldKey[]>
   tableMode: TableMode
-  /** 已有表标识，接口联调后填充选项 */
+  /** 已有表标识（单表模式遗留；高级配置用 platformExistingTableIds） */
   existingTableId: string
+  /** 自动新建：各平台目标表格名称 */
+  platformNewTableNames: Record<PlatformKey, string>
+  /** 使用现有：各平台关联的数据表 id */
+  platformExistingTableIds: Record<PlatformKey, string>
   /**
    * 配置中的 `runStatus`：表单保存用；失败任务为 `failed`，其它情况多为 `stopped`。
    * 列表卡片主色状态由时间推导，不完全依赖本字段。

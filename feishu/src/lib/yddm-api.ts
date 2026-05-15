@@ -118,8 +118,20 @@ export async function yddmPostJson<T>(path: string, body: unknown): Promise<T> {
 }
 
 /** `GET` 请求；需鉴权时传入 `accessToken`（`Authorization: Bearer …`）。 */
-export async function yddmGetJson<T>(path: string, opts?: { accessToken?: string }): Promise<T> {
-  const url = `${getYddmApiBase()}${path.startsWith('/') ? path : `/${path}`}`
+export async function yddmGetJson<T>(
+  path: string,
+  opts?: { accessToken?: string; query?: Record<string, string | undefined> },
+): Promise<T> {
+  let url = `${getYddmApiBase()}${path.startsWith('/') ? path : `/${path}`}`
+  if (opts?.query) {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(opts.query)) {
+      const v = value?.trim()
+      if (v) params.set(key, v)
+    }
+    const qs = params.toString()
+    if (qs) url += (url.includes('?') ? '&' : '?') + qs
+  }
   const headers: Record<string, string> = { Accept: 'application/json' }
   const token = opts?.accessToken?.trim()
   if (token) headers.Authorization = `Bearer ${token}`
@@ -141,9 +153,28 @@ export function yddmFetchMe(accessToken: string) {
   return yddmGetJson<YddmMeUser>('/users/me', { accessToken })
 }
 
+/** `GET /auth/get_captcha` — query 入参 */
+export interface YddmGetCaptchaRequest {
+  /** 手机号 */
+  phone_num?: string
+  [property: string]: unknown
+}
+
 /** `POST /auth/register` */
 export function yddmRegister(payload: YddmRegisterRequest) {
   return yddmPostJson<unknown>('/auth/register', payload)
+}
+
+/**
+ * 图片验证码地址（`GET /auth/get_captcha` 返回图片，供 `<img src>` 使用，非 JSON 信封）。
+ * `phone_num` 可选；`t` 防缓存。
+ */
+export function buildYddmCaptchaImageUrl(phoneNum?: string): string {
+  const params = new URLSearchParams()
+  const phone = phoneNum?.trim()
+  if (phone) params.set('phone_num', phone)
+  params.set('t', String(Date.now()))
+  return `${getYddmApiBase()}/auth/get_captcha?${params.toString()}`
 }
 
 /** `POST /auth/login` */
