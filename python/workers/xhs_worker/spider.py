@@ -35,13 +35,13 @@ class XhsSpider(BaseSpider):
                 ac = int(api_code) if api_code is not None else None
             except (TypeError, ValueError):
                 ac = None
-            remain_money = float(raw.get("remain_money", 0.0))
+            balance = float(raw.get("balance", 0.0))
             logger.info("小红书 业务码=%s", api_code)
 
             if ac == CODE_INSUFFICIENT_BALANCE:
                 return {
                     "data": [],
-                    "remain_money": remain_money,
+                    "balance": balance,
                     "error": None,
                     "insufficient_balance": True,
                 }
@@ -53,25 +53,28 @@ class XhsSpider(BaseSpider):
                     continue
                 return {
                     "data": [],
-                    "remain_money": remain_money,
+                    "balance": balance,
                     "error": {"origin": "xhs", "code": ac, "msg": msg},
                     "insufficient_balance": False,
                 }
 
             try:
-                return self._parser.parse(raw)
+                return self._parser.parse(
+                    raw,
+                    exclude_words=str(payload.get("exclude_words") or ""),
+                )
             except Exception as e:  # noqa: BLE001
                 logger.error("小红书解析异常: %s", e, exc_info=True)
                 return {
                     "data": [],
-                    "remain_money": float(raw.get("remain_money", 0.0)),
+                    "balance": float(raw.get("balance", 0.0)),
                     "error": {"origin": "xhs", "code": 5000, "msg": f"内部解析错误: {e!s}"},
                     "insufficient_balance": False,
                 }
 
         return {
             "data": [],
-            "remain_money": 0.0,
+            "balance": 0.0,
             "error": {"origin": "xhs", "code": 5002, "msg": "重试机制异常"},
             "insufficient_balance": False,
         }

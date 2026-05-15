@@ -3,7 +3,7 @@ from .api_response import CODE_OK, err, from_worker_run, normalize_body, ok
 from .api_status_codes import API_STATUS_MESSAGES, CODE_INSUFFICIENT_BALANCE, get_message
 from .http_client import BaseHttpClient, HttpClientError
 from .spider_base import BaseSpider, ResponseParser
-from .time_utils import to_ms_timestamp
+from social_platform.utils.time_ms import to_ms_timestamp
 
 __all__ = [
     "CODE_OK",

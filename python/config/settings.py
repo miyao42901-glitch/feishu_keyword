@@ -28,6 +28,22 @@ class Settings(BaseSettings):
     celery_task_eager: bool = Field(default=False, validation_alias="CELERY_TASK_ALWAYS_EAGER")
     celery_beat_enabled: bool = Field(default=False, validation_alias="CELERY_BEAT_ENABLED")
 
+    # 异步任务持久化（MySQL）；留空则仅同步 HTTP 可用，异步接口返回未配置
+    database_url: str = Field(default="", validation_alias="DATABASE_URL")
+    database_auto_create_tables: bool = Field(default=False, validation_alias="ASYNC_TASK_DB_AUTO_CREATE")
+    async_results_default_limit: int = Field(default=20, validation_alias="ASYNC_RESULTS_DEFAULT_LIMIT")
+
+    # 异步任务提交前：yddm 用户校验（GET users/me）
+    yddm_users_me_url: str = Field(
+        default="https://api.yddm.com/users/me",
+        validation_alias="YDDM_USERS_ME_URL",
+    )
+    yddm_users_me_timeout_sec: float = Field(default=10.0, validation_alias="YDDM_USERS_ME_TIMEOUT_SEC")
+    async_task_max_active_per_user: int = Field(
+        default=10,
+        validation_alias="ASYNC_TASK_MAX_ACTIVE_PER_USER",
+    )
+
     def resolved_celery_broker(self) -> str:
         return (self.celery_broker_url or self.redis_url).strip()
 

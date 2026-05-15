@@ -3,12 +3,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from social_platform.utils.worker_runtime import worker_meta
+
 WORKER_NAME = "jzl_social"
 WORKER_VERSION = "1.0.0"
 
 
 def _merge_meta(out: dict[str, Any]) -> dict[str, Any]:
-    base = {"worker": WORKER_NAME, "version": WORKER_VERSION}
+    base = worker_meta(WORKER_NAME, WORKER_VERSION)
     inner = out.pop("meta", {})
     out["meta"] = {**inner, **base}
     return out
@@ -33,5 +35,5 @@ def run_task(payload: dict[str, Any]) -> dict[str, Any]:
             f"unsupported action: {action!r}；"
             "支持: douyin_search_page, douyin_search_all, xhs_search_page, xhs_search_all"
         ),
-        "meta": {"worker": WORKER_NAME, "version": WORKER_VERSION},
+        "meta": worker_meta(WORKER_NAME, WORKER_VERSION),
     }

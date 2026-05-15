@@ -1,0 +1,7 @@
+{
+  "action": "douyin-search-all",
+  "body": {
+    "keyword": "新能源",
+    "page": 1
+  }
+}

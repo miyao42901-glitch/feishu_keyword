@@ -1,112 +1,190 @@
 """抖音 Worker 任务入口。"""
 from __future__ import annotations
 
-import os
-from typing import Any
+from datetime import datetime
+from typing import Any, Callable, Optional
 
 from douyin_worker.spider import DouyinSpider
-from social_platform.urls import DOUYIN_GENERAL_URL
+from http_api.constants import DOUYIN_GENERAL_URL
+from social_platform.search_api_params import merge_search_all_api_params_into_body
+from social_platform.services.search_persist import (
+    persist_search_all_page_if_async,
+    search_all_async_ctx,
+)
+from social_platform.utils.coercion import as_third_party_str
+from social_platform.utils.search_fetch_all import (
+    clamp_fetch_count_cap,
+    coerce_optional_list_sort_type,
+    fetch_douyin_search_all,
+    parse_optional_datetime,
+    resolve_search_all_date_bounds,
+)
+from social_platform.utils.worker_runtime import API_KEY_HEADER, resolved_service_url, worker_meta
 
 WORKER_NAME = "douyin_worker"
 WORKER_VERSION = "1.0.0"
 
-_API_KEY_HEADER = "X-API-Key"
-
-
-def _api_url() -> str:
-    return (os.environ.get("DOUYIN_GENERAL_URL") or DOUYIN_GENERAL_URL).strip()
-
-
-def _as_third_party_str(v: Any) -> str:
-    if v is None:
-        return ""
-    return str(v)
-
 
 def _third_party_json_body(params: dict[str, Any]) -> dict[str, Any]:
-    """下游 POST JSON（不含鉴权头）。"""
+    """抖音 / 小红书 search-all 等多页场景（cursor 翻页）。"""
     cursor = str(params.get("cursor") or "")
     if not cursor.strip():
         cursor = str(params.get("page") or "")
+    st = params.get("sort_type")
+    if st is None or (isinstance(st, str) and not str(st).strip()):
+        sort_type = "0"
+    else:
+        sort_type = str(st)
     return {
         "keyword": str(params.get("keyword") or ""),
         "cursor": cursor,
         "log_id": str(params.get("log_id") or params.get("logid") or ""),
-        "sort_type": _as_third_party_str(params.get("sort_type")),
-        "publish_time": _as_third_party_str(params.get("publish_time")),
-        "filter_duration": _as_third_party_str(params.get("filter_duration")),
-        "content_type": _as_third_party_str(params.get("content_type")),
+        "sort_type": sort_type,
+        "publish_time": as_third_party_str(params.get("publish_time")) or "0",
+        "filter_duration": as_third_party_str(params.get("filter_duration")) or "0",
+        "content_type": as_third_party_str(params.get("content_type")) or "0",
+        "exclude_words": as_third_party_str(params.get("exclude_words")),
     }
+
+
+def _douyin_page_json_body(params: dict[str, Any]) -> dict[str, Any]:
+    """抖音单页搜索 POST body。"""
+    st = params.get("sort_type")
+    if st is None or (isinstance(st, str) and not str(st).strip()):
+        sort_type = "0"
+    else:
+        sort_type = str(st)
+    return {
+        "keyword": str(params.get("keyword") or ""),
+        "cursor": str(params.get("cursor") or ""),
+        "log_id": str(params.get("log_id") or params.get("logid") or ""),
+        "sort_type": sort_type,
+        "publish_time": as_third_party_str(params.get("publish_time")) or "0",
+        "filter_duration": as_third_party_str(params.get("filter_duration")) or "0",
+        "content_type": as_third_party_str(params.get("content_type")) or "0",
+        "exclude_words": as_third_party_str(params.get("exclude_words")),
+    }
+
+
+def _third_party_json_body_search_all(params: dict[str, Any]) -> dict[str, Any]:
+    return merge_search_all_api_params_into_body(_third_party_json_body(params), params)
 
 
 def call_douyin_api(api_url: str, key: str, body: dict[str, Any]) -> dict[str, Any]:
-    return DouyinSpider(api_url).run(body, headers={_API_KEY_HEADER: key.strip()})
+    return DouyinSpider(api_url).run(body, headers={API_KEY_HEADER: key.strip()})
 
 
-def fetch_douyin_all(api_url: str, key: str, params: dict[str, Any], max_pages: int) -> dict[str, Any]:
-    all_data: list[Any] = []
-    remain_money = 0.0
-    body = _third_party_json_body(params)
-    insufficient_balance = False
-    last_error = None
+def fetch_douyin_all(
+    api_url: str,
+    key: str,
+    params: dict[str, Any],
+    max_pages: Optional[int] = None,
+    *,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    list_sort_type: Optional[int] = None,
+    fetch_count_cap: int = 100,
+    after_each_page: Optional[Callable[[list[dict[str, Any]]], None]] = None,
+) -> dict[str, Any]:
+    """
+    多页拉取抖音搜索结果。
 
-    for _ in range(max_pages):
-        result = call_douyin_api(api_url, key, body)
-        if result.get("insufficient_balance"):
-            insufficient_balance = True
-            break
-        if result.get("error"):
-            last_error = result["error"]
-            break
-        data = result.get("data", [])
-        all_data.extend(data)
-        remain_money = result.get("remain_money", remain_money)
-        if not data or len(data) < 5:
-            break
-        body["cursor"] = str(result.get("next_cursor", ""))
-        body["log_id"] = str(result.get("next_logid", ""))
-
-    return {
-        "records": all_data,
-        "remain_money": remain_money,
-        "insufficient_balance": insufficient_balance,
-        "last_error": last_error,
-    }
+    默认与参数语义见 :func:`social_platform.utils.search_fetch_all.fetch_douyin_search_all`。
+    若上游对检索时间跨度有限制（如最多 30 天），请以接口文档为准；此处仅按解析结果过滤。
+    """
+    return fetch_douyin_search_all(
+        api_url,
+        key,
+        params,
+        body_builder=_third_party_json_body_search_all,
+        api_call=call_douyin_api,
+        max_pages=max_pages,
+        start_date=start_date,
+        end_date=end_date,
+        list_sort_type=list_sort_type,
+        fetch_count_cap=fetch_count_cap,
+        after_each_page=after_each_page,
+    )
 
 
-def _meta() -> dict[str, str]:
-    return {"worker": WORKER_NAME, "version": WORKER_VERSION}
+def execute_douyin_search_all(
+    params: dict[str, Any],
+    *,
+    sync_page_save: Optional[Callable[[list[dict[str, Any]]], None]] = None,
+) -> dict[str, Any]:
+    """供 HTTP 同步与 ``run_task`` 共用；可选 ``sync_page_save`` 在每页过滤后落库。"""
+    meta = worker_meta(WORKER_NAME, WORKER_VERSION)
+    key, keyword = params.get("key"), params.get("keyword")
+    if not key or not keyword:
+        return {"ok": False, "error": "missing key or keyword", "meta": meta}
+    url = resolved_service_url("DOUYIN_GENERAL_URL", DOUYIN_GENERAL_URL)
+    if not url:
+        return {"ok": False, "error": "DOUYIN_GENERAL_URL 为空", "meta": meta}
+    max_pages = _optional_max_pages(params)
+    list_st = coerce_optional_list_sort_type(params)
+    fetch_n = clamp_fetch_count_cap(params)
+    start_d = parse_optional_datetime(params.get("start_date"))
+    end_d = parse_optional_datetime(params.get("end_date"))
+    start_d, end_d = resolve_search_all_date_bounds(
+        params, list_sort_type=list_st, start_d=start_d, end_d=end_d
+    )
+    use_after = sync_page_save is not None or search_all_async_ctx.get() is not None
+
+    def after_chunk(chunk: list[dict[str, Any]]) -> None:
+        if not chunk:
+            return
+        if sync_page_save is not None:
+            sync_page_save(chunk)
+        persist_search_all_page_if_async(chunk)
+
+    summary = fetch_douyin_all(
+        url,
+        str(key).strip(),
+        params,
+        max_pages,
+        start_date=start_d,
+        end_date=end_d,
+        list_sort_type=list_st,
+        fetch_count_cap=fetch_n,
+        after_each_page=after_chunk if use_after else None,
+    )
+    if use_after:
+        summary["_incremental_persist"] = True
+    ok = summary["last_error"] is None and not summary["insufficient_balance"]
+    if summary["insufficient_balance"]:
+        ok = False
+    return {"ok": ok, "data": summary, "meta": meta}
+
+
+def _optional_max_pages(params: dict[str, Any]) -> Optional[int]:
+    if "max_pages" not in params:
+        return None
+    v = params.get("max_pages")
+    if v is None:
+        return None
+    if isinstance(v, str) and not str(v).strip():
+        return None
+    return int(v)
 
 
 def run_task(payload: dict[str, Any]) -> dict[str, Any]:
     action = payload.get("action")
     params = payload.get("params") or {}
-    meta = _meta()
+    meta = worker_meta(WORKER_NAME, WORKER_VERSION)
 
     if action == "douyin_search_page":
         key, keyword = params.get("key"), params.get("keyword")
         if not key or not keyword:
             return {"ok": False, "error": "missing key or keyword", "meta": meta}
-        url = _api_url()
+        url = resolved_service_url("DOUYIN_GENERAL_URL", DOUYIN_GENERAL_URL)
         if not url:
             return {"ok": False, "error": "DOUYIN_GENERAL_URL 为空", "meta": meta}
-        raw = call_douyin_api(url, str(key).strip(), _third_party_json_body(params))
+        raw = call_douyin_api(url, str(key).strip(), _douyin_page_json_body(params))
         ok = not raw.get("insufficient_balance") and raw.get("error") is None
         return {"ok": ok, "data": raw, "meta": meta}
 
     if action == "douyin_search_all":
-        key, keyword = params.get("key"), params.get("keyword")
-        if not key or not keyword:
-            return {"ok": False, "error": "missing key or keyword", "meta": meta}
-        url = _api_url()
-        if not url:
-            return {"ok": False, "error": "DOUYIN_GENERAL_URL 为空", "meta": meta}
-        max_pages = int(params.get("max_pages", 10))
-        summary = fetch_douyin_all(url, str(key).strip(), params, max_pages)
-        ok = summary["last_error"] is None and not summary["insufficient_balance"]
-        if summary["insufficient_balance"]:
-            ok = False
-        return {"ok": ok, "data": summary, "meta": meta}
+        return execute_douyin_search_all(params)
 
     return {
         "ok": False,

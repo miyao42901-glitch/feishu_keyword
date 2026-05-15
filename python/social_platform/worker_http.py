@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from social_platform.api_response import from_worker_run, ok
 from social_platform.schemas import TaskEnvelope
 
-from http_api.versions import API_V1_PREFIX
+from http_api.constants import API_V1_PREFIX
 
 
 def create_worker_app(name: str, run_task: Callable[[dict[str, Any]], dict[str, Any]]) -> FastAPI:

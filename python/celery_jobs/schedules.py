@@ -1,32 +1,7 @@
-"""Celery Beat 定时任务：在 python/.env 设置 CELERY_BEAT_ENABLED=1 时由 celery_app 加载。
-
-修改下方 payload 为你的业务信封；任务名须与 tasks.social_task 中 @shared_task name 一致。
-"""
+"""Beat 调度表：实现位于 `social_platform.tasks.beat_schedule`。"""
 from __future__ import annotations
 
-from typing import Any
+from social_platform.tasks.beat_schedule import build_beat_schedule
+from social_platform.tasks.worker_tasks import TASK_JZL_SOCIAL
 
-from celery.schedules import crontab
-
-# 与 celery_jobs.tasks.social_task.run_jzl_social 上 @celery_app.task(name=...) 保持一致
-TASK_JZL_SOCIAL = "celery_jobs.tasks.social_task.run_jzl_social"
-
-
-def build_beat_schedule() -> dict[str, dict[str, Any]]:
-    # 示例：每 30 分钟拉一次（请按业务改 action/params）
-    example_payload: dict[str, Any] = {
-        "action": "douyin_search_page",
-        "params": {
-            "key": "",
-            "keyword": "替换为你的词",
-            "cursor": "",
-            "logid": "",
-        },
-    }
-    return {
-        "beat-multi-social-example": {
-            "task": TASK_JZL_SOCIAL,
-            "schedule": crontab(minute="*/30"),
-            "args": (example_payload,),
-        },
-    }
+__all__ = ["build_beat_schedule", "TASK_JZL_SOCIAL"]

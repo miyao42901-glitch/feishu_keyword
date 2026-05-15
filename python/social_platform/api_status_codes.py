@@ -3,10 +3,16 @@ from __future__ import annotations
 
 # --- 标准码（文档与客户端约定）---
 
-CODE_FAILED = -1
-CODE_SUCCESS = 0
-CODE_BAD_REQUEST = 400
-CODE_INSUFFICIENT_BALANCE = 1001
+CODE_FAILED = -1     # 失败
+CODE_SUCCESS = 0     # 成功
+CODE_BAD_REQUEST = 400  # 参数错误
+CODE_INSUFFICIENT_BALANCE = 1001    # 余额不足
+CODE_INVALID_API_KEY = 1002          # 无效的 API Key
+CODE_USER_NOT_FOUND = 1003           # 用户不存在
+CODE_REQUEST_LIMIT_EXCEEDED = 1005   # 请求频率超过上限
+CODE_ASYNC_SUBMIT_USER_MISMATCH = 1020  # X-User-Id 与 X-API-Key 在 yddm 侧不一致
+CODE_ASYNC_SUBMIT_QUOTA_EXCEEDED = 1021  # 单用户 pending/running 异步任务数超限
+CODE_YDDM_USERS_ME_FAILED = 1022  # 调用 yddm「当前用户」接口失败或不可用
 
 # Spider / HTTP 层内部使用的临时码，对外映射为 api_status_codes 中已有码
 _INTERNAL_HTTP_ERROR = 5001
@@ -36,6 +42,9 @@ API_STATUS_MESSAGES: dict[int, str] = {
     1017: "请填写手机号",
     1018: "请填写邮箱",
     1019: "接口不存在，请检查",
+    1020: "X-User-Id 与当前 API Key 对应的用户不一致",
+    1021: "异步任务数量已达上限，请等待进行中的任务完成后再提交",
+    1022: "用户校验服务暂时不可用，请稍后重试",
     5000: "服务暂时不可用，请稍后重试",
     5003: "网络连接失败，请稍后重试",
     6001: "修改密码失败，请稍后重试",

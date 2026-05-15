@@ -47,7 +47,7 @@ class BaseSpider:
     def _network_error(self, exc: HttpClientError) -> dict[str, Any]:
         return {
             "data": [],
-            "remain_money": 0.0,
+            "balance": 0.0,
             "error": {"origin": self.platform, "code": 5001, "msg": str(exc)},
             "insufficient_balance": False,
         }

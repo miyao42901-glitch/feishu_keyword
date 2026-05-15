@@ -15,10 +15,24 @@ from social_platform.env_bootstrap import ensure_dotenv_loaded  # noqa: E402
 
 ensure_dotenv_loaded()
 
+from contextlib import asynccontextmanager  # noqa: E402
+
 from fastapi import FastAPI  # noqa: E402
 
+from config.settings import get_settings  # noqa: E402
 from http_api.v1.routes import register_v1_routes  # noqa: E402
 
-app = FastAPI(title="social_http", version="1.0.0")
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    s = get_settings()
+    if s.database_url.strip() and s.database_auto_create_tables:
+        from social_platform.database.session import init_db_tables
+
+        init_db_tables()
+    yield
+
+
+app = FastAPI(title="social_http", version="1.0.0", lifespan=_lifespan)
 
 register_v1_routes(app)

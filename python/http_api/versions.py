@@ -1,4 +1,4 @@
-"""对外 API 主版本常量（路径前缀）。新增 v2 时在 `http_api/v2/` 增加路由并在此登记。"""
+"""Deprecated: use ``http_api.constants.API_V1_PREFIX``."""
+from http_api.constants import API_V1_PREFIX
 
-API_V1_PREFIX = "/api/v1"
-
+__all__ = ["API_V1_PREFIX"]
