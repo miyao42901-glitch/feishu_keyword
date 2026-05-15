@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_db, require_feishu_api_key
 from app.core.config import DEFAULT_LIST_LIMIT
 from app.schemas.api_response import ApiResponse
 from app.models import FeishuTaskConfig
@@ -70,6 +70,7 @@ def list_feishu_task_configs(
     skip: int = 0,
     limit: int = DEFAULT_LIST_LIMIT,
     db: Session = Depends(get_db),
+    owner_api_key: str = Depends(require_feishu_api_key),
 ) -> ApiResponse[List[FeishuTaskConfigListItemOut]]:
     """
     分页查询任务配置列表。
@@ -80,16 +81,20 @@ def list_feishu_task_configs(
         skip: 偏移量，默认 0。
         limit: 每页条数，默认 `DEFAULT_LIST_LIMIT`，服务端裁剪不超过 `MAX_LIST_LIMIT`。
         db: 请求级会话，由 `get_db` 注入。
+        owner_api_key: 请求头 `X-Api-Key`（与前端 YDDM API Key 一致），仅返回该账户下的任务。
 
     Returns:
         `code=0` 时 `data` 为列表项数组（`id`、`plan_name`、`updated_at` 及从 `config` 解析的
         `task_type`、`platform_keys`、`effective_at`、`expire_at`、`task_paused`、`task_abnormal`、`run_status`），按 `id` 降序。
 
     Raises:
+        HTTPException: 401 — 未携带或 `X-Api-Key` 为空。
         HTTPException: 503 — 数据库错误，`detail` 含排查说明与 MySQL 摘要。
     """
     try:
-        rows = feishu_task_config_service.list_feishu_task_configs(db, skip=skip, limit=limit)
+        rows = feishu_task_config_service.list_feishu_task_configs(
+            db, owner_api_key=owner_api_key, skip=skip, limit=limit
+        )
         items: List[FeishuTaskConfigListItemOut] = []
         for r in rows:
             cfg = feishu_task_config_service.config_dict_from_row(r)
@@ -134,7 +139,9 @@ def list_feishu_task_configs(
 
 @router.get("/feishu-task-configs/{config_id}")
 def get_feishu_task_config(
-    config_id: int, db: Session = Depends(get_db)
+    config_id: int,
+    db: Session = Depends(get_db),
+    owner_api_key: str = Depends(require_feishu_api_key),
 ) -> ApiResponse[FeishuTaskConfigDetailOut]:
     """
     按主键查询单条任务配置（含完整 `config` 对象）。
@@ -144,15 +151,19 @@ def get_feishu_task_config(
     Args:
         config_id: `feishu_task_configs.id`。
         db: 请求级会话。
+        owner_api_key: 请求头 `X-Api-Key`，仅允许访问本人任务。
 
     Returns:
         `code=0` 时 `data` 为 `FeishuTaskConfigDetailOut`（含 `config` 字典）。
 
     Raises:
-        HTTPException: 404 — 记录不存在；503 — 数据库错误。
+        HTTPException: 401 — 未携带或 `X-Api-Key` 为空。
+        HTTPException: 404 — 记录不存在或不属于当前账户；503 — 数据库错误。
     """
     try:
-        row = feishu_task_config_service.get_feishu_task_config(db, config_id)
+        row = feishu_task_config_service.get_feishu_task_config(
+            db, owner_api_key=owner_api_key, config_id=config_id
+        )
     except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(status_code=503, detail=_detail_from_sqlalchemy(e)) from None
@@ -175,7 +186,9 @@ def get_feishu_task_config(
 
 @router.post("/feishu-task-configs")
 def create_feishu_task_config(
-    body: FeishuTaskConfigUpsertBody, db: Session = Depends(get_db)
+    body: FeishuTaskConfigUpsertBody,
+    db: Session = Depends(get_db),
+    owner_api_key: str = Depends(require_feishu_api_key),
 ) -> ApiResponse[FeishuTaskConfigWriteOut]:
     """
     新建一条任务配置（插入一行，`config` 序列化为 `config_json`）。
@@ -190,10 +203,13 @@ def create_feishu_task_config(
         `code=0` 时 `data` 含 `id` 及保存后的 `display_status`、`stopped_kind`。
 
     Raises:
+        HTTPException: 401 — 未携带或 `X-Api-Key` 为空。
         HTTPException: 503 — 数据库错误（常见：表未创建）。
     """
     try:
-        row = feishu_task_config_service.create_feishu_task_config(db, config=body.config)
+        row = feishu_task_config_service.create_feishu_task_config(
+            db, owner_api_key=owner_api_key, config=body.config
+        )
         return ApiResponse.success(data=_write_out_from_row(row), message="保存成功")
     except SQLAlchemyError as e:
         db.rollback()
@@ -205,6 +221,7 @@ def update_feishu_task_config(
     config_id: int,
     body: FeishuTaskConfigUpsertBody,
     db: Session = Depends(get_db),
+    owner_api_key: str = Depends(require_feishu_api_key),
 ) -> ApiResponse[FeishuTaskConfigWriteOut]:
     """
     全量更新指定 id 的任务配置（覆盖 `plan_name` 与 `config_json`）。
@@ -220,10 +237,13 @@ def update_feishu_task_config(
         `code=0` 时 `data` 含 `id` 及保存后的 `display_status`、`stopped_kind`。
 
     Raises:
-        HTTPException: 404 — 记录不存在；503 — 数据库错误。
+        HTTPException: 401 — 未携带或 `X-Api-Key` 为空。
+        HTTPException: 404 — 记录不存在或不属于当前账户；503 — 数据库错误。
     """
     try:
-        row = feishu_task_config_service.update_feishu_task_config(db, config_id, config=body.config)
+        row = feishu_task_config_service.update_feishu_task_config(
+            db, owner_api_key=owner_api_key, config_id=config_id, config=body.config
+        )
     except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(status_code=503, detail=_detail_from_sqlalchemy(e)) from None
@@ -234,7 +254,9 @@ def update_feishu_task_config(
 
 @router.delete("/feishu-task-configs/{config_id}")
 def delete_feishu_task_config(
-    config_id: int, db: Session = Depends(get_db)
+    config_id: int,
+    db: Session = Depends(get_db),
+    owner_api_key: str = Depends(require_feishu_api_key),
 ) -> ApiResponse[FeishuTaskConfigIdOut]:
     """
     删除指定 id 的任务配置。
@@ -249,10 +271,13 @@ def delete_feishu_task_config(
         `code=0` 时 `data` 为 `{ "id": config_id }`。
 
     Raises:
-        HTTPException: 404 — 记录不存在；503 — 数据库错误。
+        HTTPException: 401 — 未携带或 `X-Api-Key` 为空。
+        HTTPException: 404 — 记录不存在或不属于当前账户；503 — 数据库错误。
     """
     try:
-        ok = feishu_task_config_service.delete_feishu_task_config(db, config_id)
+        ok = feishu_task_config_service.delete_feishu_task_config(
+            db, owner_api_key=owner_api_key, config_id=config_id
+        )
     except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(status_code=503, detail=_detail_from_sqlalchemy(e)) from None

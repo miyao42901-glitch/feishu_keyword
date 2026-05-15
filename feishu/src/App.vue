@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { storeToRefs } from 'pinia'
 import GlobalApiKeyBar from '@/components/GlobalApiKeyBar.vue'
@@ -26,6 +26,7 @@ const showLogoutBtn = computed(
 function onLogout() {
   yddmAuth.clearSession()
   globalSettings.authCode = ''
+  accountPoints.resetToDefaultBalance()
   ElMessage.success('已退出登录')
 }
 /** 任务页是否处于新建/编辑配置（由 TasksView 同步） */
@@ -61,6 +62,34 @@ function openOperationsDoc() {
 function openLoginDialog() {
   loginDialogVisible.value = true
 }
+
+/** 顶部栏：余额来自 YDDM `balance_cents`（分 → 元） */
+const headerBalanceText = computed(() => {
+  const c = yddmAuth.me?.balance_cents
+  if (typeof c === 'number' && Number.isFinite(c)) return `${(c / 100).toFixed(2)} 元`
+  return '—'
+})
+
+watch(
+  () => yddmAuth.me,
+  (m) => {
+    if (m && typeof m.balance_cents === 'number' && Number.isFinite(m.balance_cents)) {
+      accountPoints.setCurrentBalancePoints(Math.max(0, Math.round(m.balance_cents / 100)))
+    }
+  },
+  { deep: true },
+)
+
+onMounted(() => {
+  const tok = yddmAuth.accessToken?.trim()
+  if (!tok) return
+  void yddmAuth.refreshMe().then((u) => {
+    const key = u?.api_key?.trim()
+    if (key) globalSettings.authCode = key
+  }).catch(() => {
+    /* 保留本地 token，由任务请求或用户手动重试 */
+  })
+})
 </script>
 
 <template>
@@ -115,7 +144,7 @@ function openLoginDialog() {
           class="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3"
         >
           <span class="max-w-[9rem] truncate text-xs text-slate-500 sm:max-w-none"
-            >余额 {{ accountPoints.currentBalancePoints }} 点</span
+            >余额 {{ headerBalanceText }}</span
           >
           <button
             v-if="showLogoutBtn"

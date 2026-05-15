@@ -10,6 +10,7 @@ import {
   YDDM_PASSWORD_MAX_LEN,
 } from '@/lib/yddm-auth-validators'
 import { yddmLogin, yddmRegister, type YddmLoginRequest, type YddmRegisterRequest } from '@/lib/yddm-api'
+import { useAccountPointsStore } from '@/stores/accountPoints'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
 import { useYddmAuthStore } from '@/stores/yddmAuth'
 
@@ -17,6 +18,7 @@ defineOptions({ name: 'YddmAuthView' })
 
 const globalSettings = useGlobalSettingsStore()
 const yddmAuth = useYddmAuthStore()
+const accountPoints = useAccountPointsStore()
 
 const panel = ref<'login' | 'register'>('login')
 const loginSubmitting = ref(false)
@@ -104,6 +106,7 @@ async function tryRefreshMe(clearSessionOnError = true) {
     if (clearSessionOnError) {
       yddmAuth.clearSession()
       globalSettings.authCode = ''
+      accountPoints.resetToDefaultBalance()
       ElMessage.warning(`${msg}，请重新登录`)
     } else {
       ElMessage.error(`${msg}，已保留登录态与登录接口返回的资料`)
@@ -149,6 +152,7 @@ async function onLogin() {
 function onLogout() {
   yddmAuth.clearSession()
   globalSettings.authCode = ''
+  accountPoints.resetToDefaultBalance()
   panel.value = 'login'
   ElMessage.success('已退出登录')
 }

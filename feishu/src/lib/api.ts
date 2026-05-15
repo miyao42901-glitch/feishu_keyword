@@ -5,7 +5,13 @@
  * - 本地 `npm run dev` 未配置时默认 `http://127.0.0.1:8000`。
  * - 后端统一响应：`{ code, message, data }`；本模块 **`apiFetch` 在 `code === 0` 时只返回 `data`**，
  *   非 0 时抛错（`message` 供 UI 提示）。约定见 `docs/API.md` 第五节。
+ * - 任务相关接口携带请求头 **`X-Api-Key`**（与 Pinia `globalSettings.authCode` / localStorage 同步），
+ *   供后端按登录账户隔离任务数据。
  */
+
+import { getActivePinia } from 'pinia'
+
+import { GLOBAL_AUTH_CODE_STORAGE_KEY, useGlobalSettingsStore } from '@/stores/globalSettings'
 
 /** 本地后端默认地址（与文档中 uvicorn 示例端口一致） */
 const DEFAULT_DEV_API_ROOT = 'http://127.0.0.1:8000'
@@ -54,12 +60,15 @@ function unwrapEnvelope<T>(body: unknown): T {
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const root = getApiRoot()
   const url = `${root}/api${path.startsWith('/') ? path : `/${path}`}`
+  const apiKey = readApiKeyForHeader()
+  const baseHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(init?.headers as Record<string, string>),
+  }
+  if (apiKey) baseHeaders['X-Api-Key'] = apiKey
   const res = await fetch(url, {
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers as Record<string, string>),
-    },
+    headers: baseHeaders,
   })
   const text = await res.text()
   let parsed: unknown = null
@@ -84,6 +93,24 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
 
   throw new Error('响应格式错误：无法解析为统一 JSON')
+}
+
+function readApiKeyForHeader(): string {
+  try {
+    const pinia = getActivePinia()
+    if (pinia) {
+      const k = useGlobalSettingsStore(pinia).authCode?.trim()
+      if (k) return k
+    }
+  } catch {
+    /* Pinia 未挂载等 */
+  }
+  try {
+    const raw = localStorage.getItem(GLOBAL_AUTH_CODE_STORAGE_KEY)
+    return typeof raw === 'string' ? raw.trim() : ''
+  } catch {
+    return ''
+  }
 }
 
 /** `GET /api/feishu-task-configs` 列表项（`data` 数组元素） */

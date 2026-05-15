@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Generator
 
+from fastapi import Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
@@ -32,3 +33,24 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+def require_feishu_api_key(
+    x_api_key: str | None = Header(default=None, alias="X-Api-Key"),
+) -> str:
+    """
+    飞书插件任务接口：按请求头 `X-Api-Key` 识别账户（与前端持久化的 YDDM API Key 一致）。
+
+    Returns:
+        去首尾空白后的 API Key。
+
+    Raises:
+        HTTPException: 401 — 未携带或 Key 为空。
+    """
+    key = (x_api_key or "").strip()
+    if not key:
+        raise HTTPException(
+            status_code=401,
+            detail="请先登录并在顶部获取 API Key 后再访问任务数据",
+        )
+    return key

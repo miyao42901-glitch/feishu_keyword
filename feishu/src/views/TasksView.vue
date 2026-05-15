@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, Plus } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { computed, onMounted, onScopeDispose, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { storeToRefs } from 'pinia'
 import TaskCreateForm from '@/views/TaskCreateForm/index.vue'
 import { platformDisplayNames, sourcePlatforms } from '@/views/TaskCreateForm/constants'
 import TaskDetailDialog from '@/views/tasks/components/TaskDetailDialog.vue'
@@ -20,6 +21,7 @@ import {
   type FeishuTaskConfigListItem,
   type FeishuTaskConfigWriteResult,
 } from '@/lib/api'
+import { useGlobalSettingsStore } from '@/stores/globalSettings'
 
 const tasks = ref<TaskCardModel[]>([])
 /** 列表每页条数 */
@@ -28,6 +30,9 @@ const listCurrentPage = ref(1)
 const screen = ref<'list' | 'create'>('list')
 const editingTaskId = ref<number | null>(null)
 const taskDetail = ref<FeishuTaskConfigDetail | null>(null)
+
+const globalSettings = useGlobalSettingsStore()
+const { authCode } = storeToRefs(globalSettings)
 
 const detailDialogVisible = ref(false)
 const detailDialogLoading = ref(false)
@@ -255,17 +260,27 @@ function mapRows(rows: FeishuTaskConfigListItem[]): TaskCardModel[] {
 }
 
 async function loadTaskList() {
+  if (!authCode.value.trim()) {
+    tasks.value = []
+    listCurrentPage.value = 1
+    return
+  }
   try {
     const rows = await listFeishuTaskConfigs(0, 100)
     tasks.value = mapRows(rows)
     const maxPage = Math.max(1, Math.ceil(displayedTasks.value.length / pageSize.value))
     if (listCurrentPage.value > maxPage) listCurrentPage.value = maxPage
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载任务列表失败')
+    const msg = e instanceof Error ? e.message : '加载任务列表失败'
+    ElMessage.error(msg)
     tasks.value = []
     listCurrentPage.value = 1
   }
 }
+
+watch(authCode, () => {
+  void loadTaskList()
+})
 
 onMounted(() => {
   void loadTaskList()

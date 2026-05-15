@@ -45,6 +45,8 @@ class FeishuTaskConfig(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     plan_name: Mapped[Optional[str]] = mapped_column(String(200))
+    """YDDM 账户 API Key（与前端「授权码」一致），用于列表/详情按账户隔离。"""
+    owner_api_key: Mapped[Optional[str]] = mapped_column(String(256), index=True)
     config_json: Mapped[str] = mapped_column(Text)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
     updated_at: Mapped[Optional[datetime]] = mapped_column(

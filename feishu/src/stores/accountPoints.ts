@@ -36,5 +36,10 @@ export const useAccountPointsStore = defineStore('accountPoints', () => {
     currentBalancePoints.value = Math.floor(n)
   }
 
-  return { currentBalancePoints, setCurrentBalancePoints }
+  /** 退出登录或未接入计费资料时恢复默认展示用余额 */
+  function resetToDefaultBalance() {
+    setCurrentBalancePoints(DEFAULT_BALANCE)
+  }
+
+  return { currentBalancePoints, setCurrentBalancePoints, resetToDefaultBalance }
 })

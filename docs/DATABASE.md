@@ -395,6 +395,7 @@ mysql+pymysql://root:@127.0.0.1:3306/feishu_keyword?charset=utf8mb4
 |------|------|------|
 | `id` | int, PK, AI | 主键 |
 | `plan_name` | varchar(200) | 方案名称（列表展示，可与 `config_json` 内 `planName` 同步） |
+| `owner_api_key` | varchar(256), NULL, 索引 | YDDM 账户 API Key（与请求头 `X-Api-Key` 一致），用于按账户隔离任务；历史行可为 `NULL`（新接口下不可见） |
 | `config_json` | longtext | 前端表单完整 JSON（关键词、过滤、信源、数据沉淀等） |
 | `created_at` | timestamp | 创建时间 |
 | `updated_at` | timestamp | 更新时间 |

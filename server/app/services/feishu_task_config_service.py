@@ -56,20 +56,36 @@ def normalize_config_for_storage(config: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def list_feishu_task_configs(db: Session, *, skip: int = 0, limit: int = 100) -> List[FeishuTaskConfig]:
+def list_feishu_task_configs(
+    db: Session, *, owner_api_key: str, skip: int = 0, limit: int = 100
+) -> List[FeishuTaskConfig]:
     safe_limit = min(limit, MAX_LIST_LIMIT)
-    stmt = select(FeishuTaskConfig).order_by(FeishuTaskConfig.id.desc()).offset(skip).limit(safe_limit)
+    stmt = (
+        select(FeishuTaskConfig)
+        .where(FeishuTaskConfig.owner_api_key == owner_api_key)
+        .order_by(FeishuTaskConfig.id.desc())
+        .offset(skip)
+        .limit(safe_limit)
+    )
     return list(db.scalars(stmt).all())
 
 
-def get_feishu_task_config(db: Session, config_id: int) -> Optional[FeishuTaskConfig]:
-    return db.get(FeishuTaskConfig, config_id)
+def get_feishu_task_config(
+    db: Session, *, owner_api_key: str, config_id: int
+) -> Optional[FeishuTaskConfig]:
+    row = db.get(FeishuTaskConfig, config_id)
+    if row is None or row.owner_api_key != owner_api_key:
+        return None
+    return row
 
 
-def create_feishu_task_config(db: Session, *, config: dict[str, Any]) -> FeishuTaskConfig:
+def create_feishu_task_config(
+    db: Session, *, owner_api_key: str, config: dict[str, Any]
+) -> FeishuTaskConfig:
     normalized = normalize_config_for_storage(config)
     row = FeishuTaskConfig(
         plan_name=_plan_name_from_config(normalized),
+        owner_api_key=owner_api_key,
         config_json=json.dumps(normalized, ensure_ascii=False),
     )
     db.add(row)
@@ -78,9 +94,11 @@ def create_feishu_task_config(db: Session, *, config: dict[str, Any]) -> FeishuT
     return row
 
 
-def update_feishu_task_config(db: Session, config_id: int, *, config: dict[str, Any]) -> Optional[FeishuTaskConfig]:
+def update_feishu_task_config(
+    db: Session, *, owner_api_key: str, config_id: int, config: dict[str, Any]
+) -> Optional[FeishuTaskConfig]:
     row = db.get(FeishuTaskConfig, config_id)
-    if row is None:
+    if row is None or row.owner_api_key != owner_api_key:
         return None
     normalized = normalize_config_for_storage(config)
     row.plan_name = _plan_name_from_config(normalized)
@@ -90,10 +108,10 @@ def update_feishu_task_config(db: Session, config_id: int, *, config: dict[str, 
     return row
 
 
-def delete_feishu_task_config(db: Session, config_id: int) -> bool:
-    """按主键删除一行；不存在则返回 False。"""
+def delete_feishu_task_config(db: Session, *, owner_api_key: str, config_id: int) -> bool:
+    """按主键删除一行；不存在或非当前账户数据则返回 False。"""
     row = db.get(FeishuTaskConfig, config_id)
-    if row is None:
+    if row is None or row.owner_api_key != owner_api_key:
         return False
     db.delete(row)
     db.commit()
