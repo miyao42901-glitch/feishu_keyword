@@ -63,6 +63,7 @@
 import { ref, defineProps, defineEmits, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
+import pluginAPI from '@/utils/request'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n();
@@ -189,12 +190,20 @@ const handleRecharge = async () => {
         if (accessToken) {
           const formData = new FormData();
           formData.append('money', rechargeForm.value.amount);
-          const res = await axios.post('https://www.dajiala.com/fbmain/account/v1/api_create_order', formData, {
+          // const res = await axios.post('https://www.dajiala.com/fbmain/account/v1/api_create_order', formData, {
+          //   headers: {
+          //     'Content-Type': 'multipart/form-data',
+          //     accesstoken: accessToken,
+          //   }
+          // })
+
+          const res = await pluginAPI.post('/plugin_order_forward', formData, {
             headers: {
               'Content-Type': 'multipart/form-data',
               accesstoken: accessToken,
             }
           })
+          
           if (res.data && res.data.error_code === 0){
             const order_no = res.data.data.order_no
             const res_info = await axios.get('https://www.dajiala.com/fbmain/account/v1/api_pay_info', {

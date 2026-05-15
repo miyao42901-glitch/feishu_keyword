@@ -80,6 +80,7 @@
       style="width: 100%;"
       @visible-change="loadTableList"
       :loading="isLoading"
+      clearable
     >
       <el-option
         v-for="item in tableDataList"

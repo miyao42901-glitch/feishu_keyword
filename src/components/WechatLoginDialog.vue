@@ -58,6 +58,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElForm, ElFormItem, ElInput } from 'element-plus'
 import axios from 'axios'
+import pluginAPI from '@/utils/request'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n();
@@ -133,7 +134,7 @@ const generateQrcode = async () => {
 // 开始检测登录状态
 const startCheckLoginStatus = () => {
   let count = 0
-  const maxChecks = 100 // 最多检测300次
+  const maxChecks = 100 // 最多检测次数
   
   checkInterval.value = setInterval(async () => {
     count++
@@ -186,7 +187,16 @@ const handleRegister = async () => {
   try {
     await registerFormRef.value.validate()
     
-    const res = await axios.post('https://www.dajiala.com/fbmain/account/v1/register', {
+    // const res = await axios.post('https://www.dajiala.com/fbmain/account/v1/register', {
+    //   accessToken: registerForm.value.token,
+    //   phone: registerForm.value.phone,
+    //   password: registerForm.value.password,
+    //   confirm: registerForm.value.confirmPassword,
+    //   bd_vid: '',
+    //   code: ''
+    // })
+
+    const res = await pluginAPI.post('/plugin_register_forward', {
       accessToken: registerForm.value.token,
       phone: registerForm.value.phone,
       password: registerForm.value.password,

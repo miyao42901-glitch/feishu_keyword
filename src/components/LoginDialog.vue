@@ -43,6 +43,7 @@
 <script setup>
 import { ref } from 'vue'
 import axios from 'axios'
+import pluginAPI from '@/utils/request'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n();
@@ -99,11 +100,12 @@ const handleLogin = async () => {
           formData.append('password', loginForm.value.password);
           formData.append('agree_protocol', agreeProtocol.value ? 1 : 0);
           
-          const res = await axios.post('https://www.dajiala.com/fbmain/account/v1/login', formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data'
-            }
-          })
+          // const res = await axios.post('https://www.dajiala.com/fbmain/account/v1/login', formData, {
+          //   headers: {
+          //     'Content-Type': 'multipart/form-data'
+          //   }
+          // })
+          const res = await pluginAPI.post('/plugin_login_forward', formData)
           
           if (res.data && res.data.error_code === 0) {
             emit('login-success', res.data)

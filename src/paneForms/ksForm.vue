@@ -726,7 +726,7 @@
     </el-form-item>
 
 
-    <el-form-item label-width="null" v-show="paneData.getDataType !== 0">
+    <!-- <el-form-item label-width="null" v-show="paneData.getDataType !== 0">
       <el-button 
         type="primary" 
         :disabled="isLocked"
@@ -749,7 +749,7 @@
       >
           创建快手账号表空模板
       </el-button>
-    </el-form-item>
+    </el-form-item> -->
 
 
     <el-form-item 
