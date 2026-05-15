@@ -430,7 +430,7 @@ async function confirmDeleteTask() {
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-col gap-4">
+  <div class="flex min-h-0 w-full min-w-0 flex-col gap-4">
     <TaskDetailDialog
       v-model="detailDialogVisible"
       :detail="detailDialogPayload"
@@ -445,7 +445,7 @@ async function confirmDeleteTask() {
     <el-dialog
       v-model="deleteDialogVisible"
       title="删除任务"
-      width="420px"
+      width="90%"
       align-center
       append-to-body
       destroy-on-close
@@ -637,7 +637,7 @@ async function confirmDeleteTask() {
   transition: box-shadow 0.15s ease;
 }
 
-.task-stat-card:hover:not(:disabled) {
+.task-stat-card:hover:not(:disabled):not(.task-stat-card--active) {
   box-shadow: inset 0 0 0 1px #e1e4e8;
 }
 
@@ -828,5 +828,12 @@ async function confirmDeleteTask() {
 
 .task-pagination-size-select :deep(.el-select__wrapper) {
   border-radius: 4px;
+}
+</style>
+
+<style>
+.delete-task-dialog.el-dialog {
+  width: min(420px, calc(100vw - 24px)) !important;
+  max-width: calc(100vw - 16px);
 }
 </style>

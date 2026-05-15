@@ -147,7 +147,7 @@ function emitEdit() {
   <el-dialog
     :model-value="modelValue"
     title="任务详情"
-    width="378px"
+    width="92%"
     class="task-detail-dialog"
     align-center
     destroy-on-close
@@ -473,8 +473,8 @@ function emitEdit() {
 
 <style>
 .task-detail-dialog.el-dialog {
-  width: 378px !important;
-  max-width: calc(100vw - 24px);
+  width: min(420px, calc(100vw - 24px)) !important;
+  max-width: calc(100vw - 16px);
   height: 695px;
   max-height: min(695px, calc(100vh - 48px));
   display: flex;

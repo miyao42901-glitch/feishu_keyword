@@ -314,9 +314,9 @@ function onPrimary() {
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 378px;
-  margin-left: auto;
-  margin-right: auto;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
   overflow: hidden;
   background: #ffffff;
   border-radius: 4px;

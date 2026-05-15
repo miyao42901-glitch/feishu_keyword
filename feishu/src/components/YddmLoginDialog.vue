@@ -78,13 +78,9 @@ const registerForm = reactive({
   confirmPassword: '',
 })
 
-/** 手机号、邮箱、密码、确认密码均有内容后再展示图片验证码 */
-const registerCaptchaVisible = computed(
-  () =>
-    registerForm.phone_num.trim().length > 0 &&
-    registerForm.email.trim().length > 0 &&
-    registerForm.password.length > 0 &&
-    registerForm.confirmPassword.length > 0,
+/** 合法 11 位国内手机号时展示并校验图片验证码 */
+const registerCaptchaVisible = computed(() =>
+  CN_MOBILE_RE.test(normalizeCnMobileInput(registerForm.phone_num.trim())),
 )
 
 function validateRegisterPhone(_rule: unknown, value: unknown, callback: (e?: Error) => void) {
@@ -104,7 +100,7 @@ function validateRegisterPhone(_rule: unknown, value: unknown, callback: (e?: Er
 
 const registerRules = computed<FormRules>(() => {
   const rules: FormRules = {
-    phone_num: [{ validator: validateRegisterPhone, trigger: ['blur', 'change'] }],
+    phone_num: [{ validator: validateRegisterPhone, trigger: 'blur' }],
     email: [
       { required: true, message: '请输入邮箱', trigger: 'blur' },
       {
@@ -116,7 +112,7 @@ const registerRules = computed<FormRules>(() => {
           }
           callback()
         },
-        trigger: ['blur', 'change'],
+        trigger: 'blur',
       },
     ],
     password: [
@@ -130,7 +126,7 @@ const registerRules = computed<FormRules>(() => {
           }
           callback()
         },
-        trigger: ['blur', 'change'],
+        trigger: 'blur',
       },
     ],
     confirmPassword: [
@@ -144,7 +140,7 @@ const registerRules = computed<FormRules>(() => {
           }
           callback()
         },
-        trigger: ['blur', 'change'],
+        trigger: 'blur',
       },
     ],
   }
@@ -156,17 +152,52 @@ const registerRules = computed<FormRules>(() => {
 
 const supportQrUrl = (import.meta.env.VITE_CUSTOMER_SERVICE_QR_URL as string | undefined)?.trim() ?? ''
 
-/** 图片验证码 URL（`<img src>`，非短信验证码） */
+/** 验证码 `<img src>`：优先 blob URL（fetch 拉图，避免直连被拦）；失败时回退为接口 URL */
 const captchaImage = ref('')
 
+let captchaBlobRevoke: (() => void) | null = null
+
+function revokeCaptchaBlobUrl() {
+  if (captchaBlobRevoke) {
+    captchaBlobRevoke()
+    captchaBlobRevoke = null
+  }
+}
+
 function clearCaptchaState() {
+  revokeCaptchaBlobUrl()
   captchaImage.value = ''
 }
 
+function captchaFetchHref(built: string): string {
+  if (built.startsWith('http://') || built.startsWith('https://')) return built
+  return new URL(built, window.location.origin).href
+}
+
 /** 刷新图片验证码；合法手机号时附带 phone_num */
-function refreshCaptcha() {
+async function refreshCaptcha() {
+  revokeCaptchaBlobUrl()
+  captchaImage.value = ''
   const m = normalizeCnMobileInput(registerForm.phone_num.trim())
-  captchaImage.value = CN_MOBILE_RE.test(m) ? buildYddmCaptchaImageUrl(m) : buildYddmCaptchaImageUrl()
+  const built = CN_MOBILE_RE.test(m) ? buildYddmCaptchaImageUrl(m) : buildYddmCaptchaImageUrl()
+  const fetchUrl = captchaFetchHref(built)
+
+  try {
+    const res = await fetch(fetchUrl, { method: 'GET', credentials: 'omit', cache: 'no-store' })
+    if (!res.ok) throw new Error(String(res.status))
+    const blob = await res.blob()
+    if (blob.size < 16) throw new Error('empty')
+    const ct = (blob.type || res.headers.get('content-type') || '').toLowerCase()
+    if (ct.includes('json') || ct.includes('text/html')) {
+      const t = await blob.text()
+      throw new Error(t.slice(0, 120) || 'unexpected')
+    }
+    const objectUrl = URL.createObjectURL(blob)
+    captchaBlobRevoke = () => URL.revokeObjectURL(objectUrl)
+    captchaImage.value = objectUrl
+  } catch {
+    captchaImage.value = fetchUrl
+  }
 }
 
 onScopeDispose(() => {
@@ -258,7 +289,7 @@ async function onRegisterAndLogin() {
     emit('update:modelValue', false)
   } catch (e) {
     registerForm.captcha = ''
-    refreshCaptcha()
+    void refreshCaptcha()
     ElMessage.error(e instanceof Error ? e.message : '注册或登录失败')
   } finally {
     registerSubmitting.value = false
@@ -288,7 +319,7 @@ function onBackToLogin() {
 
 watch(registerCaptchaVisible, (v) => {
   if (v) {
-    void nextTick(() => refreshCaptcha())
+    void nextTick(() => void refreshCaptcha())
   } else {
     clearCaptchaState()
     registerForm.captcha = ''
@@ -323,7 +354,7 @@ watch(
 <template>
   <el-dialog
     :model-value="modelValue"
-    width="380px"
+    width="92%"
     :class="'yddm-login-dialog'"
     align-center
     append-to-body
@@ -474,7 +505,7 @@ watch(
             :maxlength="YDDM_PASSWORD_MAX_LEN"
           />
         </el-form-item>
-        <el-form-item prop="captcha" class="yddm-login-dialog__captcha-item">
+        <el-form-item v-if="registerCaptchaVisible" prop="captcha" class="yddm-login-dialog__captcha-item">
           <div class="yddm-login-dialog__captcha-row">
             <el-input
               v-model="registerForm.captcha"
@@ -485,14 +516,21 @@ watch(
               class="yddm-login-dialog__input yddm-login-dialog__captcha-input-el"
             />
             <button
-              v-if="registerCaptchaVisible"
               type="button"
               class="yddm-login-dialog__captcha-thumb"
               title="点击刷新验证码"
               aria-label="点击刷新图片验证码"
-              @click="refreshCaptcha"
+              @click="void refreshCaptcha()"
             >
-              <img v-if="captchaImage" :src="captchaImage" alt="" />
+              <img
+                v-if="captchaImage"
+                :key="captchaImage"
+                :src="captchaImage"
+                class="yddm-login-dialog__captcha-img"
+                alt=""
+                referrerpolicy="no-referrer"
+                decoding="async"
+              />
             </button>
           </div>
         </el-form-item>
@@ -638,6 +676,8 @@ watch(
   align-items: center;
   justify-content: center;
   align-self: center;
+  min-width: 120px;
+  min-height: 40px;
   padding: 0;
   margin: 0;
   border: none;
@@ -657,7 +697,8 @@ watch(
   outline-offset: 2px;
 }
 
-.yddm-login-dialog__captcha-thumb img {
+.yddm-login-dialog__captcha-thumb img,
+.yddm-login-dialog__captcha-img {
   display: block;
   height: 40px;
   width: auto;
@@ -823,6 +864,8 @@ watch(
 
 <style>
 .yddm-login-dialog.el-dialog {
+  width: min(420px, calc(100vw - 24px)) !important;
+  max-width: calc(100vw - 16px);
   padding: 20px 20px 22px;
   border-radius: 12px;
 }

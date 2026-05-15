@@ -465,14 +465,14 @@ async function persistFromConfirmDialog() {
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-col gap-6 pb-8">
+  <div class="flex min-h-0 w-full min-w-0 flex-col gap-6 pb-8">
     <el-alert
       v-if="saveBanner === 'error'"
       type="error"
       :title="saveErrorText"
       show-icon
       closable
-      class="save-banner sticky top-0 z-20 mb-3 max-w-3xl shadow-sm"
+      class="save-banner sticky top-0 z-20 mb-3 w-full min-w-0 shadow-sm"
       @close="saveBanner = null"
     />
 
@@ -486,7 +486,7 @@ async function persistFromConfirmDialog() {
     />
 
     <div
-      class="task-config-step-header flex max-w-3xl shrink-0 items-center justify-between gap-3 pt-1"
+      class="task-config-step-header flex w-full min-w-0 shrink-0 items-center justify-between gap-3 pt-1"
     >
       <span class="text-base font-semibold text-slate-900">任务配置</span>
       <p class="m-0 text-sm text-slate-400">
@@ -501,7 +501,7 @@ async function persistFromConfirmDialog() {
       :model="form"
       :rules="rules"
       label-position="top"
-      class="task-create-form max-w-3xl"
+      class="task-create-form w-full min-w-0"
     >
       <div v-show="currentStep === 0">
         <BasicInfoSection :form="form" />
@@ -542,7 +542,7 @@ async function persistFromConfirmDialog() {
       </div>
     </el-form>
 
-    <div class="footer-actions max-w-3xl border-t border-slate-100 pt-6">
+    <div class="footer-actions w-full min-w-0 border-t border-slate-100 pt-6">
       <div class="flex w-full gap-3">
         <template v-if="currentStep === 0">
           <el-button

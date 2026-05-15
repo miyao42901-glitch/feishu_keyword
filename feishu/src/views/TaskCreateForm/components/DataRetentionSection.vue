@@ -230,7 +230,7 @@ function toggleAdvanced() {
 .write-table-box {
   box-sizing: border-box;
   display: flex;
-  width: 378px;
+  width: 100%;
   max-width: 100%;
   min-height: 106px;
   flex-direction: column;
@@ -250,11 +250,11 @@ function toggleAdvanced() {
   box-sizing: border-box;
   display: flex;
   width: 100%;
-  max-width: 358px;
+  max-width: 100%;
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: stretch;
-  align-self: center;
+  align-self: stretch;
   gap: 6px;
   padding: 4px 0;
   border-radius: 6px;

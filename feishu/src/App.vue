@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, Document } from '@element-plus/icons-vue'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { computed, ref, watch } from 'vue'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
@@ -65,23 +65,29 @@ function openLoginDialog() {
 
 <template>
   <el-config-provider :locale="zhCn">
-  <div class="flex h-screen min-h-0 flex-col bg-[#ffffff]">
+  <div class="flex h-screen min-h-0 w-full min-w-0 flex-col bg-[#ffffff]">
     <YddmLoginDialog v-model="loginDialogVisible" />
-    <div class="home-hero min-h-[7.5rem] shrink-0 px-4 pb-8 pt-7">
-      <h1 class="text-xl font-bold tracking-tight text-slate-900">关键词监控</h1>
-      <button
-        type="button"
-        class="mt-3 inline-flex items-center gap-1.5 rounded-full border border-white/80 bg-white/95 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm backdrop-blur-sm transition-colors hover:bg-white"
-        @click="openOperationsDoc"
-      >
-        <el-icon class="text-slate-500" :size="14">
-          <Document />
-        </el-icon>
-        操作文档
-      </button>
+    <div class="home-hero">
+      <div class="home-hero__bg" aria-hidden="true" />
+      <div class="home-hero__inner">
+        <div class="home-hero__copy">
+          <div class="home-hero__title-row">
+            <span class="home-hero__title-accent" aria-hidden="true" />
+            <h1 class="home-hero__title">关键词监控</h1>
+          </div>
+          <button type="button" class="home-hero__doc-btn" @click="openOperationsDoc">
+            <svg class="home-hero__doc-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="4" y="5" width="16" height="4.5" rx="1.2" fill="currentColor" opacity="0.88" />
+              <rect x="4" y="10.25" width="16" height="4.5" rx="1.2" fill="currentColor" opacity="0.72" />
+              <rect x="4" y="15.5" width="11" height="4.5" rx="1.2" fill="currentColor" opacity="0.56" />
+            </svg>
+            操作文档
+          </button>
+        </div>
+      </div>
     </div>
 
-    <div class="app-scroll flex min-h-0 flex-1 flex-col overflow-y-auto bg-[#ffffff]">
+    <div class="app-scroll flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-y-auto bg-[#ffffff]">
       <header
         class="flex shrink-0 items-center justify-between gap-3 bg-[#ffffff] px-4 py-3"
         :class="
@@ -144,7 +150,7 @@ function openLoginDialog() {
       >
         <GlobalApiKeyBar @go-login="openLoginDialog" />
       </div>
-      <div class="app-scroll-body min-h-0 flex-1 p-4">
+      <div class="app-scroll-body min-h-0 w-full min-w-0 flex-1 p-4">
         <TasksView
           v-if="activeTab === 'tasks'"
           ref="tasksViewRef"
@@ -159,16 +165,132 @@ function openLoginDialog() {
 
 <style scoped>
 .home-hero {
-  background-color: #ffffff;
+  box-sizing: border-box;
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  padding: 1.5rem 1rem 1.75rem;
+  min-height: clamp(5.75rem, 9vw, 8rem);
+  background-color: #f0f2f8;
+}
+
+.home-hero__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-color: transparent;
   background-image: url('/im.png');
   background-repeat: no-repeat;
   background-position: right center;
   background-size: auto 100%;
+  pointer-events: none;
+}
+
+@media (min-width: 768px) {
+  .home-hero__bg {
+    background-size: cover;
+  }
 }
 
 @media (min-resolution: 2dppx) {
-  .home-hero {
+  .home-hero__bg {
     background-image: url('/im@2x.png');
+  }
+}
+
+.home-hero__inner {
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 5.75rem;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.home-hero__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: min(22rem, 58%);
+}
+
+.home-hero__title-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.625rem;
+}
+
+.home-hero__title-accent {
+  flex-shrink: 0;
+  width: 3px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #3370ff 0%, #1f22f6 100%);
+}
+
+.home-hero__title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: #0f1114;
+}
+
+.home-hero__doc-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #2b2f36;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.home-hero__doc-btn:hover {
+  background: #ffffff;
+  border-color: #c9cdd4;
+}
+
+.home-hero__doc-btn:focus-visible {
+  outline: 2px solid rgba(31, 34, 246, 0.35);
+  outline-offset: 2px;
+}
+
+.home-hero__doc-icon {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: #646a73;
+}
+
+@media (min-width: 640px) {
+  .home-hero {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+
+  .home-hero__title {
+    font-size: 1.25rem;
   }
 }
 

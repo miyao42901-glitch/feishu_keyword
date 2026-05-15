@@ -184,7 +184,7 @@ async function onRegister() {
 </script>
 
 <template>
-  <div class="mx-auto flex w-full max-w-md flex-col gap-5">
+  <div class="mx-auto flex w-full min-w-0 max-w-full flex-col gap-5 px-1 sm:px-0">
     <section class="auth-card rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm">
       <template v-if="yddmAuth.isLoggedIn">
         <div class="flex flex-col items-center text-center">
@@ -192,7 +192,7 @@ async function onRegister() {
             <CircleCheck />
           </el-icon>
           <p class="mt-4 text-base font-semibold text-slate-900">已登录成功</p>
-          <p class="mt-1 max-w-xs text-sm text-slate-500">
+          <p class="mt-1 w-full max-w-full text-sm text-slate-500">
             API Key 已自动填入顶部授权码字段；下方为
             <span class="whitespace-nowrap">GET /users/me</span>
             同步的账户信息。
@@ -206,7 +206,7 @@ async function onRegister() {
           </div>
           <dl
             v-else-if="yddmAuth.me"
-            class="mt-5 w-full max-w-sm space-y-2.5 rounded-lg border border-slate-100 bg-slate-50/80 px-4 py-3 text-left text-sm"
+            class="mt-5 w-full space-y-2.5 rounded-lg border border-slate-100 bg-slate-50/80 px-4 py-3 text-left text-sm"
           >
             <div class="flex justify-between gap-3">
               <dt class="shrink-0 text-slate-500">用户 ID</dt>
@@ -232,7 +232,7 @@ async function onRegister() {
             </div>
           </dl>
 
-          <el-button class="mt-6 w-full max-w-xs" size="large" @click="onLogout">退出登录</el-button>
+          <el-button class="mt-6 w-full" size="large" @click="onLogout">退出登录</el-button>
         </div>
       </template>
 

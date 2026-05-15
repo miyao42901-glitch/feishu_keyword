@@ -92,7 +92,7 @@ export function disabledTimeExpireDateTime(date: Date, effectiveAtStr: string): 
 /** 开始时间：`el-form` 规则（必填 + 不早于当前） */
 export function effectiveAtFormItemRules(): FormItemRule[] {
   return [
-    { required: true, message: '请选择开始时间', trigger: 'change' },
+    { required: true, message: '请输入开始时间', trigger: 'change' },
     {
       validator: (_rule, value: string, callback) => {
         const d = parseTaskDateTimeString(value)
@@ -117,7 +117,7 @@ export function effectiveAtFormItemRules(): FormItemRule[] {
  */
 export function expireAtFormItemRules(getEffectiveAt: () => string): FormItemRule[] {
   return [
-    { required: true, message: '请选择结束时间', trigger: 'change' },
+    { required: true, message: '请输入结束时间', trigger: 'change' },
     {
       validator: (_rule, value: string, callback) => {
         const d = parseTaskDateTimeString(value)

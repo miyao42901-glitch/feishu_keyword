@@ -60,9 +60,9 @@ const authCodeDisplay = computed(() => authCode.value.trim())
 .auth-code-card {
   box-sizing: border-box;
   width: 100%;
-  max-width: 378px;
-  margin-right: auto;
-  margin-left: auto;
+  max-width: 100%;
+  margin-right: 0;
+  margin-left: 0;
   padding: 10px 12px;
   background: #eff0f1;
   border-radius: 4px;
@@ -125,14 +125,14 @@ const authCodeDisplay = computed(() => authCode.value.trim())
   box-sizing: border-box;
   display: flex;
   width: 100%;
-  max-width: 378px;
+  max-width: 100%;
   height: 92px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   margin-top: 0;
-  margin-right: auto;
-  margin-left: auto;
+  margin-right: 0;
+  margin-left: 0;
   padding: 0 12px;
   background: #ededfe;
   border-radius: 0;

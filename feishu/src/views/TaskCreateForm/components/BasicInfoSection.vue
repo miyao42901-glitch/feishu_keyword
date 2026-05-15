@@ -94,7 +94,7 @@ defineProps<{ form: TaskCreateFormModel }>()
   box-sizing: border-box;
   display: flex;
   width: 100%;
-  max-width: 378px;
+  max-width: 100%;
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: stretch;

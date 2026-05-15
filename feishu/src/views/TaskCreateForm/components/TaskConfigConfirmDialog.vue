@@ -28,7 +28,7 @@ function handleClose() {
 <template>
   <el-dialog
     v-model="visible"
-    width="480px"
+    width="92%"
     align-center
     append-to-body
     destroy-on-close
@@ -274,6 +274,8 @@ function handleClose() {
 
 <style>
 .task-config-confirm-dialog.el-dialog {
+  width: min(520px, calc(100vw - 24px)) !important;
+  max-width: calc(100vw - 16px);
   border-radius: 8px;
   background: #ffffff;
 }
