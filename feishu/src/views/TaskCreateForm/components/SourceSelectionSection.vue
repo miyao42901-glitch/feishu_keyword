@@ -98,6 +98,47 @@ function setChecked(
   for (const r of requiredKeys) next.add(r)
   props.form.sourceFieldSelection[platform] = opts.map((o) => o.value).filter((v) => next.has(v))
 }
+
+function optionalOptions(platform: PlatformKey) {
+  return flatOptions(platform).filter((o) => !o.required)
+}
+
+function isAllOptionalSelected(platform: PlatformKey): boolean {
+  const optional = optionalOptions(platform)
+  if (!optional.length) return true
+  const selected = props.form.sourceFieldSelection[platform] ?? []
+  return optional.every((o) => selected.includes(o.value))
+}
+
+function isSelectAllIndeterminate(platform: PlatformKey): boolean {
+  const optional = optionalOptions(platform)
+  if (!optional.length) return false
+  const selected = props.form.sourceFieldSelection[platform] ?? []
+  const n = optional.filter((o) => selected.includes(o.value)).length
+  return n > 0 && n < optional.length
+}
+
+function selectAllCheckboxState(platform: PlatformKey): 'checked' | 'indeterminate' | 'empty' {
+  if (isAllOptionalSelected(platform)) return 'checked'
+  if (isSelectAllIndeterminate(platform)) return 'indeterminate'
+  return 'empty'
+}
+
+function selectAllLabel(platform: PlatformKey): string {
+  return isAllOptionalSelected(platform) ? '取消全选' : '全选'
+}
+
+function toggleSelectAll(platform: PlatformKey) {
+  const opts = flatOptions(platform)
+  const requiredKeys = opts.filter((o) => o.required).map((o) => o.value)
+  if (isAllOptionalSelected(platform)) {
+    props.form.sourceFieldSelection[platform] = opts
+      .map((o) => o.value)
+      .filter((v) => requiredKeys.includes(v))
+  } else {
+    props.form.sourceFieldSelection[platform] = opts.map((o) => o.value)
+  }
+}
 </script>
 
 <template>
@@ -163,6 +204,42 @@ function setChecked(
             </template>
 
             <div class="source-field-dropdown">
+              <button
+                v-if="optionalOptions(p.id).length > 0"
+                type="button"
+                class="source-field-option source-field-option--select-all"
+                @click="toggleSelectAll(p.id)"
+              >
+                <span
+                  class="source-field-option__checkbox"
+                  :class="{
+                    'source-field-option__checkbox--checked':
+                      selectAllCheckboxState(p.id) === 'checked',
+                    'source-field-option__checkbox--indeterminate':
+                      selectAllCheckboxState(p.id) === 'indeterminate',
+                    'source-field-option__checkbox--empty': selectAllCheckboxState(p.id) === 'empty',
+                  }"
+                  aria-hidden="true"
+                >
+                  <svg
+                    v-if="selectAllCheckboxState(p.id) === 'checked'"
+                    class="source-field-option__check-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                  >
+                    <path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                  <span
+                    v-else-if="selectAllCheckboxState(p.id) === 'indeterminate'"
+                    class="source-field-option__minus"
+                  />
+                </span>
+                <span class="source-field-option__label source-field-option__label--strong">
+                  {{ selectAllLabel(p.id) }}
+                </span>
+              </button>
               <button
                 v-for="opt in flatOptions(p.id)"
                 :key="opt.value"
@@ -332,6 +409,36 @@ function setChecked(
   max-height: 280px;
   overflow-y: auto;
   padding: 4px 0;
+}
+
+.source-field-option--select-all {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+.source-field-option--select-all:hover {
+  background: #f5f6f7;
+}
+
+.source-field-option__label--strong {
+  font-weight: 500;
+  color: #1f22f6;
+}
+
+.source-field-option__checkbox--indeterminate {
+  border: 1px solid #1f22f6;
+  background: #1f22f6;
+}
+
+.source-field-option__minus {
+  display: block;
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: #ffffff;
 }
 
 .source-field-option {

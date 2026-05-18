@@ -64,6 +64,11 @@ def _is_failed(cfg: dict[str, Any]) -> bool:
     return _task_abnormal_from_config(cfg)
 
 
+def _is_run_completed(cfg: dict[str, Any]) -> bool:
+    rs = cfg.get("runStatus")
+    return isinstance(rs, str) and rs.strip().lower() == "completed"
+
+
 def _derive_list_status(
     eff_ms: Optional[int],
     exp_ms: Optional[int],
@@ -140,6 +145,8 @@ def compute_card_status(
     if is_realtime and not has_valid_window:
         if failed:
             status = "failed"
+        elif _is_run_completed(cfg):
+            status = "completed"
         elif task_paused:
             status = "stopped"
         else:

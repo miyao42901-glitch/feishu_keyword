@@ -5,6 +5,7 @@
 
 import { platformDisplayNames } from '@/views/TaskCreateForm/constants'
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
+import { mapItemToColumnValues } from '@/lib/test-data-field-map'
 
 /** 当前 fixtures 与 `sourcePlatforms` 中已开放的平台 id 一致 */
 export const TEST_DATA_PLATFORM_IDS = new Set<PlatformKey>(['douyin', 'xiaohongshu'])
@@ -20,6 +21,8 @@ export type TestFeedRow = {
   url: string
   /** 排序用（不展示） */
   publishMs: number
+  /** 按任务 sourceFieldSelection 映射的列名 → 值（飞书列名与表单字段标签一致） */
+  fieldColumns: Record<string, string>
 }
 
 const DOUYIN_DATA_URL = new URL('../../test_data/抖音搜索（同步）.json', import.meta.url).href
@@ -114,6 +117,7 @@ function mapDouyinItem(
   item: Record<string, unknown>,
   taskId: number,
   taskName: string,
+  config: Record<string, unknown>,
 ): TestFeedRow | null {
   const title = typeof item.title === 'string' ? item.title : ''
   const desc = typeof item.desc === 'string' ? item.desc : ''
@@ -132,10 +136,16 @@ function mapDouyinItem(
     publishedAt: formatPublish(ms),
     url: url || '—',
     publishMs: ms,
+    fieldColumns: mapItemToColumnValues(item, 'douyin', config),
   }
 }
 
-function mapXhsItem(item: Record<string, unknown>, taskId: number, taskName: string): TestFeedRow | null {
+function mapXhsItem(
+  item: Record<string, unknown>,
+  taskId: number,
+  taskName: string,
+  config: Record<string, unknown>,
+): TestFeedRow | null {
   const title = typeof item.title === 'string' ? item.title : ''
   const desc = typeof item.desc === 'string' ? item.desc : ''
   const url = typeof item.url === 'string' ? item.url : ''
@@ -153,6 +163,7 @@ function mapXhsItem(item: Record<string, unknown>, taskId: number, taskName: str
     publishedAt: formatPublish(ms),
     url: url || '—',
     publishMs: ms,
+    fieldColumns: mapItemToColumnValues(item, 'xiaohongshu', config),
   }
 }
 
@@ -177,32 +188,34 @@ export async function buildTestDataFeedFromConfig(params: {
   const excludes = readConfigArray(config, 'excludeKeywords', 'exclude_keywords')
   const limit = readDataRange(config)
 
-  const candidates: TestFeedRow[] = []
+  const douyinRows: TestFeedRow[] = []
+  const xhsRows: TestFeedRow[] = []
 
   if (sources.includes('douyin')) {
     const payload = await loadDouyinPayload()
     for (const item of extractResultItems(payload)) {
-      const row = mapDouyinItem(item, taskId, taskName)
+      const row = mapDouyinItem(item, taskId, taskName, config)
       if (!row) continue
       const blob = combineText([row.title, row.author])
       if (!matchesKeywords(blob, keywords)) continue
       if (hasExclude(blob, excludes)) continue
-      candidates.push(row)
+      douyinRows.push(row)
     }
   }
 
   if (sources.includes('xiaohongshu')) {
     const payload = await loadXhsPayload()
     for (const item of extractResultItems(payload)) {
-      const row = mapXhsItem(item, taskId, taskName)
+      const row = mapXhsItem(item, taskId, taskName, config)
       if (!row) continue
       const blob = combineText([row.title, row.author])
       if (!matchesKeywords(blob, keywords)) continue
       if (hasExclude(blob, excludes)) continue
-      candidates.push(row)
+      xhsRows.push(row)
     }
   }
 
-  candidates.sort((a, b) => b.publishMs - a.publishMs)
-  return candidates.slice(0, limit)
+  douyinRows.sort((a, b) => b.publishMs - a.publishMs)
+  xhsRows.sort((a, b) => b.publishMs - a.publishMs)
+  return [...douyinRows.slice(0, limit), ...xhsRows.slice(0, limit)]
 }

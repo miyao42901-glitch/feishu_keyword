@@ -1,44 +1,18 @@
 /**
  * 将「运行中」且仅抖音/小红书任务的演示数据写入当前多维表格。
- * - 「使用现有表格」：按 platformExistingTableIds 写入；
- * - 「自动新建表格」：首次写入时 addTable、补列并回写 platformExistingTableIds；
- * - 分列写入：任务 / 平台 / 标题 / 作者 / 时间 / 链接（必要时自动 addField）；
- * - 同一任务运行期间按行指纹去重，避免定时刷新重复追加（仅成功写入后计入指纹）。
+ * 列名与列顺序由任务 `sourceFieldSelection`（采集字段）决定，值来自 test_data 映射。
  */
 
 import { bitable, FieldType, type IAddTableConfig } from '@lark-base-open/js-sdk'
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
+import { getOrderedColumnLabelsForPlatform } from '@/lib/test-data-field-map'
 import type { TestFeedRow } from '@/lib/test-data-feed'
 
-/** 与表中字段名一致即可匹配；同时用于 ensure 时新建列的默认名 */
-const NAME_GROUPS = {
-  task: ['任务', '任务名称', '任务名', '计划名称'],
-  platform: ['平台', '采集平台', '来源', '来源平台'],
-  title: ['标题', '内容标题', '笔记标题', '名称'],
-  singleText: ['文本', '多行文本', '备注', '说明'],
-  author: ['作者', '昵称', '发布者', '达人'],
-  time: ['发布时间', '时间', '发布日期'],
-  link: ['链接', '原文链接', 'URL', '地址'],
-} as const
-
-/** 主字段（带锁列）目标列名，与 FeishuPlugin `tableHelper` 中 `isPrimary` 字段一致 */
-const PRIMARY_COLUMN_NAME = NAME_GROUPS.title[0]
-
-/** ensure 时按此顺序补列（「标题」由主字段承担，不在此重复 addField） */
-const STANDARD_COLUMN_NAMES = ['任务', '平台', '作者', '时间', '链接'] as const
-
-type FieldIdMap = {
-  task: string | null
-  platform: string | null
-  title: string | null
-  singleText: string | null
-  author: string | null
-  time: string | null
-  link: string | null
-}
+/** 仅当任务未配置任何采集字段时，尝试匹配默认「文本」列做兜底 */
+const FALLBACK_TEXT_COLUMN_NAMES = ['文本', '多行文本', '备注', '说明'] as const
 
 export type TestFeedBitableDeps = {
-  /** 自动新建表后把 tableId 写入配置（合并 platformExistingTableIds） */
+  /** 自动新建表后把 tableId 写入配置；传空字符串表示清除该平台已失效的表 id */
   persistPlatformTableReference: (input: {
     taskId: number
     platform: PlatformKey
@@ -58,6 +32,52 @@ function readPlatformExistingTableId(cfg: Record<string, unknown>, platform: Pla
   return typeof v === 'string' ? v.trim() : ''
 }
 
+function clearPlatformTableIdInCfg(cfg: Record<string, unknown>, platform: PlatformKey): void {
+  const rawIds = cfg.platformExistingTableIds ?? cfg.platform_existing_table_ids
+  if (!rawIds || typeof rawIds !== 'object' || Array.isArray(rawIds)) return
+  const merged = { ...(rawIds as Record<string, unknown>) }
+  delete merged[platform]
+  cfg.platformExistingTableIds = merged
+}
+
+async function isBitableTableReachable(tableId: string): Promise<boolean> {
+  if (!tableId.trim()) return false
+  try {
+    if (typeof bitable.base.isTableExist === 'function') {
+      return await bitable.base.isTableExist(tableId)
+    }
+    await bitable.base.getTable(tableId)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function resolveStoredPlatformTableId(
+  cfg: Record<string, unknown>,
+  platform: PlatformKey,
+  taskId: number,
+  deps: TestFeedBitableDeps | undefined,
+  mutCfg: Map<number, Record<string, unknown>>,
+): Promise<string> {
+  const tableId = readPlatformExistingTableId(cfg, platform)
+  if (!tableId) return ''
+  const ok = await isBitableTableReachable(tableId)
+  if (ok) return tableId
+
+  const next = { ...cfg }
+  clearPlatformTableIdInCfg(next, platform)
+  mutCfg.set(taskId, next)
+  if (deps && readTableMode(cfg) === 'new') {
+    try {
+      await deps.persistPlatformTableReference({ taskId, platform, tableId: '' })
+    } catch {
+      /* */
+    }
+  }
+  return ''
+}
+
 function readPlatformNewTableName(cfg: Record<string, unknown>, platform: PlatformKey): string {
   const raw = cfg.platformNewTableNames ?? cfg.platform_new_table_names
   if (raw && typeof raw === 'object') {
@@ -67,43 +87,29 @@ function readPlatformNewTableName(cfg: Record<string, unknown>, platform: Platfo
   return platform === 'douyin' ? '抖音数据表' : '小红书数据表'
 }
 
-async function resolveFirstFieldId(
-  table: Awaited<ReturnType<typeof bitable.base.getTable>>,
-  names: readonly string[],
-): Promise<string | null> {
+type BitableTable = Awaited<ReturnType<typeof bitable.base.getTable>>
+type BitableField = Awaited<ReturnType<BitableTable['getFieldList']>>[number]
+
+async function resolveFirstFieldId(table: BitableTable, names: readonly string[]): Promise<string | null> {
   for (const name of names) {
     try {
       const f = await table.getFieldByName(name)
       const id = f && typeof (f as { id?: unknown }).id === 'string' ? ((f as { id: string }).id as string) : null
       if (id?.trim()) return id.trim()
     } catch {
-      /* 无此字段名 */
+      /* */
     }
   }
   return null
 }
 
-async function resolveFieldIdMap(table: Awaited<ReturnType<typeof bitable.base.getTable>>): Promise<FieldIdMap> {
-  return {
-    task: await resolveFirstFieldId(table, NAME_GROUPS.task),
-    platform: await resolveFirstFieldId(table, NAME_GROUPS.platform),
-    title: await resolveFirstFieldId(table, NAME_GROUPS.title),
-    singleText: await resolveFirstFieldId(table, NAME_GROUPS.singleText),
-    author: await resolveFirstFieldId(table, NAME_GROUPS.author),
-    time: await resolveFirstFieldId(table, NAME_GROUPS.time),
-    link: await resolveFirstFieldId(table, NAME_GROUPS.link),
-  }
-}
+/** 将新建表默认主字段改名为任务配置中的第一列（如「视频唯一 ID」「标题」等） */
+async function configurePrimaryColumn(table: BitableTable, primaryLabel: string): Promise<void> {
+  if (!primaryLabel.trim()) return
 
-type BitableTable = Awaited<ReturnType<typeof bitable.base.getTable>>
-type BitableField = Awaited<ReturnType<BitableTable['getFieldList']>>[number]
-
-/** 将新建表默认带锁主字段改名为「标题」（参考 FeishuPlugin `writeToTable` + `setField`） */
-async function configurePrimaryAsTitleColumn(table: BitableTable): Promise<void> {
   let primaryField: BitableField | null = null
   try {
-    const fieldList = await table.getFieldList()
-    for (const field of fieldList) {
+    for (const field of await table.getFieldList()) {
       const meta = await field.getMeta()
       if (meta.isPrimary) {
         primaryField = field
@@ -121,80 +127,94 @@ async function configurePrimaryAsTitleColumn(table: BitableTable): Promise<void>
   } catch {
     return
   }
-  if (primaryName === PRIMARY_COLUMN_NAME) return
+  if (primaryName === primaryLabel) return
 
   try {
-    const fieldList = await table.getFieldList()
-    for (const field of fieldList) {
+    for (const field of await table.getFieldList()) {
       if (field.id === primaryField.id) continue
-      const name = (await field.getName()).trim()
-      if (name === PRIMARY_COLUMN_NAME) {
+      if ((await field.getName()).trim() === primaryLabel) {
         await table.deleteField(field.id)
         break
       }
     }
   } catch {
-    /* 删除与主字段同名的重复列失败时仍尝试 setField */
+    /* */
   }
 
   try {
     await table.setField(primaryField.id, {
       type: FieldType.Text,
-      name: PRIMARY_COLUMN_NAME,
+      name: primaryLabel,
     })
   } catch {
-    /* 无编辑权限等 */
+    /* */
   }
 }
 
-/** 缺分列时补 Text 列；主字段先设为「标题」，其余列 addField */
-async function ensureStandardTextColumns(table: BitableTable): Promise<void> {
+/** 按任务采集字段配置补齐列（首列为主字段，其余 addField） */
+async function ensureConfiguredColumns(table: BitableTable, orderedLabels: string[]): Promise<void> {
+  const labels = orderedLabels.map((s) => s.trim()).filter(Boolean)
+  if (!labels.length) return
+
   try {
-    await configurePrimaryAsTitleColumn(table)
+    await configurePrimaryColumn(table, labels[0])
   } catch {
     /* */
   }
 
-  let ids = await resolveFieldIdMap(table)
-  if (ids.title && ids.platform && ids.author && ids.time && ids.link && ids.task) return
-
-  for (const name of STANDARD_COLUMN_NAMES) {
-    ids = await resolveFieldIdMap(table)
-    const need =
-      (name === '任务' && !ids.task) ||
-      (name === '平台' && !ids.platform) ||
-      (name === '作者' && !ids.author) ||
-      (name === '时间' && !ids.time) ||
-      (name === '链接' && !ids.link)
-    if (!need) continue
+  const primaryLabel = labels[0]
+  for (let i = 1; i < labels.length; i++) {
+    const name = labels[i]
     try {
+      const existing = await resolveFirstFieldId(table, [name])
+      if (existing) continue
       await table.addField({ type: FieldType.Text, name })
     } catch {
-      /* 无编辑权限或重名等 */
+      /* */
     }
   }
 
-  ids = await resolveFieldIdMap(table)
-  if (!ids.title) {
+  if (primaryLabel) {
     try {
-      await configurePrimaryAsTitleColumn(table)
+      await configurePrimaryColumn(table, primaryLabel)
     } catch {
       /* */
     }
   }
 }
 
-function rowFingerprint(row: TestFeedRow): string {
-  return `${row.taskId}:${row.platform}:${row.publishMs}:${row.url}:${row.title}`
+async function resolveColumnFieldIds(
+  table: BitableTable,
+  orderedLabels: string[],
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  for (const label of orderedLabels) {
+    const id = await resolveFirstFieldId(table, [label])
+    if (id) map.set(label, id)
+  }
+  return map
 }
 
-/** 已成功写入飞书的行指纹（停跑后由 prune 清理） */
+function rowFingerprint(row: TestFeedRow): string {
+  const id =
+    row.fieldColumns['视频唯一ID'] ??
+    row.fieldColumns['笔记ID'] ??
+    row.fieldColumns['视频播放页链接'] ??
+    row.fieldColumns['笔记标题'] ??
+    row.url
+  return `${row.taskId}:${row.platform}:${id}:${row.publishMs}`
+}
+
 const appendedFingerprintsByTask = new Map<number, Set<string>>()
 
 export function pruneTestFeedAppendState(runningTaskIds: Set<number>): void {
   for (const id of [...appendedFingerprintsByTask.keys()]) {
     if (!runningTaskIds.has(id)) appendedFingerprintsByTask.delete(id)
   }
+}
+
+export function clearTestFeedAppendStateForTask(taskId: number): void {
+  appendedFingerprintsByTask.delete(taskId)
 }
 
 function getFpSet(taskId: number): Set<string> {
@@ -207,7 +227,15 @@ function getFpSet(taskId: number): Set<string> {
 }
 
 function filterNotYetAppended(rows: TestFeedRow[]): TestFeedRow[] {
-  return rows.filter((row) => !getFpSet(row.taskId).has(rowFingerprint(row)))
+  const seen = new Set<string>()
+  const out: TestFeedRow[] = []
+  for (const row of rows) {
+    const fp = rowFingerprint(row)
+    if (getFpSet(row.taskId).has(fp) || seen.has(fp)) continue
+    seen.add(fp)
+    out.push(row)
+  }
+  return out
 }
 
 function markAppended(rows: TestFeedRow[]): void {
@@ -216,42 +244,24 @@ function markAppended(rows: TestFeedRow[]): void {
   }
 }
 
-function rowToFields(row: TestFeedRow, ids: FieldIdMap): Record<string, string> {
+function rowToFields(
+  row: TestFeedRow,
+  columnIds: Map<string, string>,
+  fallbackTextFieldId: string | null,
+): Record<string, string> {
   const fields: Record<string, string> = {}
-  const split =
-    !!(ids.title || ids.task) ||
-    !!(ids.platform && ids.author && ids.time && ids.link) ||
-    !!(ids.title && ids.platform)
-
-  if (!split && ids.singleText) {
-    return {
-      [ids.singleText]: [
-        `任务：${row.taskName}`,
-        `平台：${row.platformLabel}`,
-        `标题：${row.title}`,
-        `作者：${row.author}`,
-        `时间：${row.publishedAt}`,
-        `链接：${row.url && row.url !== '—' ? row.url : '—'}`,
-      ].join('\n'),
-    }
+  for (const [label, fieldId] of columnIds) {
+    const v = row.fieldColumns[label]
+    if (v !== undefined && v !== '') fields[fieldId] = v
   }
 
-  if (ids.task) fields[ids.task] = row.taskName
-  if (ids.platform) fields[ids.platform] = row.platformLabel
-  if (ids.title) fields[ids.title] = row.title
-  if (ids.author) fields[ids.author] = row.author
-  if (ids.time) fields[ids.time] = row.publishedAt
-  if (ids.link) fields[ids.link] = row.url && row.url !== '—' ? row.url : ''
+  if (Object.keys(fields).length > 0) return fields
 
-  if (Object.keys(fields).length === 0 && ids.singleText) {
-    fields[ids.singleText] = [
-      `任务：${row.taskName}`,
-      `平台：${row.platformLabel}`,
-      `标题：${row.title}`,
-      `作者：${row.author}`,
-      `时间：${row.publishedAt}`,
-      `链接：${row.url && row.url !== '—' ? row.url : '—'}`,
-    ].join('\n')
+  if (fallbackTextFieldId) {
+    const lines = Object.entries(row.fieldColumns)
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${k}：${v}`)
+    if (lines.length) fields[fallbackTextFieldId] = lines.join('\n')
   }
   return fields
 }
@@ -266,10 +276,11 @@ async function resolveOrCreateTableId(
 ): Promise<string> {
   const cfg0 = mutCfg.get(taskId)
   if (!cfg0) return ''
-  const hit = readPlatformExistingTableId(cfg0, platform)
+  const hit = await resolveStoredPlatformTableId(cfg0, platform, taskId, deps, mutCfg)
   if (hit) return hit
 
-  if (readTableMode(cfg0) !== 'new' || !deps) return ''
+  const cfgAfter = mutCfg.get(taskId)
+  if (!cfgAfter || readTableMode(cfgAfter) !== 'new' || !deps) return ''
 
   const lockKey = `${taskId}:${platform}`
   const pending = tableCreateLocks.get(lockKey)
@@ -278,12 +289,11 @@ async function resolveOrCreateTableId(
   const run = (async () => {
     const cfg = mutCfg.get(taskId)
     if (!cfg) return ''
-    const again = readPlatformExistingTableId(cfg, platform)
+    const again = await resolveStoredPlatformTableId(cfg, platform, taskId, deps, mutCfg)
     if (again) return again
 
     try {
-      const editable = await bitable.base.isEditable()
-      if (!editable) return ''
+      if (!(await bitable.base.isEditable())) return ''
     } catch {
       return ''
     }
@@ -298,17 +308,18 @@ async function resolveOrCreateTableId(
     }
     if (!tableId) return ''
 
-    let table: Awaited<ReturnType<typeof bitable.base.getTable>>
+    let table: BitableTable
     try {
       table = await bitable.base.getTable(tableId)
     } catch {
       return ''
     }
 
+    const orderedLabels = getOrderedColumnLabelsForPlatform(cfg, platform)
     try {
-      await ensureStandardTextColumns(table)
+      await ensureConfiguredColumns(table, orderedLabels)
     } catch {
-      /* 列创建失败仍尝试按已有列写入 */
+      /* */
     }
 
     const next = { ...cfg }
@@ -324,7 +335,7 @@ async function resolveOrCreateTableId(
     try {
       await deps.persistPlatformTableReference({ taskId, platform, tableId })
     } catch {
-      /* 回写失败不影响本次内存映射 */
+      /* */
     }
 
     return tableId
@@ -344,22 +355,23 @@ async function resolveTableIdForRow(
   const cfg = mutCfg.get(row.taskId)
   if (!cfg) return ''
   const mode = readTableMode(cfg)
-  let tableId = readPlatformExistingTableId(cfg, row.platform)
+  let tableId = await resolveStoredPlatformTableId(cfg, row.platform, row.taskId, deps, mutCfg)
   if (!tableId && mode === 'new') {
     tableId = await resolveOrCreateTableId(row.taskId, row.platform, deps, mutCfg)
+  } else if (!tableId && mode === 'existing') {
+    tableId = readPlatformExistingTableId(cfg, row.platform)
   }
   return tableId
 }
 
-/**
- * 将 `rows` 按任务配置写入多维表；自动新建模式会建表并依赖 `deps.persistPlatformTableReference` 回写表 id。
- */
+/** 各任务本次实际写入飞书的行数 */
 export async function appendTestFeedRowsToBitable(
   rows: TestFeedRow[],
   configByTaskId: Map<number, Record<string, unknown>>,
   deps?: TestFeedBitableDeps,
-): Promise<void> {
-  type Group = { tableId: string; rows: TestFeedRow[] }
+): Promise<Map<number, number>> {
+  const writtenByTaskId = new Map<number, number>()
+  type Group = { tableId: string; rows: TestFeedRow[]; platform: PlatformKey; taskId: number }
   const byTable = new Map<string, Group>()
 
   for (const row of rows) {
@@ -367,43 +379,55 @@ export async function appendTestFeedRowsToBitable(
     if (!tableId) continue
     let g = byTable.get(tableId)
     if (!g) {
-      g = { tableId, rows: [] }
+      g = { tableId, rows: [], platform: row.platform, taskId: row.taskId }
       byTable.set(tableId, g)
     }
     g.rows.push(row)
   }
 
-  for (const { tableId, rows: tableRows } of byTable.values()) {
+  for (const { tableId, rows: tableRows, platform, taskId } of byTable.values()) {
     if (!tableRows.length) continue
     const fresh = filterNotYetAppended(tableRows)
     if (!fresh.length) continue
 
-    let table: Awaited<ReturnType<typeof bitable.base.getTable>>
+    const cfg = configByTaskId.get(taskId)
+    const orderedLabels = cfg ? getOrderedColumnLabelsForPlatform(cfg, platform) : []
+
+    let table: BitableTable
     try {
       table = await bitable.base.getTable(tableId)
     } catch {
       continue
     }
 
-    try {
-      await ensureStandardTextColumns(table)
-    } catch {
-      /* */
+    if (orderedLabels.length) {
+      try {
+        await ensureConfiguredColumns(table, orderedLabels)
+      } catch {
+        /* */
+      }
     }
 
-    const ids = await resolveFieldIdMap(table)
-    if (!ids.title && !ids.singleText && !ids.task) continue
+    const columnIds = await resolveColumnFieldIds(table, orderedLabels)
+    const fallbackTextFieldId = await resolveFirstFieldId(table, FALLBACK_TEXT_COLUMN_NAMES)
+    if (columnIds.size === 0 && !fallbackTextFieldId) continue
 
     const BATCH = 80
     try {
       for (let i = 0; i < fresh.length; i += BATCH) {
         const sliceRows = fresh.slice(i, i + BATCH)
-        const slice = sliceRows.map((row) => ({ fields: rowToFields(row, ids) }))
+        const slice = sliceRows.map((row) => ({
+          fields: rowToFields(row, columnIds, fallbackTextFieldId),
+        }))
         await table.addRecords(slice as never)
         markAppended(sliceRows)
+        for (const row of sliceRows) {
+          writtenByTaskId.set(row.taskId, (writtenByTaskId.get(row.taskId) ?? 0) + 1)
+        }
       }
     } catch {
-      /* 写入失败时静默，不计入指纹以便重试 */
+      /* */
     }
   }
+  return writtenByTaskId
 }

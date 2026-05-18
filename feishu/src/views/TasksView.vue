@@ -24,6 +24,7 @@ import {
 } from '@/lib/api'
 import {
   appendTestFeedRowsToBitable,
+  clearTestFeedAppendStateForTask,
   pruneTestFeedAppendState,
   type TestFeedBitableDeps,
 } from '@/lib/feishu-bitable-append-feed'
@@ -45,6 +46,15 @@ const { authCode } = storeToRefs(globalSettings)
 let testFeedDebounce: ReturnType<typeof setTimeout> | null = null
 /** 运行中任务定时同步 test_data → 飞书（列表页） */
 let testFeedPollTimer: ReturnType<typeof setInterval> | null = null
+/** 定时任务在生效/过期边界到达时刷新列表状态（不依赖点击统计卡片） */
+let taskListStatusPollTimer: ReturnType<typeof setTimeout> | null = null
+/** 避免同一任务并发执行两次同步 */
+const testFeedSyncInFlight = new Set<number>()
+
+function isRealtimeTaskConfig(cfg: Record<string, unknown>): boolean {
+  const tt = cfg.taskType ?? cfg.task_type
+  return tt === 'realtime'
+}
 
 async function persistPlatformTableReference(input: {
   taskId: number
@@ -60,7 +70,11 @@ async function persistPlatformTableReference(input: {
   const rawIds = cfg.platformExistingTableIds ?? cfg.platform_existing_table_ids
   const ids: Record<string, unknown> =
     rawIds && typeof rawIds === 'object' && !Array.isArray(rawIds) ? { ...(rawIds as Record<string, unknown>) } : {}
-  ids[input.platform] = input.tableId
+  if (input.tableId.trim()) {
+    ids[input.platform] = input.tableId
+  } else {
+    delete ids[input.platform]
+  }
   cfg.platformExistingTableIds = ids
   await updateFeishuTaskConfig(input.taskId, cfg)
 }
@@ -85,6 +99,86 @@ function syncTestFeedPollTimer() {
   }
 }
 
+function parseScheduleBoundaryMs(raw: string | null | undefined): number | null {
+  if (!raw?.trim()) return null
+  const d = dayjs(raw.trim())
+  return d.isValid() ? d.valueOf() : null
+}
+
+/** 是否存在需在时间边界后刷新 `display_status` 的定时任务 */
+function hasScheduledTasksAwaitingBoundary(): boolean {
+  return tasks.value.some(
+    (t) =>
+      t.taskTypeLabel === '定时任务' &&
+      (t.status === 'pending_run' || t.status === 'running'),
+  )
+}
+
+/**
+ * 计算下次拉列表的延迟：对齐最近生效/过期时刻；无明确边界时每 30s 兜底。
+ */
+function computeNextTaskListStatusPollDelayMs(): number | null {
+  if (screen.value !== 'list' || !authCode.value.trim()) return null
+  if (!hasScheduledTasksAwaitingBoundary()) return null
+
+  const now = Date.now()
+  let nextBoundary: number | null = null
+
+  for (const t of tasks.value) {
+    if (t.taskTypeLabel !== '定时任务') continue
+    const eff = parseScheduleBoundaryMs(t.effectiveAtRaw)
+    const exp = parseScheduleBoundaryMs(t.expireAtRaw)
+
+    if (t.status === 'pending_run') {
+      if (eff != null) {
+        if (eff <= now) return 800
+        nextBoundary = nextBoundary == null ? eff : Math.min(nextBoundary, eff)
+      }
+    }
+    if (t.status === 'running') {
+      if (exp != null) {
+        if (exp <= now) return 800
+        nextBoundary = nextBoundary == null ? exp : Math.min(nextBoundary, exp)
+      }
+    }
+  }
+
+  if (nextBoundary != null) {
+    return Math.max(800, Math.min(nextBoundary - now + 400, 5 * 60_000))
+  }
+  return 30_000
+}
+
+function clearTaskListStatusPollTimer() {
+  if (taskListStatusPollTimer) {
+    clearTimeout(taskListStatusPollTimer)
+    taskListStatusPollTimer = null
+  }
+}
+
+function syncTaskListStatusPollTimer() {
+  clearTaskListStatusPollTimer()
+  const delay = computeNextTaskListStatusPollDelayMs()
+  if (delay == null) return
+  taskListStatusPollTimer = setTimeout(() => {
+    taskListStatusPollTimer = null
+    void (async () => {
+      if (screen.value !== 'list' || !authCode.value.trim()) return
+      try {
+        await loadTaskList()
+      } finally {
+        syncTaskListStatusPollTimer()
+      }
+    })()
+  }, delay)
+}
+
+function syncDetailDialogRowFromList() {
+  if (!detailDialogVisible.value || !detailDialogRow.value) return
+  const next = tasks.value.find((t) => t.id === detailDialogRow.value!.id)
+  if (next) detailDialogRow.value = next
+}
+
 async function refreshTestDataFeed() {
   if (screen.value !== 'list') return
   const targets = tasks.value.filter(
@@ -97,39 +191,76 @@ async function refreshTestDataFeed() {
     )
     return
   }
-  const counts = new Map<number, number>()
-  const configByTaskId = new Map<number, Record<string, unknown>>()
-  const rows: TestFeedRow[] = []
-  for (const t of targets) {
-    try {
-      const detail = await getFeishuTaskConfig(t.id)
-      const cfg =
-        detail.config != null && typeof detail.config === 'object' && !Array.isArray(detail.config)
-          ? (detail.config as Record<string, unknown>)
-          : {}
-      configByTaskId.set(t.id, cfg)
-      const part = await buildTestDataFeedFromConfig({
-        taskId: t.id,
-        taskName: t.name,
-        config: cfg,
-      })
-      counts.set(t.id, part.length)
-      rows.push(...part)
-    } catch {
-      /* 忽略单任务失败 */
+
+  const targetIds = targets.map((t) => t.id)
+  if (targetIds.some((id) => testFeedSyncInFlight.has(id))) return
+  for (const id of targetIds) testFeedSyncInFlight.add(id)
+
+  try {
+    const counts = new Map<number, number>()
+    const configByTaskId = new Map<number, Record<string, unknown>>()
+    const rows: TestFeedRow[] = []
+    for (const t of targets) {
+      try {
+        const detail = await getFeishuTaskConfig(t.id)
+        const cfg =
+          detail.config != null && typeof detail.config === 'object' && !Array.isArray(detail.config)
+            ? (detail.config as Record<string, unknown>)
+            : {}
+        configByTaskId.set(t.id, cfg)
+        const part = await buildTestDataFeedFromConfig({
+          taskId: t.id,
+          taskName: t.name,
+          config: cfg,
+        })
+        counts.set(t.id, part.length)
+        rows.push(...part)
+      } catch {
+        /* 忽略单任务失败 */
+      }
     }
+    rows.sort((a, b) => b.publishMs - a.publishMs)
+    const displayRows = rows.slice(0, 120)
+
+    let writtenByTask = new Map<number, number>()
+    try {
+      writtenByTask = await appendTestFeedRowsToBitable(
+        displayRows,
+        configByTaskId,
+        testFeedBitableDeps,
+      )
+    } catch {
+      /* 非插件环境或表结构不匹配时静默失败 */
+    }
+
+    tasks.value = tasks.value.map((c) => {
+      if (c.status !== 'running') return c
+      const n = counts.get(c.id)
+      const written = writtenByTask.get(c.id)
+      const display = written != null && written > 0 ? written : (n ?? 0)
+      if (display === 0) return c.notificationCount === 0 ? c : { ...c, notificationCount: 0 }
+      return { ...c, notificationCount: display }
+    })
+
+    let completedAny = false
+    for (const t of targets) {
+      const cfg = configByTaskId.get(t.id)
+      if (!cfg || !isRealtimeTaskConfig(cfg)) continue
+      try {
+        const wr = await patchTaskConfig(t.id, { runStatus: 'completed' })
+        applyDisplayFromWrite(t.id, wr)
+        completedAny = true
+      } catch {
+        /* 标记完成失败时保持运行中，下次轮询可重试 */
+      }
+    }
+    if (completedAny) {
+      await loadTaskList()
+      syncTestFeedPollTimer()
+    }
+  } finally {
+    for (const id of targetIds) testFeedSyncInFlight.delete(id)
   }
-  rows.sort((a, b) => b.publishMs - a.publishMs)
-  const displayRows = rows.slice(0, 120)
-  void appendTestFeedRowsToBitable(displayRows, configByTaskId, testFeedBitableDeps).catch(() => {
-    /* 非插件环境或表结构不匹配时静默失败 */
-  })
-  tasks.value = tasks.value.map((c) => {
-    if (c.status !== 'running') return c
-    const n = counts.get(c.id)
-    if (n == null) return c.notificationCount === 0 ? c : { ...c, notificationCount: 0 }
-    return { ...c, notificationCount: n }
-  })
 }
 
 function scheduleRefreshTestDataFeed() {
@@ -384,7 +515,9 @@ async function loadTaskList() {
     tasks.value = mapRows(rows)
     const maxPage = Math.max(1, Math.ceil(displayedTasks.value.length / pageSize.value))
     if (listCurrentPage.value > maxPage) listCurrentPage.value = maxPage
+    syncDetailDialogRowFromList()
     scheduleRefreshTestDataFeed()
+    syncTaskListStatusPollTimer()
   } catch (e) {
     const msg = e instanceof Error ? e.message : '加载任务列表失败'
     ElMessage.error(msg)
@@ -396,18 +529,31 @@ async function loadTaskList() {
 watch(authCode, () => {
   void loadTaskList()
   syncTestFeedPollTimer()
+  syncTaskListStatusPollTimer()
 })
 
 watch(
-  () => tasks.value.map((t) => `${t.id}:${t.status}:${t.platformKeys.join(',')}`).join('|'),
+  () =>
+    tasks.value
+      .map(
+        (t) =>
+          `${t.id}:${t.status}:${t.taskTypeLabel}:${t.effectiveAtRaw ?? ''}:${t.expireAtRaw ?? ''}`,
+      )
+      .join('|'),
   () => {
     scheduleRefreshTestDataFeed()
     syncTestFeedPollTimer()
+    syncTaskListStatusPollTimer()
   },
 )
 
 watch(screen, (s) => {
-  if (s === 'list') scheduleRefreshTestDataFeed()
+  if (s === 'list') {
+    scheduleRefreshTestDataFeed()
+    syncTaskListStatusPollTimer()
+  } else {
+    clearTaskListStatusPollTimer()
+  }
   syncTestFeedPollTimer()
 })
 
@@ -416,11 +562,13 @@ onScopeDispose(() => {
     clearInterval(testFeedPollTimer)
     testFeedPollTimer = null
   }
+  clearTaskListStatusPollTimer()
 })
 
 onMounted(() => {
   void loadTaskList()
   syncTestFeedPollTimer()
+  syncTaskListStatusPollTimer()
 })
 
 function onCreateTask() {
@@ -518,6 +666,8 @@ async function onPrimaryAction(row: TaskCardModel) {
         await loadTaskList()
         await mergeTaskCardFromDetail(row.id, wr)
         if (wr.display_status === 'running') {
+          clearTestFeedAppendStateForTask(row.id)
+          scheduleRefreshTestDataFeed()
           showListTip('已启动')
         } else if (wr.display_status === 'completed') {
           showListTip('任务已过期或未在窗口内，请编辑生效/过期时间后再启动')

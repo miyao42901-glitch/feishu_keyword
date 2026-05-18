@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Clock } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { taskStatusRasterImgAttrs } from '@/views/tasks/task-status-media'
 import type { TaskCardModel } from '@/views/tasks/types'
 import type { TaskRunStatus } from '@/views/TaskCreateForm/types'
@@ -62,8 +62,26 @@ function primaryActionLabel(status: TaskRunStatus): string {
 
 const showEdit = computed(() => props.row.status !== 'running')
 
+/** 驱动「X 分钟后开始」等相对时间文案定期重算 */
+const scheduleClockTick = ref(Date.now())
+let scheduleClockTimer: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  scheduleClockTimer = setInterval(() => {
+    scheduleClockTick.value = Date.now()
+  }, 30_000)
+})
+
+onUnmounted(() => {
+  if (scheduleClockTimer) {
+    clearInterval(scheduleClockTimer)
+    scheduleClockTimer = null
+  }
+})
+
 /** 定时/单次任务副文案（相对生效时间等） */
 const scheduleSubtitle = computed(() => {
+  void scheduleClockTick.value
   const row = props.row
   if (row.taskTypeLabel === '单次任务') {
     return row.dateLabel !== '—' ? `单次任务 · ${row.dateLabel}` : '单次任务'
@@ -76,7 +94,7 @@ const scheduleSubtitle = computed(() => {
   if (!t.isValid()) {
     return `定时任务 · ${row.dateLabel}`
   }
-  const now = dayjs()
+  const now = dayjs(scheduleClockTick.value)
   if (t.isAfter(now)) {
     const mins = t.diff(now, 'minute')
     if (mins < 60) return `定时任务 · ${Math.max(1, mins)} 分钟后开始`

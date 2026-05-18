@@ -212,25 +212,11 @@ function emitEdit() {
             >
               停止
             </button>
-            <button
-              type="button"
-              class="tdf-btn tdf-btn--outline-blue"
-              @click="emit('update:modelValue', false)"
-            >
-              查看
-            </button>
           </div>
         </template>
         <template v-else-if="row.status === 'completed'">
           <div class="task-detail-footer__trailing ml-auto flex shrink-0 items-center gap-2">
             <button type="button" class="tdf-completed-delete" @click="emitDelete">删除</button>
-            <button
-              type="button"
-              class="tdf-btn tdf-btn--outline-blue"
-              @click="emit('update:modelValue', false)"
-            >
-              查看
-            </button>
             <button
               type="button"
               class="tdf-btn tdf-btn--restart"
