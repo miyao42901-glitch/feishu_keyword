@@ -28,6 +28,7 @@
   import PGhForm from '@/paneForms/ghForm.vue'
   import PV2Form from '@/paneForms/v2Form.vue'
   import PKsForm from '@/paneForms/ksForm.vue'
+  import PXhsForm from '@/paneForms/xhsForm.vue'
 
   import SensitiveText from './sensitiveText.vue'
   import LoginDialog from './LoginDialog.vue'
@@ -62,6 +63,7 @@
       PGhForm,
       PV2Form,
       PKsForm,
+      PXhsForm,
 
       SensitiveText,
       LoginDialog,
@@ -510,11 +512,14 @@
           <el-tab-pane :label="t('form.tabs.douyin')">
             <PDyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
-          <el-tab-pane :label="t('form.tabs.wechat')">
-            <PGhForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+          <el-tab-pane :label="'小红书'">
+            <PXhsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
           <el-tab-pane :label="t('form.tabs.wechatChannel')">
             <PV2Form :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+          </el-tab-pane>
+          <el-tab-pane :label="t('form.tabs.wechat')">
+            <PGhForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
           <el-tab-pane :label="t('form.tabs.kuaishou')">
             <PKsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
