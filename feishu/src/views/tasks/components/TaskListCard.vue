@@ -516,6 +516,25 @@ function onPrimary() {
   background: rgba(51, 112, 255, 0.08);
 }
 
+@keyframes task-status-running-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.task-status-wrap--running .task-status-badge-icon {
+  animation: task-status-running-spin 1.1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-status-wrap--running .task-status-badge-icon {
+    animation: none;
+  }
+}
+
 .task-status-wrap--completed {
   background: rgba(52, 199, 36, 0.08);
 }
@@ -535,6 +554,7 @@ function onPrimary() {
   justify-content: center;
   width: 14px;
   height: 14px;
+  transform-origin: center center;
 }
 
 .task-status-badge-img {

@@ -30,6 +30,10 @@ import {
 } from '@/lib/feishu-bitable-append-feed'
 import { buildTestDataFeedFromConfig, taskUsesOnlyTestDataPlatforms, type TestFeedRow } from '@/lib/test-data-feed'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
+import { useYddmAuthStore } from '@/stores/yddmAuth'
+
+/** 任务列表空态图（`public/empty.png`） */
+const taskListEmptyImgSrc = `${import.meta.env.BASE_URL}empty.png`
 
 const tasks = ref<TaskCardModel[]>([])
 /** 列表每页条数 */
@@ -40,6 +44,7 @@ const editingTaskId = ref<number | null>(null)
 const taskDetail = ref<FeishuTaskConfigDetail | null>(null)
 
 const globalSettings = useGlobalSettingsStore()
+const yddmAuth = useYddmAuthStore()
 const { authCode } = storeToRefs(globalSettings)
 
 /** 运行中且仅抖音/小红书：按 test_data 与任务配置写入飞书表并更新条数统计 */
@@ -212,6 +217,10 @@ async function refreshTestDataFeed() {
           taskId: t.id,
           taskName: t.name,
           config: cfg,
+          sync: {
+            apiKey: authCode.value.trim(),
+            userId: yddmAuth.me?.id,
+          },
         })
         counts.set(t.id, part.length)
         rows.push(...part)
@@ -908,8 +917,12 @@ async function confirmDeleteTask() {
             </el-select>
           </div>
         </div>
-        <p v-else-if="tasks.length > 0" class="py-6 text-center text-sm text-slate-400">当前筛选下暂无任务</p>
-        <p v-else class="py-6 text-center text-sm text-slate-400">暂无任务</p>
+        <div v-else class="task-list-empty" role="status">
+          <img class="task-list-empty__img" :src="taskListEmptyImgSrc" alt="" decoding="async" />
+          <p class="task-list-empty__text">
+            {{ tasks.length > 0 ? '当前筛选下暂无任务' : '暂无任务' }}
+          </p>
+        </div>
       </section>
     </template>
   </div>
@@ -994,6 +1007,32 @@ async function confirmDeleteTask() {
   font-style: normal;
   text-transform: none;
   line-height: 1.4;
+}
+
+.task-list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem 2.5rem;
+}
+
+.task-list-empty__img {
+  display: block;
+  width: min(200px, 72vw);
+  height: auto;
+  margin: 0 auto 0.75rem;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+}
+
+.task-list-empty__text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #8f959e;
+  text-align: center;
 }
 
 .task-create-btn {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 保存前「确认任务配置」：配置摘要、预估点数与余额、取消 / 开始执行（落库）。
+ * 保存前「确认任务配置」：配置摘要、预估积分与当前积分、取消 / 开始执行（落库）。
  */
 import { Close } from '@element-plus/icons-vue'
 import type { TaskConfigConfirmRow } from '@/views/TaskCreateForm/build-preview-rows'
@@ -62,15 +62,19 @@ function handleClose() {
       <div class="task-config-confirm-dialog__points-row">
         <span class="task-config-confirm-dialog__points-label">预估消耗</span>
         <span class="task-config-confirm-dialog__points-value">
-          <span class="task-config-confirm-dialog__points-num">{{ estimatedPoints }}</span>
-          <span class="task-config-confirm-dialog__points-unit">点</span>
+          <span class="task-config-confirm-dialog__points-num">{{
+            estimatedPoints.toLocaleString('zh-CN')
+          }}</span>
+          <span class="task-config-confirm-dialog__points-unit">积分</span>
         </span>
       </div>
       <div class="task-config-confirm-dialog__points-row">
-        <span class="task-config-confirm-dialog__points-label">当前余额</span>
+        <span class="task-config-confirm-dialog__points-label">当前积分</span>
         <span class="task-config-confirm-dialog__points-value">
-          <span class="task-config-confirm-dialog__points-num">{{ balancePoints }}</span>
-          <span class="task-config-confirm-dialog__points-unit">点</span>
+          <span class="task-config-confirm-dialog__points-num">{{
+            balancePoints.toLocaleString('zh-CN')
+          }}</span>
+          <span class="task-config-confirm-dialog__points-unit">积分</span>
         </span>
       </div>
     </div>

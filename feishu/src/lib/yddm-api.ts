@@ -44,6 +44,9 @@ export interface YddmLoginUser {
   email?: string
   phone_num?: string
   api_key: string
+  /** 账户积分余额（若上游提供则优先于 balance_cents） */
+  balance_points?: number
+  /** 与积分余额同源时的整数字段名（部分环境为 balance_cents） */
   balance_cents?: number
 }
 
@@ -61,6 +64,8 @@ export interface YddmMeUser {
   email?: string | null
   phone_num?: string | null
   api_key?: string
+  balance_points?: number
+  balancePoints?: number
   balance_cents?: number
   [key: string]: unknown
 }

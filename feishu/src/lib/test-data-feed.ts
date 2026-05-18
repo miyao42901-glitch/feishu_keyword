@@ -1,8 +1,10 @@
 /**
- * 本地 `feishu/test_data/` 下与「抖音 / 小红书」同步接口同构的演示 JSON。
- * 当任务为运行中且仅勾选上述平台时，按任务配置过滤后用于写入飞书多维表格（及条数统计等）。
+ * 运行中任务采集数据：抖音 / 小红书均走同步服务 search-page 接口。
  */
 
+import { fetchDouyinSearchItems } from '@/lib/douyin-sync-api'
+import type { SyncFetchContext } from '@/lib/sync-api-common'
+import { fetchXhsSearchItems } from '@/lib/xhs-sync-api'
 import { platformDisplayNames } from '@/views/TaskCreateForm/constants'
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
 import { mapItemToColumnValues } from '@/lib/test-data-field-map'
@@ -25,49 +27,6 @@ export type TestFeedRow = {
   fieldColumns: Record<string, string>
 }
 
-const DOUYIN_DATA_URL = new URL('../../test_data/抖音搜索（同步）.json', import.meta.url).href
-const XHS_DATA_URL = new URL('../../test_data/小红书搜索（同步）.json', import.meta.url).href
-
-let douyinPayload: unknown | undefined
-let xhsPayload: unknown | undefined
-
-async function loadDouyinPayload(): Promise<unknown> {
-  if (douyinPayload !== undefined) return douyinPayload
-  const res = await fetch(DOUYIN_DATA_URL)
-  if (!res.ok) throw new Error(`加载抖音演示数据失败 HTTP ${res.status}`)
-  douyinPayload = (await res.json()) as unknown
-  return douyinPayload
-}
-
-async function loadXhsPayload(): Promise<unknown> {
-  if (xhsPayload !== undefined) return xhsPayload
-  const res = await fetch(XHS_DATA_URL)
-  if (!res.ok) throw new Error(`加载小红书演示数据失败 HTTP ${res.status}`)
-  xhsPayload = (await res.json()) as unknown
-  return xhsPayload
-}
-
-function extractResultItems(payload: unknown): Record<string, unknown>[] {
-  if (!payload || typeof payload !== 'object') return []
-  const root = payload as Record<string, unknown>
-  const data = root.data
-  if (!data || typeof data !== 'object') return []
-  const result = (data as Record<string, unknown>).result
-  if (!result || typeof result !== 'object') return []
-  const inner = (result as Record<string, unknown>).data
-  if (!Array.isArray(inner)) return []
-  return inner.filter((x): x is Record<string, unknown> => x != null && typeof x === 'object')
-}
-
-function readConfigArray(config: Record<string, unknown>, camel: string, snake?: string): string[] {
-  const raw = snake != null ? (config[camel] ?? config[snake]) : config[camel]
-  if (!Array.isArray(raw)) return []
-  return raw
-    .filter((x): x is string => typeof x === 'string')
-    .map((s) => s.trim())
-    .filter(Boolean)
-}
-
 function readSelectedSources(config: Record<string, unknown>): PlatformKey[] {
   const raw = config.selectedSources ?? config.selected_sources
   if (!Array.isArray(raw)) return []
@@ -85,26 +44,6 @@ function readDataRange(config: Record<string, unknown>): number {
   const n = typeof v === 'number' ? v : Number(v)
   if (!Number.isFinite(n) || n < 1) return 20
   return Math.min(100, Math.floor(n))
-}
-
-function combineText(parts: (unknown)[]): string {
-  return parts
-    .filter((x) => typeof x === 'string')
-    .map((s) => (s as string).trim())
-    .filter(Boolean)
-    .join(' ')
-}
-
-function matchesKeywords(text: string, keywords: string[]): boolean {
-  if (!keywords.length) return true
-  const t = text.toLowerCase()
-  return keywords.some((kw) => t.includes(kw.toLowerCase()))
-}
-
-function hasExclude(text: string, excludes: string[]): boolean {
-  if (!excludes.length) return false
-  const t = text.toLowerCase()
-  return excludes.some((ex) => ex && t.includes(ex.toLowerCase()))
 }
 
 function formatPublish(ms: number): string {
@@ -173,45 +112,43 @@ export function taskUsesOnlyTestDataPlatforms(platformKeys: string[] | undefined
 }
 
 /**
- * 从任务配置与本地 JSON 生成演示采集行（已按关键词 / 排除词 / dataRange 裁剪）。
+ * 从任务配置拉取同步采集数据（已按关键词 / 排除词 / dataRange 裁剪）。
  */
 export async function buildTestDataFeedFromConfig(params: {
   taskId: number
   taskName: string
   config: Record<string, unknown>
+  /** 同步采集接口鉴权（抖音 / 小红书）；未传时无法拉取 */
+  sync?: SyncFetchContext
 }): Promise<TestFeedRow[]> {
-  const { taskId, taskName, config } = params
+  const { taskId, taskName, config, sync } = params
   const sources = readSelectedSources(config)
   if (!sources.length || !taskUsesOnlyTestDataPlatforms(sources)) return []
 
-  const keywords = readConfigArray(config, 'keywords')
-  const excludes = readConfigArray(config, 'excludeKeywords', 'exclude_keywords')
   const limit = readDataRange(config)
 
   const douyinRows: TestFeedRow[] = []
   const xhsRows: TestFeedRow[] = []
 
   if (sources.includes('douyin')) {
-    const payload = await loadDouyinPayload()
-    for (const item of extractResultItems(payload)) {
+    if (!sync?.apiKey?.trim()) {
+      throw new Error('抖音采集需要 API Key，请先登录')
+    }
+    const items = await fetchDouyinSearchItems(config, sync)
+    for (const item of items) {
       const row = mapDouyinItem(item, taskId, taskName, config)
-      if (!row) continue
-      const blob = combineText([row.title, row.author])
-      if (!matchesKeywords(blob, keywords)) continue
-      if (hasExclude(blob, excludes)) continue
-      douyinRows.push(row)
+      if (row) douyinRows.push(row)
     }
   }
 
   if (sources.includes('xiaohongshu')) {
-    const payload = await loadXhsPayload()
-    for (const item of extractResultItems(payload)) {
+    if (!sync?.apiKey?.trim()) {
+      throw new Error('小红书采集需要 API Key，请先登录')
+    }
+    const items = await fetchXhsSearchItems(config, sync)
+    for (const item of items) {
       const row = mapXhsItem(item, taskId, taskName, config)
-      if (!row) continue
-      const blob = combineText([row.title, row.author])
-      if (!matchesKeywords(blob, keywords)) continue
-      if (hasExclude(blob, excludes)) continue
-      xhsRows.push(row)
+      if (row) xhsRows.push(row)
     }
   }
 

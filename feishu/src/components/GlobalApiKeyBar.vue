@@ -39,8 +39,22 @@ const authCodeDisplay = computed(() => authCode.value.trim())
     aria-labelledby="api-key-promo-heading"
   >
     <h2 id="api-key-promo-heading" class="sr-only">API-Key</h2>
-    <button type="button" class="api-key-promo__btn" @click="emit('goLogin')">获取API-Key</button>
-    <p class="api-key-promo__hint">请先登录，以获取API接口调用资格</p>
+    <div class="api-key-promo__btn-wrap">
+      <button
+        type="button"
+        class="api-key-promo__btn"
+        aria-describedby="api-key-promo-hint"
+        @click="emit('goLogin')"
+      >
+        获取API-Key
+      </button>
+      <span class="api-key-promo__badge" aria-hidden="true" title="需要登录">
+        <span class="api-key-promo__badge-mark">!</span>
+      </span>
+    </div>
+    <p id="api-key-promo-hint" class="api-key-promo__hint">
+      请先登录，以获取 API 接口调用资格
+    </p>
   </section>
 </template>
 
@@ -138,6 +152,12 @@ const authCodeDisplay = computed(() => authCode.value.trim())
   border-radius: 0;
 }
 
+.api-key-promo__btn-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
 .api-key-promo__btn {
   box-sizing: border-box;
   display: inline-flex;
@@ -160,6 +180,29 @@ const authCodeDisplay = computed(() => authCode.value.trim())
   line-height: 1;
   cursor: pointer;
   transition: filter 0.15s ease;
+}
+
+.api-key-promo__badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #ededfe;
+  border-radius: 50%;
+  background: #f54a45;
+  box-shadow: 0 1px 3px rgba(245, 74, 69, 0.35);
+  pointer-events: none;
+}
+
+.api-key-promo__badge-mark {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  color: #ffffff;
 }
 
 .api-key-promo__btn:hover {

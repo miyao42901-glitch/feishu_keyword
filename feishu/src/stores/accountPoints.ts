@@ -1,24 +1,24 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
+import { parseYddmUserBalancePoints } from '@/lib/account-balance'
+import type { YddmLoginUser, YddmMeUser } from '@/lib/yddm-api'
 
 const BALANCE_STORAGE_KEY = 'feishu_keyword_account_balance_points'
-
-const DEFAULT_BALANCE = 500
 
 function readBalanceFromStorage(): number {
   try {
     const raw = localStorage.getItem(BALANCE_STORAGE_KEY)
-    if (raw == null || raw === '') return DEFAULT_BALANCE
+    if (raw == null || raw === '') return 0
     const n = Number(raw)
-    if (!Number.isFinite(n) || n < 0) return DEFAULT_BALANCE
+    if (!Number.isFinite(n) || n < 0) return 0
     return Math.floor(n)
   } catch {
-    return DEFAULT_BALANCE
+    return 0
   }
 }
 
 /**
- * 账户点数余额（前端展示）；默认 500，持久化便于后续对接登录/计费接口后写入。
+ * 账户积分余额（与 YDDM 登录态同步，用于任务预估对比）。
  */
 export const useAccountPointsStore = defineStore('accountPoints', () => {
   const currentBalancePoints = ref(readBalanceFromStorage())
@@ -36,10 +36,16 @@ export const useAccountPointsStore = defineStore('accountPoints', () => {
     currentBalancePoints.value = Math.floor(n)
   }
 
-  /** 退出登录或未接入计费资料时恢复默认展示用余额 */
-  function resetToDefaultBalance() {
-    setCurrentBalancePoints(DEFAULT_BALANCE)
+  /** 用登录/个人信息中的积分余额覆盖本地缓存 */
+  function syncFromYddmUser(user: YddmMeUser | YddmLoginUser | null | undefined) {
+    const pts = parseYddmUserBalancePoints(user)
+    if (pts != null) setCurrentBalancePoints(pts)
   }
 
-  return { currentBalancePoints, setCurrentBalancePoints, resetToDefaultBalance }
+  /** 退出登录后清空展示用余额 */
+  function resetToDefaultBalance() {
+    setCurrentBalancePoints(0)
+  }
+
+  return { currentBalancePoints, setCurrentBalancePoints, syncFromYddmUser, resetToDefaultBalance }
 })

@@ -210,6 +210,7 @@ async function tryRefreshMe(clearSessionOnError: boolean) {
   if (!yddmAuth.isLoggedIn) return
   try {
     const u = await yddmAuth.refreshMe()
+    accountPoints.syncFromYddmUser(u)
     const key = u?.api_key?.trim()
     if (key) globalSettings.authCode = key
   } catch (e) {
@@ -242,6 +243,7 @@ async function onLogin() {
       ElMessage.success('登录成功（响应中未包含 access_token，无法拉取 /users/me）')
     } else {
       yddmAuth.setFromLogin(data)
+      accountPoints.syncFromYddmUser(data.user)
       await tryRefreshMe(false)
       const apiKey = data?.user?.api_key?.trim() || yddmAuth.me?.api_key?.trim()
       if (apiKey) globalSettings.authCode = apiKey
@@ -284,6 +286,7 @@ async function onRegisterAndLogin() {
       ElMessage.success('已自动登录（响应中未包含 access_token）')
     } else {
       yddmAuth.setFromLogin(data)
+      accountPoints.syncFromYddmUser(data.user)
       await tryRefreshMe(false)
       const apiKey = data?.user?.api_key?.trim() || yddmAuth.me?.api_key?.trim()
       if (apiKey) globalSettings.authCode = apiKey

@@ -25,7 +25,7 @@ function onExpireDisabledTime(date: Date) {
       <template #label>
         <div class="crawl-frequency-label-row">
           <span class="task-form-field-title">采集频率</span>
-          <span class="crawl-frequency-hint">*采集频率越高，消耗点数越多</span>
+          <span class="crawl-frequency-hint">*采集频率越高，消耗积分越多</span>
         </div>
       </template>
       <el-select

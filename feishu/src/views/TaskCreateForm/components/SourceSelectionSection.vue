@@ -412,15 +412,8 @@ function toggleSelectAll(platform: PlatformKey) {
 }
 
 .source-field-option--select-all {
-  position: sticky;
-  top: 0;
-  z-index: 1;
+  margin-bottom: 4px;
   border-bottom: 1px solid #e5e7eb;
-  background: #ffffff;
-}
-
-.source-field-option--select-all:hover {
-  background: #f5f6f7;
 }
 
 .source-field-option__label--strong {

@@ -89,9 +89,9 @@ function maskApiKey(key: string): string {
   return `${t.slice(0, 3)}****${t.slice(-4)}`
 }
 
-function formatBalanceCents(cents: unknown): string {
-  if (typeof cents !== 'number' || !Number.isFinite(cents)) return '—'
-  return `${(cents / 100).toFixed(2)} 元`
+function formatAccountPoints(points: unknown): string {
+  if (typeof points !== 'number' || !Number.isFinite(points)) return '—'
+  return `${Math.floor(points).toLocaleString('zh-CN')} 积分`
 }
 
 async function tryRefreshMe(clearSessionOnError = true) {
@@ -99,6 +99,7 @@ async function tryRefreshMe(clearSessionOnError = true) {
   meLoading.value = true
   try {
     const u = await yddmAuth.refreshMe()
+    accountPoints.syncFromYddmUser(u)
     const key = u?.api_key?.trim()
     if (key) globalSettings.authCode = key
   } catch (e) {
@@ -231,8 +232,8 @@ async function onRegister() {
               </dd>
             </div>
             <div class="flex justify-between gap-3">
-              <dt class="shrink-0 text-slate-500">账户余额</dt>
-              <dd class="text-slate-800">{{ formatBalanceCents(yddmAuth.me.balance_cents) }}</dd>
+              <dt class="shrink-0 text-slate-500">账户积分</dt>
+              <dd class="text-slate-800">{{ formatAccountPoints(accountPoints.currentBalancePoints) }}</dd>
             </div>
           </dl>
 

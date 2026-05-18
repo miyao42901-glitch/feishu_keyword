@@ -8,6 +8,7 @@ import GlobalApiKeyBar from '@/components/GlobalApiKeyBar.vue'
 import YddmLoginDialog from '@/components/YddmLoginDialog.vue'
 import TasksView from '@/views/TasksView.vue'
 import YddmAuthView from '@/views/YddmAuthView.vue'
+import { formatPointsBalance } from '@/lib/account-balance'
 import { useAccountPointsStore } from '@/stores/accountPoints'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
 import { useYddmAuthStore } from '@/stores/yddmAuth'
@@ -50,6 +51,10 @@ function onHeaderNavClick() {
 }
 
 const operationsDocUrl = (import.meta.env.VITE_OPERATIONS_DOC_URL as string | undefined)?.trim()
+const userGroupUrl = (import.meta.env.VITE_USER_GROUP_URL as string | undefined)?.trim()
+const userGroupQrUrl = (import.meta.env.VITE_CUSTOMER_SERVICE_QR_URL as string | undefined)?.trim()
+
+const userGroupDialogVisible = ref(false)
 
 function openOperationsDoc() {
   if (operationsDocUrl) {
@@ -59,25 +64,34 @@ function openOperationsDoc() {
   ElMessage.info('请在环境变量 VITE_OPERATIONS_DOC_URL 中配置操作文档链接')
 }
 
+function openUserGroup() {
+  if (userGroupUrl) {
+    window.open(userGroupUrl, '_blank', 'noopener,noreferrer')
+    return
+  }
+  if (userGroupQrUrl) {
+    userGroupDialogVisible.value = true
+    return
+  }
+  ElMessage.info('请在环境变量 VITE_USER_GROUP_URL 中配置用户群链接')
+}
+
 function openLoginDialog() {
   loginDialogVisible.value = true
 }
 
-/** 顶部栏：余额来自 YDDM `balance_cents`（分 → 元） */
+/** 顶部栏：积分来自 YDDM 登录个人信息 */
 const headerBalanceText = computed(() => {
-  const c = yddmAuth.me?.balance_cents
-  if (typeof c === 'number' && Number.isFinite(c)) return `${(c / 100).toFixed(2)} 元`
-  return '—'
+  if (!yddmAuth.isLoggedIn && !yddmAuth.me) return '—'
+  return formatPointsBalance(accountPoints.currentBalancePoints)
 })
 
 watch(
   () => yddmAuth.me,
   (m) => {
-    if (m && typeof m.balance_cents === 'number' && Number.isFinite(m.balance_cents)) {
-      accountPoints.setCurrentBalancePoints(Math.max(0, Math.round(m.balance_cents / 100)))
-    }
+    accountPoints.syncFromYddmUser(m)
   },
-  { deep: true },
+  { deep: true, immediate: true },
 )
 
 onMounted(() => {
@@ -96,6 +110,22 @@ onMounted(() => {
   <el-config-provider :locale="zhCn">
   <div class="flex h-screen min-h-0 w-full min-w-0 flex-col bg-[#ffffff]">
     <YddmLoginDialog v-model="loginDialogVisible" />
+    <el-dialog
+      v-model="userGroupDialogVisible"
+      title="加入用户群"
+      width="min(360px, 92vw)"
+      align-center
+      append-to-body
+      class="user-group-dialog"
+    >
+      <p class="user-group-dialog__hint">扫码或长按识别二维码加入用户群</p>
+      <img
+        v-if="userGroupQrUrl"
+        class="user-group-dialog__qr"
+        :src="userGroupQrUrl"
+        alt="用户群二维码"
+      />
+    </el-dialog>
     <div class="home-hero">
       <div class="home-hero__bg" aria-hidden="true" />
       <div class="home-hero__inner">
@@ -104,14 +134,27 @@ onMounted(() => {
             <span class="home-hero__title-accent" aria-hidden="true" />
             <h1 class="home-hero__title">关键词监控</h1>
           </div>
-          <button type="button" class="home-hero__doc-btn" @click="openOperationsDoc">
-            <svg class="home-hero__doc-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="4" y="5" width="16" height="4.5" rx="1.2" fill="currentColor" opacity="0.88" />
-              <rect x="4" y="10.25" width="16" height="4.5" rx="1.2" fill="currentColor" opacity="0.72" />
-              <rect x="4" y="15.5" width="11" height="4.5" rx="1.2" fill="currentColor" opacity="0.56" />
-            </svg>
-            操作文档
-          </button>
+          <div class="home-hero__actions" role="group" aria-label="快捷入口">
+            <button type="button" class="home-hero__action" @click="openOperationsDoc">
+              <svg class="home-hero__action-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="4" y="5" width="16" height="4.5" rx="1.2" fill="currentColor" opacity="0.88" />
+                <rect x="4" y="10.25" width="16" height="4.5" rx="1.2" fill="currentColor" opacity="0.72" />
+                <rect x="4" y="15.5" width="11" height="4.5" rx="1.2" fill="currentColor" opacity="0.56" />
+              </svg>
+              操作文档
+            </button>
+            <span class="home-hero__action-divider" aria-hidden="true" />
+            <button type="button" class="home-hero__action" @click="openUserGroup">
+              <svg class="home-hero__action-icon home-hero__action-icon--chat" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M6 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-4 3.5V6a2 2 0 0 1 2-2Z"
+                  opacity="0.9"
+                />
+              </svg>
+              加入用户群
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -144,7 +187,7 @@ onMounted(() => {
           class="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3"
         >
           <span class="max-w-[9rem] truncate text-xs text-slate-500 sm:max-w-none"
-            >余额 {{ headerBalanceText }}</span
+            >{{ headerBalanceText }}</span
           >
           <button
             v-if="showLogoutBtn"
@@ -275,41 +318,75 @@ onMounted(() => {
   color: #0f1114;
 }
 
-.home-hero__doc-btn {
+.home-hero__actions {
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
   margin-top: 0.75rem;
-  padding: 0.375rem 0.75rem;
-  border: 1px solid #e1e4e8;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.92);
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #e8eaed;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 1px 2px rgba(15, 17, 20, 0.04);
+}
+
+.home-hero__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0.3125rem 0.625rem;
+  border: none;
+  border-radius: 9999px;
+  background: transparent;
   color: #2b2f36;
   font-size: 0.75rem;
   font-weight: 500;
   line-height: 1.2;
   cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease;
+  transition: background-color 0.15s ease;
 }
 
-.home-hero__doc-btn:hover {
-  background: #ffffff;
-  border-color: #c9cdd4;
+.home-hero__action:hover {
+  background: rgba(51, 112, 255, 0.06);
 }
 
-.home-hero__doc-btn:focus-visible {
+.home-hero__action:focus-visible {
   outline: 2px solid rgba(31, 34, 246, 0.35);
-  outline-offset: 2px;
+  outline-offset: 1px;
 }
 
-.home-hero__doc-icon {
+.home-hero__action-divider {
+  flex-shrink: 0;
+  width: 1px;
+  height: 14px;
+  background: #dee0e3;
+}
+
+.home-hero__action-icon {
   flex-shrink: 0;
   width: 14px;
   height: 14px;
   color: #646a73;
+}
+
+.home-hero__action-icon--chat {
+  color: #3370ff;
+}
+
+.user-group-dialog__hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #646a73;
+  text-align: center;
+}
+
+.user-group-dialog__qr {
+  display: block;
+  width: min(240px, 100%);
+  margin: 0 auto;
+  border-radius: 8px;
 }
 
 @media (min-width: 640px) {

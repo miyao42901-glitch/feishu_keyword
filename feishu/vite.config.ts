@@ -18,6 +18,22 @@ const yddmApiProxy = {
   },
 } as const
 
+/** 抖音/小红书同步采集服务（默认内网 8765） */
+const syncApiProxyTarget =
+  (process.env.VITE_SYNC_API_BASE as string | undefined)?.trim().replace(/\/$/, '') ||
+  'http://192.168.1.11:8765'
+
+const syncApiProxy = {
+  '/sync-api': {
+    target: syncApiProxyTarget,
+    changeOrigin: true,
+    rewrite: (path: string) => {
+      const next = path.replace(/^\/sync-api/, '')
+      return next === '' ? '/' : next
+    },
+  },
+} as const
+
 // https://vite.dev/config/
 export default defineConfig({
   // 飞书自定义插件 / 扩展从非根路径加载静态资源时需要相对路径
@@ -26,10 +42,10 @@ export default defineConfig({
     host: true,
     // 内网穿透域名访问时放行 Host，否则 Vite 会 403（Blocked request）
     allowedHosts: ['.ngrok-free.app', '.ngrok-free.dev', '.ngrok.io', '.loca.lt'],
-    proxy: yddmApiProxy,
+    proxy: { ...yddmApiProxy, ...syncApiProxy },
   },
   preview: {
-    proxy: yddmApiProxy,
+    proxy: { ...yddmApiProxy, ...syncApiProxy },
   },
   plugins: [
     vue(),
