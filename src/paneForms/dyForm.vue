@@ -109,7 +109,7 @@
         '10页': {value: 10 , type: 'page'},
         '20页': {value: 20 , type: 'page'},
         '50页': {value: 50 , type: 'page'},
-        '全部': {value: 0 , type: 'all'},
+        // '全部': {value: 0 , type: 'all'},
       })
 
       const paneData = ref({
@@ -807,28 +807,42 @@
 
 
     <el-form-item label-width="null" v-show="paneData.getDataType === 0">
-      <el-button 
-        type="primary" 
-        :disabled="isLocked || !formData.key || !paneData.sec_user_id && !paneData.share_text"
-        @click="upsertUser"
-        plain
-        style="flex: 1;"
+      <el-tooltip 
+        :content="isLocked || !formData.key || !paneData.sec_user_id && !paneData.share_text
+         ? '需要登录、填写账号id或分享链接' : '写入抖音账号数据' " 
+        effect="dark"
+        placement="top"
       >
-        写入抖音账号数据
-      </el-button>
+        <el-button 
+          type="primary" 
+          :disabled="isLocked || !formData.key || !paneData.sec_user_id && !paneData.share_text"
+          @click="upsertUser"
+          plain
+          style="flex: 1;"
+        >
+          写入抖音账号数据
+        </el-button>
+      </el-tooltip>
     </el-form-item>
 
 
     <el-form-item label-width="null"  v-show="paneData.getDataType === 0">
-      <el-button 
-        type="primary" 
-        :disabled="isLocked || !formData.key || !paneData.userTableId"
-        @click="batchUpdateUser"
-        plain
-        style="flex: 1;"
+      <el-tooltip 
+        :content="isLocked || !formData.key || !paneData.userTableId
+         ? '需要登录、选择抖音账号表' : '批量更新抖音账号数据' " 
+        effect="dark"
+        placement="top"
       >
-        批量更新抖音账号数据
-      </el-button>
+        <el-button 
+          type="primary" 
+          :disabled="isLocked || !formData.key || !paneData.userTableId"
+          @click="batchUpdateUser"
+          plain
+          style="flex: 1;"
+        >
+          批量更新抖音账号数据
+        </el-button>
+      </el-tooltip>
     </el-form-item>
 
 
@@ -839,27 +853,41 @@
     </el-form-item>
 
     <el-form-item label-width="null" v-show="paneData.getDataType !== 0">
-      <el-button 
-        type="primary" 
-        :disabled="isLocked || !formData.key || !paneData.userTableId && paneData.getWorksType === 0 || !paneData.sec_user_id && !paneData.share_text && paneData.getWorksType !== 0"
-        @click="getRecentWorks(paneData.searchRange, paneData.getWorksType)"
-        plain
-        style="flex: 1;"
+      <el-tooltip 
+        :content="isLocked || !formData.key || !paneData.userTableId && paneData.getWorksType === 0 || !paneData.sec_user_id && !paneData.share_text && paneData.getWorksType !== 0
+         ? '需要登录、选择抖音账号表、填写账号id或分享链接' : '获取发布视频' " 
+        effect="dark"
+        placement="top"
       >
-        {{ '获取' + paneData.searchRange + '发布视频'}}
-      </el-button>
+        <el-button 
+          type="primary" 
+          :disabled="isLocked || !formData.key || !paneData.userTableId && paneData.getWorksType === 0 || !paneData.sec_user_id && !paneData.share_text && paneData.getWorksType !== 0"
+          @click="getRecentWorks(paneData.searchRange, paneData.getWorksType)"
+          plain
+          style="flex: 1;"
+        >
+          {{ '获取' + paneData.searchRange + '发布视频'}}
+        </el-button>
+      </el-tooltip>
     </el-form-item>
 
     <el-form-item label-width="null"  v-show="paneData.getDataType !== 0">
-      <el-button 
-        type="primary" 
-        :disabled="isLocked || !formData.key || !paneData.workTableId"
-        @click="updateWorks"
-        plain
-        style="flex: 1;"
+      <el-tooltip 
+        :content="isLocked || !formData.key || !paneData.workTableId
+         ? '需要登录、选择抖音视频表' : '批量更新抖音视频数据' " 
+        effect="dark"
+        placement="top"
       >
-        批量更新抖音视频数据
-      </el-button>
+        <el-button 
+          type="primary" 
+          :disabled="isLocked || !formData.key || !paneData.workTableId"
+          @click="updateWorks"
+          plain
+          style="flex: 1;"
+        >
+          批量更新抖音视频数据
+        </el-button>
+      </el-tooltip>
     </el-form-item>
 
     <!-- <p>{{ paneData }}</p> -->
