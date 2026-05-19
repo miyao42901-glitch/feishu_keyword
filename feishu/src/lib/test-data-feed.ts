@@ -1,7 +1,16 @@
 /**
- * 运行中任务采集数据：抖音 / 小红书均走同步服务 search-page 接口。
+ * 运行中任务采集数据：优先 `GET /api/v1/async/tasks/{id}/results`；
+ * 无 `asyncTaskRefs` 时回退同步 search-page。
  */
 
+import {
+  getAsyncTaskResults,
+  getAsyncTaskStatus,
+  isRealtimeTaskConfig,
+  readAsyncTaskIds,
+  readAsyncTaskRefs,
+} from '@/lib/async-task-api'
+import { refreshYddmUserBalance } from '@/lib/refresh-yddm-balance'
 import { fetchDouyinSearchItems } from '@/lib/douyin-sync-api'
 import type { SyncFetchContext } from '@/lib/sync-api-common'
 import { fetchXhsSearchItems } from '@/lib/xhs-sync-api'
@@ -62,9 +71,7 @@ function mapDouyinItem(
   const desc = typeof item.desc === 'string' ? item.desc : ''
   const url = typeof item.url === 'string' ? item.url : ''
   const author = typeof item.nickname === 'string' ? item.nickname : '—'
-  const pt = item.publish_time
-  const publishMs = typeof pt === 'number' ? pt : Number(pt)
-  const ms = Number.isFinite(publishMs) ? publishMs : 0
+  const ms = readPublishMs(item)
   return {
     taskId,
     taskName,
@@ -89,9 +96,7 @@ function mapXhsItem(
   const desc = typeof item.desc === 'string' ? item.desc : ''
   const url = typeof item.url === 'string' ? item.url : ''
   const author = typeof item.nickname === 'string' ? item.nickname : '—'
-  const pt = item.publish_time
-  const publishMs = typeof pt === 'number' ? pt : Number(pt)
-  const ms = Number.isFinite(publishMs) ? publishMs : 0
+  const ms = readPublishMs(item)
   return {
     taskId,
     taskName,
@@ -111,8 +116,76 @@ export function taskUsesOnlyTestDataPlatforms(platformKeys: string[] | undefined
   return platformKeys.every((k) => TEST_DATA_PLATFORM_IDS.has(k as PlatformKey))
 }
 
+function inferPlatformFromItem(item: Record<string, unknown>): PlatformKey | null {
+  if (item.aweme_id != null || item.awemeId != null) return 'douyin'
+  if (item.note_id != null || item.noteId != null) return 'xiaohongshu'
+  return null
+}
+
+function readPublishMs(item: Record<string, unknown>): number {
+  const pt = item.publish_time
+  const n = typeof pt === 'number' ? pt : Number(pt)
+  return Number.isFinite(n) ? n : 0
+}
+
+async function buildTestDataFeedFromAsyncResults(params: {
+  taskId: number
+  taskName: string
+  config: Record<string, unknown>
+  sync: SyncFetchContext
+}): Promise<TestFeedRow[]> {
+  const { taskId, taskName, config, sync } = params
+  let refs = readAsyncTaskRefs(config)
+  if (!refs.length) {
+    refs = readAsyncTaskIds(config).map((taskId) => ({
+      taskId,
+      platform: 'douyin' as PlatformKey,
+      keyword: '',
+    }))
+  }
+  if (!refs.length) return []
+
+  const limit = readDataRange(config)
+  const douyinRows: TestFeedRow[] = []
+  const xhsRows: TestFeedRow[] = []
+
+  for (const ref of refs) {
+    try {
+      const status = await getAsyncTaskStatus(sync, ref.taskId)
+      if (status.lifecycle === 'failed') continue
+    } catch {
+      /* 状态查询失败时仍尝试拉结果 */
+    }
+
+    let items: Record<string, unknown>[] = []
+    try {
+      const payload = await getAsyncTaskResults(sync, ref.taskId)
+      items = payload.items
+    } catch {
+      continue
+    }
+
+    for (const item of items) {
+      const platform = ref.platform ?? inferPlatformFromItem(item)
+      if (platform === 'douyin') {
+        const row = mapDouyinItem(item, taskId, taskName, config)
+        if (row) douyinRows.push(row)
+      } else if (platform === 'xiaohongshu') {
+        const row = mapXhsItem(item, taskId, taskName, config)
+        if (row) xhsRows.push(row)
+      }
+    }
+  }
+
+  douyinRows.sort((a, b) => b.publishMs - a.publishMs)
+  xhsRows.sort((a, b) => b.publishMs - a.publishMs)
+  const rows = [...douyinRows.slice(0, limit), ...xhsRows.slice(0, limit)]
+  void refreshYddmUserBalance()
+  return rows
+}
+
 /**
- * 从任务配置拉取同步采集数据（已按关键词 / 排除词 / dataRange 裁剪）。
+ * 从任务配置拉取采集数据（已按 dataRange 裁剪）。
  */
 export async function buildTestDataFeedFromConfig(params: {
   taskId: number
@@ -124,6 +197,14 @@ export async function buildTestDataFeedFromConfig(params: {
   const { taskId, taskName, config, sync } = params
   const sources = readSelectedSources(config)
   if (!sources.length || !taskUsesOnlyTestDataPlatforms(sources)) return []
+
+  if (
+    !isRealtimeTaskConfig(config) &&
+    readAsyncTaskIds(config).length &&
+    sync?.apiKey?.trim()
+  ) {
+    return buildTestDataFeedFromAsyncResults({ taskId, taskName, config, sync })
+  }
 
   const limit = readDataRange(config)
 
@@ -154,5 +235,7 @@ export async function buildTestDataFeedFromConfig(params: {
 
   douyinRows.sort((a, b) => b.publishMs - a.publishMs)
   xhsRows.sort((a, b) => b.publishMs - a.publishMs)
-  return [...douyinRows.slice(0, limit), ...xhsRows.slice(0, limit)]
+  const rows = [...douyinRows.slice(0, limit), ...xhsRows.slice(0, limit)]
+  void refreshYddmUserBalance()
+  return rows
 }

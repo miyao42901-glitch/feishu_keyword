@@ -16,6 +16,17 @@ function str(v: unknown): string {
   return ''
 }
 
+function joinUrlList(v: unknown, separator = '\n'): string {
+  if (!Array.isArray(v)) return ''
+  return v.map((x) => str(x)).filter(Boolean).join(separator)
+}
+
+function extractHashtagsFromText(text: string): string {
+  if (!text) return ''
+  const m = text.match(/#[^\s#]+/g)
+  return m ? m.join(' ') : ''
+}
+
 function formatPublish(ms: number): string {
   if (!Number.isFinite(ms)) return ''
   const d = new Date(ms)
@@ -60,6 +71,8 @@ function readDouyinRaw(item: Record<string, unknown>, key: SourceFieldKey): stri
       return str(item.user_id)
     case 'authorAvatar':
       return str(item.avatar)
+    case 'hashtagList':
+      return extractHashtagsFromText(str(item.desc) || str(item.title))
     default:
       return ''
   }
@@ -68,13 +81,31 @@ function readDouyinRaw(item: Record<string, unknown>, key: SourceFieldKey): stri
 function readXhsRaw(item: Record<string, unknown>, key: SourceFieldKey): string {
   switch (key) {
     case 'noteId':
-      return str(item.note_id ?? item.id)
+      return str(item.note_id ?? item.noteId)
     case 'title':
       return str(item.title) || str(item.desc)
     case 'noteBody':
       return str(item.desc)
     case 'playPageUrl':
       return str(item.url)
+    case 'topicTags':
+      return extractHashtagsFromText(str(item.desc) || str(item.title))
+    case 'noteImages':
+      return joinUrlList(item.images_list)
+    case 'videoMedia': {
+      const parts: string[] = []
+      const videoUrl = joinUrlList(item.video_list, ' | ')
+      if (videoUrl) parts.push(videoUrl)
+      const dur = item.duration
+      if (dur != null && String(dur).trim() !== '' && String(dur) !== '0') {
+        parts.push(`${str(dur)}秒`)
+      }
+      if (!parts.length) {
+        const cover = joinUrlList(item.images_list, ' | ')
+        if (cover) parts.push(cover)
+      }
+      return parts.join(' | ')
+    }
     case 'publishedAt': {
       const pt = item.publish_time
       const ms = typeof pt === 'number' ? pt : Number(pt)
@@ -91,9 +122,15 @@ function readXhsRaw(item: Record<string, unknown>, key: SourceFieldKey): string 
     case 'authorNickname':
       return str(item.nickname)
     case 'authorId':
-      return str(item.user_id)
+      return str(item.userid ?? item.user_id ?? item.userId)
     case 'authorAvatar':
       return str(item.avatar)
+    case 'noteType': {
+      const ct = str(item.content_type).toLowerCase()
+      if (ct === 'video') return '视频'
+      if (ct === 'normal') return '图文'
+      return ct
+    }
     default:
       return ''
   }

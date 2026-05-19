@@ -9,7 +9,6 @@ import { platformDisplayNames, sourcePlatforms } from '@/views/TaskCreateForm/co
 import TaskDetailDialog from '@/views/tasks/components/TaskDetailDialog.vue'
 import TaskListCard from '@/views/tasks/components/TaskListCard.vue'
 import type { TaskCardModel, TaskStoppedKind } from '@/views/tasks/types'
-import type { PlatformKey } from '@/components/PlatformIcon.vue'
 import {
   deleteFeishuTaskConfig,
   feishuDetailToListItem,
@@ -26,8 +25,18 @@ import {
   appendTestFeedRowsToBitable,
   clearTestFeedAppendStateForTask,
   pruneTestFeedAppendState,
-  type TestFeedBitableDeps,
 } from '@/lib/feishu-bitable-append-feed'
+import { createTestFeedBitableDeps, syncTaskCollectionToBitable } from '@/lib/feishu-bitable-task-sync'
+import {
+  aggregateAsyncTaskLifecycles,
+  getAsyncTaskStatus,
+  applyCollectionResultToConfig,
+  isRealtimeTaskConfig,
+  readAsyncTaskIds,
+  submitCollectionFromConfig,
+} from '@/lib/async-task-api'
+import { buildCollectionFetchContext } from '@/lib/collection-context'
+import { refreshYddmUserBalance } from '@/lib/refresh-yddm-balance'
 import { buildTestDataFeedFromConfig, taskUsesOnlyTestDataPlatforms, type TestFeedRow } from '@/lib/test-data-feed'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
 import { useYddmAuthStore } from '@/stores/yddmAuth'
@@ -56,37 +65,7 @@ let taskListStatusPollTimer: ReturnType<typeof setTimeout> | null = null
 /** 避免同一任务并发执行两次同步 */
 const testFeedSyncInFlight = new Set<number>()
 
-function isRealtimeTaskConfig(cfg: Record<string, unknown>): boolean {
-  const tt = cfg.taskType ?? cfg.task_type
-  return tt === 'realtime'
-}
-
-async function persistPlatformTableReference(input: {
-  taskId: number
-  platform: PlatformKey
-  tableId: string
-}): Promise<void> {
-  const detail = await getFeishuTaskConfig(input.taskId)
-  const raw = detail.config
-  const cfg =
-    raw != null && typeof raw === 'object' && !Array.isArray(raw)
-      ? ({ ...raw } as Record<string, unknown>)
-      : {}
-  const rawIds = cfg.platformExistingTableIds ?? cfg.platform_existing_table_ids
-  const ids: Record<string, unknown> =
-    rawIds && typeof rawIds === 'object' && !Array.isArray(rawIds) ? { ...(rawIds as Record<string, unknown>) } : {}
-  if (input.tableId.trim()) {
-    ids[input.platform] = input.tableId
-  } else {
-    delete ids[input.platform]
-  }
-  cfg.platformExistingTableIds = ids
-  await updateFeishuTaskConfig(input.taskId, cfg)
-}
-
-const testFeedBitableDeps: TestFeedBitableDeps = {
-  persistPlatformTableReference,
-}
+const testFeedBitableDeps = createTestFeedBitableDeps()
 
 function syncTestFeedPollTimer() {
   const want =
@@ -161,6 +140,56 @@ function clearTaskListStatusPollTimer() {
   }
 }
 
+function buildSyncFetchContext() {
+  return {
+    apiKey: authCode.value.trim(),
+    userId: yddmAuth.me?.id,
+    phoneNum: yddmAuth.me?.phone_num,
+  }
+}
+
+/** 轮询同步服务异步子任务状态，并回写本地 `runStatus` */
+async function refreshAsyncTaskStatuses() {
+  if (screen.value !== 'list' || !authCode.value.trim()) return
+  const targets = tasks.value.filter(
+    (t) =>
+      (t.status === 'running' || t.status === 'pending_run') &&
+      taskUsesOnlyTestDataPlatforms(t.platformKeys),
+  )
+  if (!targets.length) return
+
+  const ctx = buildSyncFetchContext()
+  let changed = false
+
+  for (const t of targets) {
+    try {
+      const detail = await getFeishuTaskConfig(t.id)
+      const cfg =
+        detail.config != null && typeof detail.config === 'object' && !Array.isArray(detail.config)
+          ? (detail.config as Record<string, unknown>)
+          : {}
+      if (isRealtimeTaskConfig(cfg)) continue
+      const ids = readAsyncTaskIds(cfg)
+      if (!ids.length) continue
+
+      const results = await Promise.all(ids.map((id) => getAsyncTaskStatus(ctx, id)))
+      const agg = aggregateAsyncTaskLifecycles(results)
+      if (agg === 'completed') {
+        const wr = await patchTaskConfig(t.id, { runStatus: 'completed', taskAbnormal: false })
+        applyDisplayFromWrite(t.id, wr)
+        changed = true
+      } else if (agg === 'failed') {
+        await markTaskAbnormal(t.id)
+        changed = true
+      }
+    } catch {
+      /* 单任务查询失败时跳过 */
+    }
+  }
+
+  if (changed) await loadTaskList()
+}
+
 function syncTaskListStatusPollTimer() {
   clearTaskListStatusPollTimer()
   const delay = computeNextTaskListStatusPollDelayMs()
@@ -170,6 +199,7 @@ function syncTaskListStatusPollTimer() {
     void (async () => {
       if (screen.value !== 'list' || !authCode.value.trim()) return
       try {
+        await refreshAsyncTaskStatuses()
         await loadTaskList()
       } finally {
         syncTaskListStatusPollTimer()
@@ -217,10 +247,7 @@ async function refreshTestDataFeed() {
           taskId: t.id,
           taskName: t.name,
           config: cfg,
-          sync: {
-            apiKey: authCode.value.trim(),
-            userId: yddmAuth.me?.id,
-          },
+          sync: await buildCollectionFetchContext(),
         })
         counts.set(t.id, part.length)
         rows.push(...part)
@@ -269,6 +296,7 @@ async function refreshTestDataFeed() {
     }
   } finally {
     for (const id of targetIds) testFeedSyncInFlight.delete(id)
+    if (targetIds.length) void refreshYddmUserBalance()
   }
 }
 
@@ -609,10 +637,14 @@ defineExpose({
   leaveCreateToList: onBackFromCreate,
 })
 
-/** 保存成功后回到任务列表并刷新 */
-async function onSaved(_id: number) {
+/** 保存并提交采集成功后回到列表，并触发后续轮询 */
+async function onSaved(id: number) {
   await onBackFromCreate()
-  showListTip('任务已添加到任务列表')
+  await loadTaskList()
+  clearTestFeedAppendStateForTask(id)
+  scheduleRefreshTestDataFeed()
+  void refreshAsyncTaskStatuses()
+  showListTip('任务已提交执行')
 }
 
 async function openView(row: TaskCardModel) {
@@ -651,41 +683,80 @@ async function openEdit(row: TaskCardModel) {
   }
 }
 
+async function executeTaskCollectionAndPatch(
+  row: TaskCardModel,
+  cfg: Record<string, unknown>,
+): Promise<FeishuTaskConfigWriteResult> {
+  const collection = await submitCollectionFromConfig(cfg, await buildCollectionFetchContext())
+  const next: Record<string, unknown> = {
+    ...cloneConfigRecord(cfg),
+    taskPaused: false,
+    taskAbnormal: false,
+  }
+  applyCollectionResultToConfig(next, collection)
+  return updateFeishuTaskConfig(row.id, next)
+}
+
 async function onPrimaryAction(row: TaskCardModel) {
   if (primaryActionRowId.value != null) return
   primaryActionRowId.value = row.id
   try {
     switch (row.status) {
-      case 'running':
-      case 'pending_run': {
+      case 'running': {
         const wr = await patchTaskConfig(row.id, { taskPaused: true })
         await loadTaskList()
         await mergeTaskCardFromDetail(row.id, wr)
         showListTip(parseBackendDisplayStatus(wr) === 'stopped' ? '已停止' : '已保存')
         break
       }
+      case 'pending_run':
       case 'stopped':
       case 'completed':
       case 'failed': {
-        const wr = await patchTaskConfig(row.id, {
-          taskPaused: false,
-          taskAbnormal: false,
-          runStatus: 'stopped',
-        })
+        const detail = await getFeishuTaskConfig(row.id)
+        const cfg =
+          detail.config != null && typeof detail.config === 'object' && !Array.isArray(detail.config)
+            ? (detail.config as Record<string, unknown>)
+            : {}
+        const wr = await executeTaskCollectionAndPatch(row, cfg)
+        let cfgForBitable = cfg
+        try {
+          const after = await getFeishuTaskConfig(row.id)
+          if (
+            after.config != null &&
+            typeof after.config === 'object' &&
+            !Array.isArray(after.config)
+          ) {
+            cfgForBitable = after.config as Record<string, unknown>
+          }
+        } catch {
+          /* 使用采集前配置 */
+        }
+        try {
+          await syncTaskCollectionToBitable({
+            taskId: row.id,
+            taskName: row.name,
+            config: cfgForBitable,
+            syncCtx: await buildCollectionFetchContext(),
+          })
+        } catch {
+          /* 采集成功但飞书写入失败时仍保留任务状态 */
+        }
         await loadTaskList()
         await mergeTaskCardFromDetail(row.id, wr)
+        clearTestFeedAppendStateForTask(row.id)
+        scheduleRefreshTestDataFeed()
+        void refreshAsyncTaskStatuses()
         if (wr.display_status === 'running') {
-          clearTestFeedAppendStateForTask(row.id)
-          scheduleRefreshTestDataFeed()
-          showListTip('已启动')
+          showListTip('已提交执行')
         } else if (wr.display_status === 'completed') {
-          showListTip('任务已过期或未在窗口内，请编辑生效/过期时间后再启动')
+          showListTip(isRealtimeTaskConfig(cfg) ? '已执行完成' : '任务已过期或未在窗口内，请编辑生效/过期时间后再启动')
         } else if (wr.display_status === 'pending_run') {
-          showListTip('未到生效时间，仍为待运行')
+          showListTip('已提交执行，未到生效时间仍为待运行')
         } else if (parseBackendStoppedKind(wr) === 'before_effective') {
-          showListTip('未到生效时间，仍为已停止')
+          showListTip('已提交执行，未到生效时间仍为已停止')
         } else {
-          showListTip('已提交')
+          showListTip('已提交执行')
         }
         break
       }

@@ -23,14 +23,11 @@ const syncApiProxyTarget =
   (process.env.VITE_SYNC_API_BASE as string | undefined)?.trim().replace(/\/$/, '') ||
   'http://192.168.1.11:8765'
 
+/** 采集服务 API：`/api/v1/*` → 8765（`/admin/set_discount` 走 YDDM `/yddm-api`） */
 const syncApiProxy = {
-  '/sync-api': {
+  '/api/v1': {
     target: syncApiProxyTarget,
     changeOrigin: true,
-    rewrite: (path: string) => {
-      const next = path.replace(/^\/sync-api/, '')
-      return next === '' ? '/' : next
-    },
   },
 } as const
 

@@ -347,6 +347,34 @@ async function resolveOrCreateTableId(
   return run
 }
 
+function readTaskPlatformKeys(config: Record<string, unknown>): PlatformKey[] {
+  const raw = config.selectedSources ?? config.selected_sources
+  if (!Array.isArray(raw)) return []
+  const out: PlatformKey[] = []
+  for (const x of raw) {
+    if (x === 'douyin' || x === 'xiaohongshu') out.push(x)
+  }
+  return out
+}
+
+/**
+ * 「自动新建表格」：按 `platformNewTableNames` 预先创建各平台数据表及列（无需等待运行中轮询）。
+ */
+export async function ensureBitableTablesForTask(
+  taskId: number,
+  config: Record<string, unknown>,
+  deps: TestFeedBitableDeps,
+): Promise<void> {
+  if (readTableMode(config) !== 'new') return
+
+  const mutCfg = new Map<number, Record<string, unknown>>()
+  mutCfg.set(taskId, { ...config })
+
+  for (const platform of readTaskPlatformKeys(config)) {
+    await resolveOrCreateTableId(taskId, platform, deps, mutCfg)
+  }
+}
+
 async function resolveTableIdForRow(
   row: TestFeedRow,
   deps: TestFeedBitableDeps | undefined,

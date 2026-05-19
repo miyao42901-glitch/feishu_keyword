@@ -10,8 +10,8 @@ import {
   mapSortType,
   mergeResultItems,
   postSyncSearchPage,
-  readConfigArray,
   readDataRange,
+  readSearchKeywords,
   type SyncSortType,
 } from '@/lib/sync-search-shared'
 import { extractSyncResultItems, extractSyncResultPageMeta } from '@/lib/sync-api-common'
@@ -85,10 +85,7 @@ export async function fetchDouyinSearchItems(
   config: Record<string, unknown>,
   ctx: SyncFetchContext,
 ): Promise<Record<string, unknown>[]> {
-  const keywords = readConfigArray(config, 'keywords')
-  if (!keywords.length) {
-    throw new Error('抖音采集需至少配置一个监控关键词')
-  }
+  const keywords = readSearchKeywords(config)
 
   const limit = readDataRange(config)
   const collected: Record<string, unknown>[] = []

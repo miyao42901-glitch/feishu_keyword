@@ -11,8 +11,8 @@ import {
   mapSortType,
   mergeResultItems,
   postSyncSearchPage,
-  readConfigArray,
   readDataRange,
+  readSearchKeywords,
   type SyncSortType,
 } from '@/lib/sync-search-shared'
 
@@ -66,10 +66,7 @@ export async function fetchXhsSearchItems(
   config: Record<string, unknown>,
   ctx: SyncFetchContext,
 ): Promise<Record<string, unknown>[]> {
-  const keywords = readConfigArray(config, 'keywords')
-  if (!keywords.length) {
-    throw new Error('小红书采集需至少配置一个监控关键词')
-  }
+  const keywords = readSearchKeywords(config)
 
   const limit = readDataRange(config)
   const collected: Record<string, unknown>[] = []

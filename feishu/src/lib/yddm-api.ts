@@ -103,11 +103,18 @@ async function yddmParseJsonResponse<T>(res: Response, parsed: unknown): Promise
   return parsed as T
 }
 
-export async function yddmPostJson<T>(path: string, body: unknown): Promise<T> {
+export async function yddmPostJson<T>(
+  path: string,
+  body: unknown,
+  opts?: { accessToken?: string },
+): Promise<T> {
   const url = `${getYddmApiBase()}${path.startsWith('/') ? path : `/${path}`}`
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const token = opts?.accessToken?.trim()
+  if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
   })
   const text = await res.text()

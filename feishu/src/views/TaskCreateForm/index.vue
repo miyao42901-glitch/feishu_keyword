@@ -10,6 +10,12 @@ import {
   updateFeishuTaskConfig,
 } from '@/lib/api'
 import type { FeishuTaskConfigDetail } from '@/lib/api'
+import {
+  applyCollectionResultToConfig,
+  submitCollectionFromConfig,
+} from '@/lib/async-task-api'
+import { buildCollectionFetchContext } from '@/lib/collection-context'
+import { syncTaskCollectionToBitable } from '@/lib/feishu-bitable-task-sync'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
 import { useAccountPointsStore } from '@/stores/accountPoints'
 import { estimateTaskPointsBreakdown } from '@/lib/task-estimate-points'
@@ -394,6 +400,21 @@ watch(
 )
 
 /** 深拷贝为普通对象便于 `JSON.stringify` 提交；授权码来自全局配置写入 `config_json`。 */
+/** 将输入框未按回车提交的草稿合并进表单数组 */
+function flushKeywordDraftsToForm() {
+  const kw = keywordDraft.value.trim()
+  if (kw && !form.keywords.includes(kw)) {
+    form.keywords.push(kw)
+  }
+  keywordDraft.value = ''
+
+  const ex = excludeKeywordDraft.value.trim()
+  if (ex && !form.excludeKeywords.includes(ex)) {
+    form.excludeKeywords.push(ex)
+  }
+  excludeKeywordDraft.value = ''
+}
+
 function snapshotForm(): Record<string, unknown> {
   const globalSettings = useGlobalSettingsStore()
   const base = JSON.parse(JSON.stringify(form)) as Record<string, unknown>
@@ -415,6 +436,7 @@ async function openSaveConfirm() {
     notifyFormValidationFailed(invalidFields)
     return
   }
+  flushKeywordDraftsToForm()
   confirmVisible.value = true
 }
 
@@ -436,12 +458,17 @@ async function persistFromConfirmDialog() {
   }
   saving.value = true
   try {
+    flushKeywordDraftsToForm()
     const payload = snapshotForm()
     Object.assign(payload, {
       taskPaused: false,
       taskAbnormal: false,
-      runStatus: 'stopped',
     })
+
+    const collectionCtx = await buildCollectionFetchContext()
+    const collection = await submitCollectionFromConfig(payload, collectionCtx)
+    applyCollectionResultToConfig(payload, collection)
+
     const existingId = effectiveTaskConfigId()
     let targetId: number
     if (existingId != null) {
@@ -452,12 +479,35 @@ async function persistFromConfirmDialog() {
       internalConfigId.value = id
       targetId = id
     }
+
+    try {
+      const taskName = String(payload.planName ?? '').trim() || '未命名任务'
+      const bitable = await syncTaskCollectionToBitable({
+        taskId: targetId,
+        taskName,
+        config: payload,
+        syncCtx: collectionCtx,
+      })
+      if (bitable.tableReady && bitable.rowCount > 0 && bitable.written === 0) {
+        showSaveError('采集成功，但写入飞书表格失败，请确认在多维表格插件内打开并重试')
+        confirmVisible.value = false
+        emit('saved', targetId)
+        return
+      }
+    } catch (bitableErr) {
+      const msg = bitableErr instanceof Error ? bitableErr.message : '写入飞书表格失败'
+      showSaveError(`任务已保存，但飞书表格处理失败：${msg}`)
+      confirmVisible.value = false
+      emit('saved', targetId)
+      return
+    }
+
     confirmVisible.value = false
     saveBanner.value = null
     saveErrorText.value = ''
     emit('saved', targetId)
   } catch (e) {
-    showSaveError(e instanceof Error ? e.message : '保存失败')
+    showSaveError(e instanceof Error ? e.message : '开始执行失败')
   } finally {
     saving.value = false
   }
@@ -512,7 +562,7 @@ async function persistFromConfirmDialog() {
           :form="form"
           :ordered-platforms="orderedSelectedPlatforms"
         />
-        <p class="task-form-field-title mb-2 mt-6">关键词</p>
+        <p class="task-form-field-title mb-2 mt-6">关键词<span class="task-form-field-optional">（选填）</span></p>
         <KeywordsSection
           :form="form"
           :keyword-draft="keywordDraft"
@@ -567,7 +617,7 @@ async function persistFromConfirmDialog() {
             type="primary"
             class="task-footer-primary task-footer-step-btn flex-1"
             @click="openSaveConfirm"
-            >保存任务</el-button
+            >开始执行</el-button
           >
         </template>
       </div>
@@ -641,5 +691,11 @@ async function persistFromConfirmDialog() {
   text-align: left;
   font-style: normal;
   text-transform: none;
+}
+
+.task-create-form .task-form-field-optional {
+  margin-left: 4px;
+  font-weight: 400;
+  color: #86909c;
 }
 </style>

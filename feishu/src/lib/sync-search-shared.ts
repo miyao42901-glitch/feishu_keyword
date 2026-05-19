@@ -9,6 +9,7 @@ import {
   getSyncApiBase,
   type SyncFetchContext,
 } from '@/lib/sync-api-common'
+import { ensureSyncEndpointDiscountForPath } from '@/lib/sync-set-discount'
 
 export type SyncSortType = '0' | '1' | '2'
 
@@ -19,6 +20,15 @@ export function readConfigArray(config: Record<string, unknown>, camel: string, 
     .filter((x): x is string => typeof x === 'string')
     .map((s) => s.trim())
     .filter(Boolean)
+}
+
+/**
+ * search-page / async 采集用关键词列表。
+ * 未配置关键词时仍发起一次请求（`keyword` 为空字符串，由采集服务按「不限关键词」处理）。
+ */
+export function readSearchKeywords(config: Record<string, unknown>): string[] {
+  const keywords = readConfigArray(config, 'keywords')
+  return keywords.length ? keywords : ['']
 }
 
 export function readDataRange(config: Record<string, unknown>): number {
@@ -63,13 +73,45 @@ export function mapNoteTime(publishTime: string): string {
 
 export function assertKeywordLength(keyword: string): string {
   const kw = keyword.trim()
-  if (kw.length < 1 || kw.length > 100) {
-    throw new Error('搜索关键词需在 1–100 个字之间')
+  if (kw.length > 100) {
+    throw new Error('搜索关键词不能超过 100 个字')
   }
   return kw
 }
 
-export async function postSyncSearchPage(input: {
+export async function getSyncApiJson(input: {
+  path: string
+  platformLabel: string
+  ctx: SyncFetchContext
+}): Promise<unknown> {
+  const url = `${getSyncApiBase()}${input.path}`
+  const headers = buildSyncApiHeaders(input.ctx)
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: headers as Record<string, string>,
+  })
+  const text = await res.text()
+  let parsed: unknown = null
+  if (text) {
+    try {
+      parsed = JSON.parse(text) as unknown
+    } catch {
+      if (!res.ok) throw new Error(`${input.platformLabel} HTTP ${res.status}`)
+      throw new Error(`${input.platformLabel}响应不是合法 JSON`)
+    }
+  }
+  if (!res.ok) {
+    const detail =
+      parsed && typeof parsed === 'object' && parsed !== null
+        ? String((parsed as Record<string, unknown>).msg ?? (parsed as Record<string, unknown>).message ?? '')
+        : text
+    throw new Error(detail.trim() ? detail.trim() : `${input.platformLabel} HTTP ${res.status}`)
+  }
+  assertSyncEnvelopeOk(parsed)
+  return parsed
+}
+
+export async function postSyncApiJson(input: {
   path: string
   platformLabel: string
   body: Record<string, unknown>
@@ -88,8 +130,8 @@ export async function postSyncSearchPage(input: {
     try {
       parsed = JSON.parse(text) as unknown
     } catch {
-      if (!res.ok) throw new Error(`${input.platformLabel}采集 HTTP ${res.status}`)
-      throw new Error(`${input.platformLabel}采集响应不是合法 JSON`)
+      if (!res.ok) throw new Error(`${input.platformLabel} HTTP ${res.status}`)
+      throw new Error(`${input.platformLabel}响应不是合法 JSON`)
     }
   }
   if (!res.ok) {
@@ -97,9 +139,20 @@ export async function postSyncSearchPage(input: {
       parsed && typeof parsed === 'object' && parsed !== null
         ? String((parsed as Record<string, unknown>).msg ?? (parsed as Record<string, unknown>).message ?? '')
         : text
-    throw new Error(detail.trim() ? detail.trim() : `${input.platformLabel}采集 HTTP ${res.status}`)
+    throw new Error(detail.trim() ? detail.trim() : `${input.platformLabel} HTTP ${res.status}`)
   }
   assertSyncEnvelopeOk(parsed)
+  return parsed
+}
+
+export async function postSyncSearchPage(input: {
+  path: string
+  platformLabel: string
+  body: Record<string, unknown>
+  ctx: SyncFetchContext
+}): Promise<unknown> {
+  await ensureSyncEndpointDiscountForPath(input.path, input.ctx)
+  const parsed = await postSyncApiJson(input)
   const pageMeta = extractSyncResultPageMeta(parsed)
   if (pageMeta.insufficientBalance) {
     throw new Error('账户积分不足，无法继续采集')
