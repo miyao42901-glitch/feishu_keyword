@@ -352,7 +352,7 @@
               type="primary"
               @close="() => alertList[0] = null"
             >
-              {{ t('form.alert.guide.text') }}<a href="https://lcnnrhjmwxym.feishu.cn/wiki/OruzwbB6nigLMek8zxFcbKwmnXg" target="_blank">{{ t('form.alert.guide.urlText') }}</a>
+              {{ t('form.alert.guide.text') }}<a href="https://lcnnrhjmwxym.feishu.cn/wiki/OruzwbB6nigLMek8zxFcbKwmnXg" target="_blank">{{ t('form.alert.guide.urlText') }}</a> <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=114h49e6-49a7-468a-a225-d141cf7e61c8" target="_blank">加入交流群</a>
             </el-alert>
           </el-form-item>
 
