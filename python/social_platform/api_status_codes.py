@@ -1,18 +1,27 @@
 """对外统一业务状态码（与 HTTP 响应体字段 `code` 一致）。"""
+
 from __future__ import annotations
 
 # --- 标准码（文档与客户端约定）---
 
-CODE_FAILED = -1     # 失败
-CODE_SUCCESS = 0     # 成功
+CODE_FAILED = -1  # 失败
+CODE_SUCCESS = 0  # 成功
 CODE_BAD_REQUEST = 400  # 参数错误
-CODE_INSUFFICIENT_BALANCE = 1001    # 余额不足
-CODE_INVALID_API_KEY = 1002          # 无效的 API Key
-CODE_USER_NOT_FOUND = 1003           # 用户不存在
-CODE_REQUEST_LIMIT_EXCEEDED = 1005   # 请求频率超过上限
+CODE_INSUFFICIENT_BALANCE = 1001  # 余额不足
+CODE_INVALID_API_KEY = 1005  # 无效的 API Key（与 API_STATUS_MESSAGES 一致）
+CODE_USER_NOT_FOUND = 1006  # 用户不存在
+CODE_REQUEST_LIMIT_EXCEEDED = 1003  # 请求频率超过上限（历史 yddm 码）
 CODE_ASYNC_SUBMIT_USER_MISMATCH = 1020  # X-User-Id 与 X-API-Key 在 yddm 侧不一致
 CODE_ASYNC_SUBMIT_QUOTA_EXCEEDED = 1021  # 单用户 pending/running 异步任务数超限
+CODE_ASYNC_SUBMIT_DUPLICATE = 1026  # 相同用户、相同参数的任务已存在（进行中）
+CODE_ASYNC_TASK_ALREADY_CANCELLED = 1027  # 异步任务已取消，重复取消
+CODE_ASYNC_TASK_ALREADY_ACTIVE = 1028  # 任务进行中，无法重启
+CODE_ASYNC_TASK_WINDOW_ENDED = 1029  # 定时窗口已结束，无法重启
 CODE_YDDM_USERS_ME_FAILED = 1022  # 调用 yddm「当前用户」接口失败或不可用
+CODE_NOT_FOUND = 1023  # 资源不存在（如异步任务 id）
+CODE_SERVICE_UNAVAILABLE = 1024  # 服务未配置或暂不可用（如未设置 DATABASE_URL）
+CODE_RATE_LIMIT_EXCEEDED = 1025  # 请求频率超过上限（如 IP 限流）
+CODE_UNSUPPORTED_ACTION = 1019  # 不支持的 action
 
 # Spider / HTTP 层内部使用的临时码，对外映射为 api_status_codes 中已有码
 _INTERNAL_HTTP_ERROR = 5001
@@ -44,7 +53,14 @@ API_STATUS_MESSAGES: dict[int, str] = {
     1019: "接口不存在，请检查",
     1020: "X-User-Id 与当前 API Key 对应的用户不一致",
     1021: "异步任务数量已达上限，请等待进行中的任务完成后再提交",
+    1026: "已存在相同参数的进行中任务，请勿重复提交",
+    1027: "任务已取消，无需重复操作",
+    1028: "任务进行中，无法重启",
+    1029: "定时窗口已结束，无法重启",
     1022: "用户校验服务暂时不可用，请稍后重试",
+    1023: "资源不存在",
+    1024: "服务暂不可用，请稍后重试",
+    1025: "请求频率超过上限，请稍后重试",
     5000: "服务暂时不可用，请稍后重试",
     5003: "网络连接失败，请稍后重试",
     6001: "修改密码失败，请稍后重试",
@@ -67,4 +83,3 @@ def normalize_upstream_error_code(code: int) -> int:
     if c in (_INTERNAL_PARSE_OR_RETRY, _INTERNAL_RETRY_EXHAUSTED):
         return 5000
     return c
-

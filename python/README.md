@@ -35,24 +35,27 @@ celery -A celery_jobs.celery_app worker -l info
 - **`-Q celery`**：若配置了自定义队列名，在此指定。
 - **`-P threads`** 或 **`-P eventlet`**：若在 Windows 上仍需自行改池（需 `pip install eventlet`），可显式指定；一般无需再传，已默认 `solo`。
 
-### Beat（定时调度，默认关闭）
+### 异步周期任务调度（推荐）
 
-Beat 仅在环境变量 **`CELERY_BEAT_ENABLED=1`** 时加载 `social_platform/tasks/beat_schedule.py` 中的示例计划（见 `config/settings.py`）。开启后另开进程：
+`POST /api/v1/async/tasks` 提交后：任务元数据写入 **MySQL**，采集结果写入各平台结果表；执行由 **Celery Worker** 完成。调度不依赖 Beat 示例任务：
+
+1. 提交时：`Redis ZSET` + `Celery countdown` 预约首次执行  
+2. **`python run.py` 启动的 HTTP 进程** 默认每 **15s** 扫描到期任务并补救 `pending` / 超时 `running`（`ASYNC_DISPATCH_HTTP_ENABLED=1`）  
+3. 仅当 **不跑 HTTP**、只跑 Worker 时：设 **`ASYNC_SCHEDULE_BEAT_ENABLED=1`** 并另开 Beat（与 HTTP 轮询二选一，避免重复扫描）
+
+最小生产组合：**`DATABASE_URL` + Redis + `run.py` + `celery worker`**（Worker 与 HTTP 须共用同一 `.env`）。
+
+### Beat（可选）
+
+- **`ASYNC_SCHEDULE_BEAT_ENABLED=1`**：加载 `tick_async_schedule_dispatch`（与 HTTP 轮询相同逻辑）  
+- **`CELERY_BEAT_ENABLED=1`**：额外加载 `beat_schedule.py` 中的**示例**聚合任务（勿在生产默认开启）
 
 ```bash
 cd python
-set CELERY_BEAT_ENABLED=1
+# 无 HTTP 时替代内置轮询：
+set ASYNC_SCHEDULE_BEAT_ENABLED=1
 celery -A celery_jobs.celery_app beat -l info
 ```
-
-Linux / macOS：
-
-```bash
-cd python
-CELERY_BEAT_ENABLED=1 celery -A celery_jobs.celery_app beat -l info
-```
-
-生产环境请 **Worker 与 Beat 分进程部署**；示例 Beat 中的 `key`、关键词等需在 `beat_schedule.py` 中改为真实值或改为从配置读取。
 
 ### 开发调试（不落 Redis）
 
@@ -63,7 +66,8 @@ CELERY_BEAT_ENABLED=1 celery -A celery_jobs.celery_app beat -l info
 | Celery 任务名 | 作用 |
 |----------------|------|
 | `social_platform.tasks.worker_tasks.run_social_async_task` | 执行异步社交采集（HTTP 提交后由 broker 投递） |
-| `celery_jobs.tasks.social_task.run_jzl_social` | 兼容名：聚合 `run_task`（Beat 示例与旧调用） |
+| `social_platform.tasks.worker_tasks.tick_async_schedule_dispatch` | 扫描 Redis 调度 ZSET（Beat 可选） |
+| `social_platform.tasks.worker_tasks.run_jzl_social` | 聚合 `run_task`（Beat 示例） |
 
 ## 目录一览
 

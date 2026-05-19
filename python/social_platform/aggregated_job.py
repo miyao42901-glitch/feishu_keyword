@@ -1,4 +1,5 @@
-"""按 action 前缀将任务转发到 douyin_worker / xhs_worker（原 jzl_social 逻辑）。"""
+"""按 action 前缀将任务转发到各平台 Worker（原 jzl_social 逻辑）。"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -29,11 +30,21 @@ def run_task(payload: dict[str, Any]) -> dict[str, Any]:
 
         return _merge_meta(run_xhs(payload))
 
+    if action.startswith("wx_sousou_") or action.startswith("wxvideo_"):
+        from wxvideo_worker._job import run_task as run_wxvideo
+
+        return _merge_meta(run_wxvideo(payload))
+
+    if action.startswith("mp_"):
+        from mp_worker._job import run_task as run_mp
+
+        return _merge_meta(run_mp(payload))
+
     return {
         "ok": False,
         "error": (
             f"unsupported action: {action!r}；"
-            "支持: douyin_search_page, douyin_search_all, xhs_search_page, xhs_search_all"
+            "支持: douyin_*, xhs_*, wx_sousou_*/wxvideo_*, mp_*"
         ),
         "meta": worker_meta(WORKER_NAME, WORKER_VERSION),
     }

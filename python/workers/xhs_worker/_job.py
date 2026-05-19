@@ -1,8 +1,11 @@
 """小红书 Worker 任务入口。"""
+
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Callable, Optional
+
+from xhs_worker.spider import XhsSpider
 
 from http_api.constants import XHS_GENERAL_URL
 from social_platform.search_api_params import merge_search_all_api_params_into_body
@@ -18,8 +21,11 @@ from social_platform.utils.search_fetch_all import (
     parse_optional_datetime,
     resolve_search_all_date_bounds,
 )
-from social_platform.utils.worker_runtime import API_KEY_HEADER, resolved_service_url, worker_meta
-from xhs_worker.spider import XhsSpider
+from social_platform.utils.worker_runtime import (
+    API_KEY_HEADER,
+    resolved_service_url,
+    worker_meta,
+)
 
 WORKER_NAME = "xhs_worker"
 WORKER_VERSION = "1.0.0"
@@ -41,8 +47,8 @@ XHS_NOTE_TIME_TO_YDDM: dict[str, str] = {
 
 # 对外 content_type → YDDM note_type（空串=不限）
 XHS_CONTENT_TYPE_TO_NOTE_TYPE: dict[str, str] = {
-    "2": "video",
-    "1": "note",
+    "1": "video",
+    "2": "note",
     "": "",
     "0": "",
 }

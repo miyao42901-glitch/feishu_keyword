@@ -3,6 +3,7 @@
 
 不抛出到业务层：失败只打日志。
 """
+
 from __future__ import annotations
 
 import logging
@@ -71,7 +72,7 @@ def try_save_search_result_chunk(
     *,
     user_id: str,
     task_id: int | str | None = None,
-) -> Optional[dict[str, int]]:
+) -> Optional[dict[str, Any]]:
     """search-all 单页结果落库；异常吞掉。``rows`` 为空时返回 None。"""
     try:
         platform = platform_from_action(str(action or ""))
@@ -85,7 +86,9 @@ def try_save_search_result_chunk(
         keyword = str((body or {}).get("keyword") or "")
         if not rows:
             return None
-        stats = save_search_results(platform, keyword, rows, user_id=uid, task_id=task_id)
+        stats = save_search_results(
+            platform, keyword, rows, user_id=uid, task_id=task_id
+        )
         logger.info(
             "search results chunk persisted action=%s platform=%s task_id=%s user_id=%s stats=%s",
             action,
@@ -96,7 +99,9 @@ def try_save_search_result_chunk(
         )
         return stats
     except Exception:
-        logger.exception("search results chunk persist failed action=%s task_id=%s", action, task_id)
+        logger.exception(
+            "search results chunk persist failed action=%s task_id=%s", action, task_id
+        )
         return None
 
 
@@ -107,7 +112,7 @@ def try_save_search_after_crawl(
     *,
     user_id: str,
     task_id: int | str | None = None,
-) -> Optional[dict[str, int]]:
+) -> Optional[dict[str, Any]]:
     """
     在返回 HTTP 前 / 异步任务写结果前调用；任何异常吞掉并打日志。
 
@@ -119,7 +124,9 @@ def try_save_search_after_crawl(
             return None
         data = raw.get("data")
         if isinstance(data, dict) and data.get("_incremental_persist"):
-            logger.debug("skip bulk search persist: already persisted per page action=%s", action)
+            logger.debug(
+                "skip bulk search persist: already persisted per page action=%s", action
+            )
             return None
         platform = platform_from_action(str(action or ""))
         if not platform:
@@ -135,7 +142,9 @@ def try_save_search_after_crawl(
         rows = extract_result_rows(raw.get("data"))
         if not rows:
             return None
-        stats = save_search_results(platform, keyword, rows, user_id=uid, task_id=task_id)
+        stats = save_search_results(
+            platform, keyword, rows, user_id=uid, task_id=task_id
+        )
         logger.info(
             "search results persisted action=%s platform=%s task_id=%s user_id=%s stats=%s",
             action,
@@ -146,25 +155,38 @@ def try_save_search_after_crawl(
         )
         return stats
     except Exception:
-        logger.exception("search results persist failed action=%s task_id=%s", action, task_id)
+        logger.exception(
+            "search results persist failed action=%s task_id=%s", action, task_id
+        )
         return None
 
 
-def persist_stats_for_task_row(stats: dict[str, Any]) -> tuple[int, int]:
+def _stat_int(stats: dict[str, Any], *keys: str) -> int:
+    for key in keys:
+        if key in stats:
+            try:
+                return int(stats.get(key) or 0)
+            except (TypeError, ValueError):
+                return 0
+    return 0
+
+
+def persist_stats_for_task_row(stats: dict[str, Any]) -> tuple[int, int, int, int, int]:
     """将 save 统计映射为异步任务表上的 success_count / failed_count 增量。"""
-    inserted = int(stats.get("inserted", 0))
-    duplicated = int(stats.get("duplicated", 0))
-    skipped = int(stats.get("skipped", 0))
-    persist_errors = int(stats.get("persist_errors", 0))
-    success_delta = inserted + duplicated
-    failed_delta = skipped + persist_errors
-    return success_delta, failed_delta
+    inserted = _stat_int(stats, "inserted_count", "inserted")
+    duplicated = _stat_int(stats, "duplicated_count", "duplicated")
+    skipped = _stat_int(stats, "skipped_count", "skipped")
+    persist_errors = _stat_int(stats, "failed_count", "persist_errors")
+    # success_count 仅统计真实成功入库数量，避免 duplicated 拉高抓取进度。
+    success_delta = inserted
+    failed_delta = duplicated + skipped + persist_errors
+    return success_delta, failed_delta, inserted, duplicated, persist_errors
 
 
 def apply_search_persist_stats_to_async_task(
     db: Session,
     task_id: int,
-    stats: dict[str, int],
+    stats: dict[str, Any],
 ) -> None:
     """在 Celery 任务同一 Session 内累加 success_count / failed_count（不写采集明细表）。"""
     from social_platform.models.async_task import AsyncTask
@@ -172,9 +194,38 @@ def apply_search_persist_stats_to_async_task(
     task = db.get(AsyncTask, task_id)
     if task is None:
         return
-    s_delta, f_delta = persist_stats_for_task_row(stats)
+    (
+        s_delta,
+        f_delta,
+        inserted_count,
+        duplicated_count,
+        failed_count,
+    ) = persist_stats_for_task_row(stats)
     task.success_count = int(task.success_count or 0) + s_delta
     task.failed_count = int(task.failed_count or 0) + f_delta
+
+    platform = platform_from_action(str(task.action or "")) or "unknown"
+    if duplicated_count > 0:
+        logger.info(
+            "duplicate skipped",
+            extra={
+                "task_id": int(task_id),
+                "platform": platform,
+                "duplicated_count": int(duplicated_count),
+            },
+        )
+    logger.info(
+        "persist_result",
+        extra={
+            "task_id": int(task_id),
+            "platform": platform,
+            "inserted_count": int(inserted_count),
+            "duplicated_count": int(duplicated_count),
+            "failed_count": int(failed_count),
+            "success_count": int(task.success_count or 0),
+            "fetch_count": int(getattr(task, "fetch_count", 0) or 0),
+        },
+    )
     db.add(task)
 
 
@@ -182,6 +233,10 @@ def persist_search_all_page_if_async(chunk: list[Any]) -> bool:
     """Celery 上下文中对当前页落库并累加任务计数；无上下文或空 chunk 时返回 False。"""
     ctx = search_all_async_ctx.get()
     if ctx is None or not chunk:
+        if ctx is None:
+            logger.debug("skip async page persist: missing async context")
+        elif not chunk:
+            logger.debug("skip async page persist: empty chunk")
         return False
     stats = try_save_search_result_chunk(
         ctx.public_action,
@@ -191,6 +246,19 @@ def persist_search_all_page_if_async(chunk: list[Any]) -> bool:
         task_id=int(ctx.task_id),
     )
     if stats:
+        logger.info(
+            "search-all chunk saved task_id=%s inserted=%s duplicated=%s skipped=%s persist_errors=%s",
+            int(ctx.task_id),
+            int(_stat_int(stats, "inserted_count", "inserted")),
+            int(_stat_int(stats, "duplicated_count", "duplicated")),
+            int(_stat_int(stats, "skipped_count", "skipped")),
+            int(_stat_int(stats, "failed_count", "persist_errors")),
+        )
         apply_search_persist_stats_to_async_task(ctx.db, int(ctx.task_id), stats)
         return True
+    logger.warning(
+        "search-all chunk persist skipped/failed task_id=%s action=%s",
+        int(ctx.task_id),
+        ctx.public_action,
+    )
     return False

@@ -1,4 +1,5 @@
 """注册 v1 路由：同步 + 异步。"""
+
 from __future__ import annotations
 
 from fastapi import FastAPI

@@ -1,10 +1,12 @@
 """抖音 Worker 任务入口。"""
+
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Callable, Optional
 
 from douyin_worker.spider import DouyinSpider
+
 from http_api.constants import DOUYIN_GENERAL_URL
 from social_platform.search_api_params import merge_search_all_api_params_into_body
 from social_platform.services.search_persist import (
@@ -19,7 +21,11 @@ from social_platform.utils.search_fetch_all import (
     parse_optional_datetime,
     resolve_search_all_date_bounds,
 )
-from social_platform.utils.worker_runtime import API_KEY_HEADER, resolved_service_url, worker_meta
+from social_platform.utils.worker_runtime import (
+    API_KEY_HEADER,
+    resolved_service_url,
+    worker_meta,
+)
 
 WORKER_NAME = "douyin_worker"
 WORKER_VERSION = "1.0.0"

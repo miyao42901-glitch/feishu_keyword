@@ -1,0 +1,6 @@
+{
+  "include": ["python"],
+  "extraPaths": ["python", "python/workers"],
+  "pythonVersion": "3.9",
+  "typeCheckingMode": "basic"
+}

@@ -1,4 +1,5 @@
 """爬虫基类：HTTP + 注入的解析器（解析逻辑放在各 worker 的 parser 模块）。"""
+
 from __future__ import annotations
 
 from typing import Any, Optional, Protocol

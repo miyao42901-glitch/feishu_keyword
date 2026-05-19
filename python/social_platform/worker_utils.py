@@ -1,4 +1,5 @@
 """Deprecated: use ``social_platform.utils.worker_runtime``."""
+
 from social_platform.utils.worker_runtime import (
     API_KEY_HEADER,
     resolved_service_url,

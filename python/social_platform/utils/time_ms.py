@@ -1,4 +1,5 @@
 """时间戳归一化（毫秒）。"""
+
 from __future__ import annotations
 
 import time

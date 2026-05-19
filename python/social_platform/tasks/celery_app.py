@@ -1,6 +1,8 @@
 """Celery 应用：broker/backend 与任务注册（供 `celery -A celery_jobs.celery_app` 或本模块启动）。"""
+
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from pathlib import Path
@@ -23,10 +25,12 @@ from social_platform.env_bootstrap import ensure_dotenv_loaded
 ensure_dotenv_loaded()
 
 from celery import Celery
+from celery.signals import worker_ready
 
 from config.settings import get_settings
 
 _settings = get_settings()
+logger = logging.getLogger(__name__)
 
 celery_app = Celery(
     "feishu_keyword",
@@ -53,7 +57,33 @@ celery_app.conf.include = ["social_platform.tasks.worker_tasks"]
 # 未来：多队列 / 优先级路由可在此扩展 task_routes、task_queues
 # celery_app.conf.task_routes = {...}
 
+_beat: dict[str, dict] = {}
+if _settings.async_schedule_beat_enabled:
+    from social_platform.tasks.beat_schedule import build_async_dispatch_beat_schedule
+
+    _beat.update(build_async_dispatch_beat_schedule())
 if _settings.celery_beat_enabled:
     from social_platform.tasks.beat_schedule import build_beat_schedule
 
-    celery_app.conf.beat_schedule = build_beat_schedule()
+    _beat.update(build_beat_schedule())
+if _beat:
+    celery_app.conf.beat_schedule = _beat
+
+
+@worker_ready.connect
+def restore_schedule_tasks(**kwargs: object) -> None:
+    """Celery worker 启动后恢复 Redis 定时调度队列。"""
+    from social_platform.services import async_task_redis
+
+    try:
+        stats = async_task_redis.restore_schedule_tasks_from_mysql()
+        logger.info(
+            "async schedule restore finished restored=%s already_scheduled=%s skipped=%s skipped_no_api_key=%s dispatch_due_count=%s",
+            int(stats.get("restored", 0)),
+            int(stats.get("already_scheduled", 0)),
+            int(stats.get("skipped", 0)),
+            int(stats.get("skipped_no_api_key", 0)),
+            int(stats.get("dispatch_due_count", 0)),
+        )
+    except Exception:
+        logger.exception("restore schedule tasks failed on worker_ready")

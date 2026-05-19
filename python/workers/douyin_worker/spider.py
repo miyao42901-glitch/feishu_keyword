@@ -1,22 +1,25 @@
 """抖音：业务码重试 + 调用 DouyinParser。"""
+
 from __future__ import annotations
 
 import logging
 import time
 from typing import Any, Optional
 
-from social_platform.api_status_codes import CODE_INSUFFICIENT_BALANCE, CODE_FAILED
+from douyin_worker.parser import DouyinParser
+
+from social_platform.api_status_codes import CODE_FAILED, CODE_INSUFFICIENT_BALANCE
 from social_platform.http_client import BaseHttpClient, HttpClientError
 from social_platform.spider_base import BaseSpider
-
-from douyin_worker.parser import DouyinParser
 
 logger = logging.getLogger(__name__)
 
 
 class DouyinSpider(BaseSpider):
     def __init__(self, api_url: str, client: Optional[BaseHttpClient] = None) -> None:
-        super().__init__(api_url, platform="douyin", parser=DouyinParser(), client=client)
+        super().__init__(
+            api_url, platform="douyin", parser=DouyinParser(), client=client
+        )
 
     def orchestrate(
         self,
@@ -64,7 +67,11 @@ class DouyinSpider(BaseSpider):
                 return {
                     "data": [],
                     "balance": float(raw.get("balance", 0.0)),
-                    "error": {"origin": "douyin", "code": 5000, "msg": f"内部解析错误: {e!s}"},
+                    "error": {
+                        "origin": "douyin",
+                        "code": 5000,
+                        "msg": f"内部解析错误: {e!s}",
+                    },
                     "insufficient_balance": False,
                     "next_cursor": "",
                     "next_logid": "",

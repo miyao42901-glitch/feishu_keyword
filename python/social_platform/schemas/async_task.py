@@ -25,6 +25,10 @@ class AsyncTaskStatusResponse(BaseModel):
     cancel_requested: bool = False
     success_count: int = 0
     failed_count: int = 0
+    task_start_time: Optional[str] = None
+    task_end_time: Optional[str] = None
+    interval_minutes: int = 60
+    fetch_count: int = 100
     create_time: Optional[str] = None
     update_time: Optional[str] = None
 

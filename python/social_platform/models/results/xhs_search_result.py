@@ -3,7 +3,16 @@ from __future__ import annotations
 import datetime as dt
 from typing import Optional
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.mysql import TINYINT
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -36,8 +45,12 @@ class XhsSearchResult(Base):
     nickname: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     sec_uid: Mapped[str] = mapped_column(String(128), nullable=False, default="")
     content_type: Mapped[str] = mapped_column(String(16), nullable=False, default="")
-    is_upload: Mapped[int] = mapped_column(TINYINT(1), nullable=False, server_default="0")
-    create_time: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+    is_upload: Mapped[int] = mapped_column(
+        TINYINT(1), nullable=False, server_default="0"
+    )
+    create_time: Mapped[dt.datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
     update_time: Mapped[dt.datetime] = mapped_column(
         DateTime,
         nullable=False,
@@ -49,15 +62,23 @@ class XhsSearchResult(Base):
     page_url: Mapped[str] = mapped_column(String(256), nullable=False, default="")
     xsec_token: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     avatar_url: Mapped[str] = mapped_column(String(256), nullable=False, default="")
-    author_signature: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    author_signature: Mapped[str] = mapped_column(
+        String(256), nullable=False, default=""
+    )
     verify_name: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     cover_url: Mapped[str] = mapped_column(String(256), nullable=False, default="")
     duration_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    has_music: Mapped[int] = mapped_column(TINYINT(1), nullable=False, server_default="0")
+    has_music: Mapped[int] = mapped_column(
+        TINYINT(1), nullable=False, server_default="0"
+    )
     publish_time_ms: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     like_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     comment_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     share_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     collect_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    primary_image_url: Mapped[str] = mapped_column(String(256), nullable=False, default="")
-    primary_video_url: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    primary_image_url: Mapped[str] = mapped_column(
+        String(256), nullable=False, default=""
+    )
+    primary_video_url: Mapped[str] = mapped_column(
+        String(256), nullable=False, default=""
+    )

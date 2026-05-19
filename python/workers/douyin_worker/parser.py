@@ -1,11 +1,15 @@
 """抖音接口 JSON → 统一列表（仅处理业务已成功时的 body）。"""
+
 from __future__ import annotations
 
 import logging
 from typing import Any
 
 from social_platform.utils.time_ms import to_ms_timestamp
-from social_platform.utils.worker_runtime import split_exclude_needles, text_contains_any_needle
+from social_platform.utils.worker_runtime import (
+    split_exclude_needles,
+    text_contains_any_needle,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +49,9 @@ class DouyinParser:
 
             title = desc or "无标题"
 
-            if text_contains_any_needle(title, needles) or text_contains_any_needle(desc, needles):
+            if text_contains_any_needle(title, needles) or text_contains_any_needle(
+                desc, needles
+            ):
                 continue
 
             # 作者
@@ -70,63 +76,42 @@ class DouyinParser:
             signature = author.get("signature", "")
 
             # 头像
-            avatar = (
-                author.get("avatar_larger", {})
-                .get("url_list", [""])[0]
-            )
+            avatar = author.get("avatar_larger", {}).get("url_list", [""])[0]
 
             # 企业认证
-            enterprise_verify_reason = author.get(
-                "enterprise_verify_reason",
-                ""
-            )
+            enterprise_verify_reason = author.get("enterprise_verify_reason", "")
 
             # 时长（接口是毫秒）
             duration = round(video.get("duration", 0) / 1000, 2)
 
             # 封面
-            cover = (
-                video.get("cover", {})
-                .get("url_list", [""])[0]
-            )
+            cover = video.get("cover", {}).get("url_list", [""])[0]
 
             # sec_uid
             user_id = author.get("sec_uid", "")
 
             # 无水印播放地址
-            play_addr = (
-                video.get("play_addr", {})
-                .get("url_list", [])
-            )
+            play_addr = video.get("play_addr", {}).get("url_list", [])
 
-        
             rows.append(
                 {
                     "title": title,
                     "aweme_id": aweme_id,
                     "desc": desc,
-
                     "url": f"https://www.douyin.com/video/{aweme_id}",
-
                     # 作者
                     "nickname": nickname,
                     "signature": signature,
                     "avatar": avatar,
                     "user_id": user_id,
                     "verify_name": enterprise_verify_reason,
-
                     # 视频
                     "cover": cover,
                     "duration": duration,
-
                     # 视频地址
                     "video_list": play_addr,
-
                     # 数据
-                    "publish_time": to_ms_timestamp(
-                        aweme.get("create_time")
-                    ),
-
+                    "publish_time": to_ms_timestamp(aweme.get("create_time")),
                     "like_count": stat.get("digg_count", 0),
                     "comment_count": stat.get("comment_count", 0),
                     "share_count": stat.get("share_count", 0),

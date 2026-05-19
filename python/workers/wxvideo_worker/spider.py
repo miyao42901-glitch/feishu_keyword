@@ -1,22 +1,24 @@
-"""抖音：业务码重试 + 调用 DouyinParser。"""
+"""视频号 Spider：调用 SHIPINHAO_GENERAL_URL + WxVideoParser。"""
+
 from __future__ import annotations
 
 import logging
-import time
 from typing import Any, Optional
 
-from social_platform.api_status_codes import CODE_INSUFFICIENT_BALANCE, CODE_FAILED
+from wxvideo_worker.parser import WxVideoParser
+
+from social_platform.api_status_codes import CODE_FAILED, CODE_INSUFFICIENT_BALANCE
 from social_platform.http_client import BaseHttpClient, HttpClientError
 from social_platform.spider_base import BaseSpider
-
-from douyin_worker.parser import DouyinParser
 
 logger = logging.getLogger(__name__)
 
 
-class DouyinSpider(BaseSpider):
+class WxVideoSpider(BaseSpider):
     def __init__(self, api_url: str, client: Optional[BaseHttpClient] = None) -> None:
-        super().__init__(api_url, platform="douyin", parser=DouyinParser(), client=client)
+        super().__init__(
+            api_url, platform="wxvideo", parser=WxVideoParser(), client=client
+        )
 
     def orchestrate(
         self,
@@ -25,9 +27,10 @@ class DouyinSpider(BaseSpider):
         headers: Optional[dict[str, str]] = None,
     ) -> dict[str, Any]:
         for attempt in range(3):
-            logger.warning(payload)
+            logger.info("视频号 payload: %s", payload)
             try:
-                raw = self._client.post_json(self.api_url, payload, headers=headers)
+                api_payload = {k: v for k, v in payload.items() if k != "exclude_words"}
+                raw = self._client.post_json(self.api_url, api_payload, headers=headers)
             except HttpClientError as e:
                 return self._network_error(e)
 
@@ -37,7 +40,7 @@ class DouyinSpider(BaseSpider):
             except (TypeError, ValueError):
                 ac = None
             balance = float(raw.get("balance", 0.0))
-            logger.info("抖音 业务码=%s", api_code)
+            logger.info("视频号 业务码=%s", api_code)
 
             if ac == CODE_INSUFFICIENT_BALANCE:
                 return {
@@ -45,11 +48,11 @@ class DouyinSpider(BaseSpider):
                     "balance": balance,
                     "error": None,
                     "insufficient_balance": True,
-                    "next_cursor": payload.get("cursor", ""),
-                    "next_logid": payload.get("log_id", ""),
+                    "next_offset": payload.get("offset", ""),
+                    "cookies_buffer": payload.get("cookies_buffer", ""),
                 }
             if ac == CODE_FAILED:
-                logger.warning("抖音 业务错误: %s", raw)
+                logger.warning("视频号 业务错误: %s", raw)
                 if attempt < 2:
                     continue
                 break
@@ -60,21 +63,25 @@ class DouyinSpider(BaseSpider):
                     exclude_words=str(payload.get("exclude_words") or ""),
                 )
             except Exception as e:  # noqa: BLE001
-                logger.error("抖音解析异常: %s", e, exc_info=True)
+                logger.error("视频号解析异常: %s", e, exc_info=True)
                 return {
                     "data": [],
-                    "balance": float(raw.get("balance", 0.0)),
-                    "error": {"origin": "douyin", "code": 5000, "msg": f"内部解析错误: {e!s}"},
+                    "balance": balance,
+                    "error": {
+                        "origin": "wxvideo",
+                        "code": 5000,
+                        "msg": f"内部解析错误: {e!s}",
+                    },
                     "insufficient_balance": False,
-                    "next_cursor": "",
-                    "next_logid": "",
+                    "next_offset": "",
+                    "cookies_buffer": "",
                 }
 
         return {
             "data": [],
             "balance": 0.0,
-            "error": {"origin": "douyin", "code": 5002, "msg": "重试机制异常"},
+            "error": {"origin": "wxvideo", "code": 5002, "msg": "重试机制异常"},
             "insufficient_balance": False,
-            "next_cursor": "",
-            "next_logid": "",
+            "next_offset": "",
+            "cookies_buffer": "",
         }

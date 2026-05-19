@@ -1,4 +1,5 @@
 """历史 `normalize_social_payload` 已移除；异步任务请使用 `social_platform.actions.registry`。"""
+
 from __future__ import annotations
 
 from typing import Any

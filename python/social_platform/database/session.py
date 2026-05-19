@@ -52,8 +52,8 @@ def session_scope() -> Generator[Session, None, None]:
 def init_db_tables() -> None:
     """建表（仅开发/首次部署；生产建议用迁移工具）。"""
     from social_platform.models import async_task as _at  # noqa: F401
+    from social_platform.models.base import Base
     from social_platform.models.results import douyin_search_result as _dr  # noqa: F401
     from social_platform.models.results import xhs_search_result as _xr  # noqa: F401
-    from social_platform.models.base import Base
 
     Base.metadata.create_all(bind=get_engine())

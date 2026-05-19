@@ -1,4 +1,5 @@
 """各 Worker FastAPI 入口复用。"""
+
 from __future__ import annotations
 
 import os
@@ -12,14 +13,21 @@ ensure_dotenv_loaded()
 from fastapi import APIRouter, FastAPI
 from fastapi.responses import JSONResponse
 
-from social_platform.api_response import from_worker_run, ok
+from http_api.constants import API_V1_PREFIX
+from social_platform.api_response import (
+    from_worker_run,
+    ok,
+    register_api_exception_handlers,
+    respond,
+)
 from social_platform.schemas import TaskEnvelope
 
-from http_api.constants import API_V1_PREFIX
 
-
-def create_worker_app(name: str, run_task: Callable[[dict[str, Any]], dict[str, Any]]) -> FastAPI:
+def create_worker_app(
+    name: str, run_task: Callable[[dict[str, Any]], dict[str, Any]]
+) -> FastAPI:
     app = FastAPI(title=name, version="1.0.0")
+    register_api_exception_handlers(app)
     r = APIRouter()
 
     @r.get("/health")
@@ -29,13 +37,15 @@ def create_worker_app(name: str, run_task: Callable[[dict[str, Any]], dict[str, 
     @r.post("/run")
     def run(body: TaskEnvelope) -> JSONResponse:
         raw = run_task(body.model_dump())
-        return JSONResponse(from_worker_run(raw))
+        return respond(from_worker_run(raw))
 
     app.include_router(r, prefix=API_V1_PREFIX)
     return app
 
 
-def run_uvicorn(app: FastAPI, *, default_port: int, default_host: str = "0.0.0.0") -> None:
+def run_uvicorn(
+    app: FastAPI, *, default_port: int, default_host: str = "0.0.0.0"
+) -> None:
     import uvicorn
 
     host = os.environ.get("WORKER_HOST", default_host).strip() or default_host

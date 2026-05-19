@@ -8,3 +8,15 @@ readme = "README.md"
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+target-version = ["py39"]
+include = '\.pyi?$'
+extend-exclude = '/(__pycache__|\.venv|venv)/'
+
+[tool.isort]
+profile = "black"
+line_length = 88
+known_first_party = ["config", "http_api", "social_platform", "celery_jobs"]
+src_paths = ["."]

@@ -17,13 +17,22 @@ class AsyncTask(Base):
     status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
     action: Mapped[str] = mapped_column(String(128), default="", index=True)
     body_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    api_key: Mapped[str] = mapped_column(String(128), default="", nullable=False)
     error_message: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    celery_task_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
+    celery_task_id: Mapped[Optional[str]] = mapped_column(
+        String(128), nullable=True, index=True
+    )
     priority: Mapped[int] = mapped_column(Integer, default=0)
     cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     success_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     failed_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    create_time: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.utcnow())
+    task_start_time: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)
+    task_end_time: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)
+    interval_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
+    fetch_count: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
+    create_time: Mapped[dt.datetime] = mapped_column(
+        DateTime, default=lambda: dt.datetime.utcnow()
+    )
     update_time: Mapped[dt.datetime] = mapped_column(
         DateTime,
         default=lambda: dt.datetime.utcnow(),

@@ -1,4 +1,5 @@
 """Beat 调度表：实现位于 `social_platform.tasks.beat_schedule`。"""
+
 from __future__ import annotations
 
 from social_platform.tasks.beat_schedule import build_beat_schedule

@@ -1,4 +1,5 @@
 """由已注册 `action` + `body_json` + API Key 执行聚合 Worker 或占位逻辑。"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -6,7 +7,9 @@ from typing import Any
 from social_platform.actions.registry import get_action_spec
 
 
-def execute_public_action(public_action: str, body_json: dict[str, Any], api_key: str) -> dict[str, Any]:
+def execute_public_action(
+    public_action: str, body_json: dict[str, Any], api_key: str
+) -> dict[str, Any]:
     """
     :param public_action: 对外 kebab-case（新）或历史 snake_case（如 `douyin_search_all`）
     :param body_json: 任务表 `body_json` 中的字典（不含 key）

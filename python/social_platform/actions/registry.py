@@ -4,6 +4,7 @@
 - 对外 `action` 使用 kebab-case（如 `douyin-search-all`）。
 - `platform` 仅来自注册项，不写数据库；执行 Worker 时使用 `worker_action`（snake_case）。
 """
+
 from __future__ import annotations
 
 import sys
@@ -21,14 +22,21 @@ from typing import Any, Callable, Optional, Type
 
 from pydantic import BaseModel
 
-from social_platform.utils.param_dict import prune_empty_string_fields, to_worker_params
 from http_sync_bodies import (
     DouyinSearchAllBody,
     DouyinSearchPageBody,
+    MpSearchAllBody,
+    MpSearchPageBody,
+    WxSosoSearchAllBody,
+    WxSosoSearchPageBody,
     XhsSearchAllBody,
     XhsSearchPageBody,
 )
-from social_platform.schemas.async_action_bodies import DouyinSearchDetailBody, XhsSearchDetailBody
+from social_platform.schemas.async_action_bodies import (
+    DouyinSearchDetailBody,
+    XhsSearchDetailBody,
+)
+from social_platform.utils.param_dict import prune_empty_string_fields, to_worker_params
 
 
 @dataclass(frozen=True)
@@ -96,6 +104,30 @@ ACTION_REGISTRY: dict[str, ActionSpec] = {
         persist_crawl=False,
         stub_runner=_detail_stub("xhs"),
     ),
+    "wxvideo-search-page": ActionSpec(
+        platform="wxvideo",
+        body_model=WxSosoSearchPageBody,
+        worker_action="wx_sousou_search_page",
+        persist_crawl=True,
+    ),
+    "wxvideo-search-all": ActionSpec(
+        platform="wxvideo",
+        body_model=WxSosoSearchAllBody,
+        worker_action="wx_sousou_search_all",
+        persist_crawl=True,
+    ),
+    "mp-search-page": ActionSpec(
+        platform="mp",
+        body_model=MpSearchPageBody,
+        worker_action="mp_search_page",
+        persist_crawl=True,
+    ),
+    "mp-search-all": ActionSpec(
+        platform="mp",
+        body_model=MpSearchAllBody,
+        worker_action="mp_search_all",
+        persist_crawl=True,
+    ),
 }
 
 
@@ -146,6 +178,10 @@ def _legacy_platform_from_snake_action(action: str) -> Optional[str]:
         return "douyin"
     if a.startswith("xhs_"):
         return "xhs"
+    if a.startswith("wx_sousou_") or a.startswith("wxvideo_"):
+        return "wxvideo"
+    if a.startswith("mp_") or a.startswith("mp-search"):
+        return "mp"
     return None
 
 

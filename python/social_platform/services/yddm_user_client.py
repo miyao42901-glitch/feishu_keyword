@@ -1,4 +1,5 @@
 """提交异步任务前：用 yddm「当前用户」接口校验 X-API-Key，并核对 X-User-Id。"""
+
 from __future__ import annotations
 
 import json
@@ -9,6 +10,7 @@ from typing import Any
 from config.settings import Settings
 from social_platform.api_status_codes import (
     CODE_ASYNC_SUBMIT_USER_MISMATCH,
+    CODE_INVALID_API_KEY,
     CODE_YDDM_USERS_ME_FAILED,
     get_message,
 )
@@ -52,7 +54,11 @@ def fetch_yddm_me_user_id(settings: Settings, api_key: str) -> int:
         raise RuntimeError("yddm_users_me_url (YDDM_USERS_ME_URL) is not configured")
     key = (api_key or "").strip()
     if not key:
-        raise YddmCallError(api_code=1005, http_status=401, message=get_message(1005))
+        raise YddmCallError(
+            api_code=CODE_INVALID_API_KEY,
+            http_status=401,
+            message=get_message(CODE_INVALID_API_KEY),
+        )
 
     req = urllib.request.Request(url, method="GET", headers={"X-API-KEY": key})
     timeout = float(settings.yddm_users_me_timeout_sec or 10.0)
@@ -64,7 +70,7 @@ def fetch_yddm_me_user_id(settings: Settings, api_key: str) -> int:
             raw = e.read().decode("utf-8", errors="replace")
         except Exception:
             raw = ""
-        msg = get_message(1005)
+        msg = get_message(CODE_INVALID_API_KEY)
         if raw.strip().startswith("{"):
             try:
                 obj = json.loads(raw)
@@ -72,7 +78,11 @@ def fetch_yddm_me_user_id(settings: Settings, api_key: str) -> int:
                     msg = str(obj.get("msg")).strip()
             except json.JSONDecodeError:
                 pass
-        raise YddmCallError(api_code=1005, http_status=401, message=msg) from e
+        raise YddmCallError(
+            api_code=CODE_INVALID_API_KEY,
+            http_status=401,
+            message=msg,
+        ) from e
     except TimeoutError as e:
         raise YddmCallError(
             api_code=CODE_YDDM_USERS_ME_FAILED,
@@ -88,8 +98,12 @@ def fetch_yddm_me_user_id(settings: Settings, api_key: str) -> int:
 
     body = _parse_me_json(raw)
     if int(body.get("code", -1)) != 0:
-        msg = str(body.get("msg") or "").strip() or get_message(1005)
-        raise YddmCallError(api_code=1005, http_status=401, message=msg)
+        msg = str(body.get("msg") or "").strip() or get_message(CODE_INVALID_API_KEY)
+        raise YddmCallError(
+            api_code=CODE_INVALID_API_KEY,
+            http_status=401,
+            message=msg,
+        )
 
     data = body.get("data")
     if not isinstance(data, dict):
@@ -115,7 +129,9 @@ def fetch_yddm_me_user_id(settings: Settings, api_key: str) -> int:
         ) from e
 
 
-def assert_x_user_id_matches_yddm(settings: Settings, *, api_key: str, x_user_id: str) -> str:
+def assert_x_user_id_matches_yddm(
+    settings: Settings, *, api_key: str, x_user_id: str
+) -> str:
     """
     校验 `X-User-Id` 与 `X-API-Key` 在 yddm 侧解析出的用户 id 一致。
     返回规范化的 `user_id` 字符串（与库中 `feishu_async_tasks.user_id` 一致）。

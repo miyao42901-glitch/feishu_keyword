@@ -4,6 +4,7 @@
 - 插入侧不显式写 `is_upload`，由数据库默认 0。
 - 不落库原始 JSON；仅写入定长业务列。
 """
+
 from __future__ import annotations
 
 import logging
@@ -23,6 +24,10 @@ from social_platform.models.results.registry import get_result_model
 logger = logging.getLogger(__name__)
 
 _BATCH_SIZE = 500
+# 结果 API 不返回的基层列（各平台业务列原样透出，由 meta.platform 区分）
+_RESULT_API_EXCLUDE_COLUMNS = frozenset(
+    {"id", "task_id", "user_id", "create_time", "update_time"}
+)
 _MODAL_ID_RE = re.compile(r"modal_id=(\d+)", re.IGNORECASE)
 
 
@@ -156,12 +161,73 @@ def _xhs_row(
     }
 
 
-def _map_parsed_row(platform: str, r: dict[str, Any], *, task_id: Optional[int], user_id: str, keyword: str) -> dict[str, Any]:
+def _wxvideo_row(
+    r: dict[str, Any],
+    *,
+    task_id: Optional[int],
+    user_id: str,
+    keyword: str,
+) -> dict[str, Any]:
+    return {
+        "task_id": task_id,
+        "user_id": _truncate(user_id, 64),
+        "post_id": _truncate(str(r.get("post_id") or "").strip(), 64),
+        "keyword": _truncate(keyword, 64),
+        "nickname": _truncate(str(r.get("nickname") or ""), 64),
+        "avatar_url": _truncate(str(r.get("avatar_url") or ""), 256),
+        "title": _truncate(str(r.get("title") or ""), 500),
+        "publish_time": int(r.get("publish_time") or 0),
+        "duration": int(r.get("duration") or 0),
+        "cover_url": _truncate(str(r.get("cover_url") or ""), 512),
+        "video_url": _truncate(str(r.get("video_url") or ""), 512),
+        "like_count": int(r.get("like_count") or 0),
+        "comment_count": int(r.get("comment_count") or 0),
+        "forward_count": int(r.get("forward_count") or 0),
+        "thumb_count": int(r.get("thumb_count") or 0),
+    }
+
+
+def _mp_row(
+    r: dict[str, Any],
+    *,
+    task_id: Optional[int],
+    user_id: str,
+    keyword: str,
+) -> dict[str, Any]:
+    return {
+        "task_id": task_id,
+        "user_id": _truncate(user_id, 64),
+        "post_id": _truncate(
+            str(r.get("post_id") or r.get("article_id") or "").strip(), 64
+        ),
+        "keyword": _truncate(keyword, 64),
+        "company_name": _truncate(str(r.get("company_name") or ""), 128),
+        "biz": _truncate(str(r.get("biz") or ""), 64),
+        "title": _truncate(str(r.get("title") or ""), 500),
+        "summary": _truncate(str(r.get("summary") or r.get("content") or ""), 65535),
+        "url": _truncate(str(r.get("url") or ""), 512),
+        "avatar_url": _truncate(str(r.get("avatar_url") or ""), 256),
+        "publish_time": int(r.get("publish_time") or 0),
+    }
+
+
+def _map_parsed_row(
+    platform: str,
+    r: dict[str, Any],
+    *,
+    task_id: Optional[int],
+    user_id: str,
+    keyword: str,
+) -> dict[str, Any]:
     plat = (platform or "").strip().lower()
     if plat == "douyin":
         return _douyin_row(r, task_id=task_id, user_id=user_id, keyword=keyword)
     if plat == "xhs":
         return _xhs_row(r, task_id=task_id, user_id=user_id, keyword=keyword)
+    if plat == "wxvideo":
+        return _wxvideo_row(r, task_id=task_id, user_id=user_id, keyword=keyword)
+    if plat == "mp":
+        return _mp_row(r, task_id=task_id, user_id=user_id, keyword=keyword)
     raise ValueError(f"unsupported platform for row mapping: {platform!r}")
 
 
@@ -208,21 +274,48 @@ def _chunks(rows: list[dict[str, Any]], size: int) -> Iterable[list[dict[str, An
         yield rows[i : i + size]
 
 
-def _insert_rows_fallback(session: Session, model: Type[Base], to_insert: list[dict[str, Any]]) -> tuple[int, int, int]:
+def _insert_rows_fallback(
+    session: Session, model: Type[Base], to_insert: list[dict[str, Any]]
+) -> tuple[int, int, int, list[dict[str, Any]]]:
     inserted = 0
     duplicated = 0
     persist_errors = 0
+    row_results: list[dict[str, Any]] = []
     for m in to_insert:
+        pid = str(m.get("post_id") or "")
         try:
             with session.begin_nested():
                 session.bulk_insert_mappings(model, [m])
             inserted += 1
+            row_results.append(
+                {"post_id": pid, "save_result": True, "reason": "inserted"}
+            )
         except IntegrityError:
             duplicated += 1
+            row_results.append(
+                {"post_id": pid, "save_result": False, "reason": "duplicate"}
+            )
+            logger.info("skip duplicate row post_id=%s model=%s", pid, model.__name__)
+            logger.info(
+                "duplicate skipped",
+                extra={
+                    "platform": model.__tablename__,
+                    "duplicated_count": 1,
+                    "post_id": pid,
+                },
+            )
         except Exception:
             persist_errors += 1
-            logger.warning("skip row insert model=%s keys=%s", model.__name__, list(m.keys())[:8], exc_info=True)
-    return inserted, duplicated, persist_errors
+            row_results.append(
+                {"post_id": pid, "save_result": False, "reason": "persist_error"}
+            )
+            logger.warning(
+                "skip row insert model=%s keys=%s",
+                model.__name__,
+                list(m.keys())[:8],
+                exc_info=True,
+            )
+    return inserted, duplicated, persist_errors, row_results
 
 
 def save_search_results(
@@ -232,24 +325,37 @@ def save_search_results(
     *,
     user_id: str,
     task_id: Any = None,
-) -> dict[str, int]:
+) -> dict[str, Any]:
     """
     将解析后的搜索结果批量写入对应平台结果表；按 post_id 全局去重（单表内唯一）。
 
-    :return: inserted、duplicated、skipped、persist_errors
+    :return: 统一统计字段 inserted_count/duplicated_count/failed_count + row_results
     """
     if not get_settings().database_url.strip():
         raise RuntimeError("DATABASE_URL is not configured")
     if not (user_id or "").strip():
         raise ValueError("user_id is required for save_search_results")
 
-    model, rows, skipped_total = _normalize_rows(platform, keyword, results, task_id, user_id.strip())
+    model, rows, skipped_total = _normalize_rows(
+        platform, keyword, results, task_id, user_id.strip()
+    )
     inserted_total = 0
     duplicated_total = 0
     persist_errors_total = 0
+    row_results: list[dict[str, Any]] = []
 
     if not rows:
-        return {"inserted": 0, "duplicated": 0, "skipped": skipped_total, "persist_errors": 0}
+        return {
+            "inserted_count": 0,
+            "duplicated_count": 0,
+            "failed_count": 0,
+            "skipped_count": skipped_total,
+            "inserted": 0,
+            "duplicated": 0,
+            "skipped": skipped_total,
+            "persist_errors": 0,
+            "row_results": [],
+        }
 
     post_id_col = getattr(model, "post_id")
 
@@ -264,6 +370,26 @@ def save_search_results(
                 pid = str(r["post_id"])
                 if pid in existing_ids:
                     duplicated_total += 1
+                    row_results.append(
+                        {
+                            "post_id": pid,
+                            "save_result": False,
+                            "reason": "duplicate",
+                        }
+                    )
+                    logger.info(
+                        "skip duplicate row post_id=%s model=%s",
+                        pid,
+                        model.__name__,
+                    )
+                    logger.info(
+                        "duplicate skipped",
+                        extra={
+                            "platform": (platform or "").strip().lower(),
+                            "duplicated_count": 1,
+                            "post_id": pid,
+                        },
+                    )
                 else:
                     to_insert.append(r)
                     existing_ids.add(pid)
@@ -275,28 +401,50 @@ def save_search_results(
                 session.bulk_insert_mappings(model, to_insert)
                 session.flush()
                 inserted_total += len(to_insert)
+                row_results.extend(
+                    {
+                        "post_id": str(r.get("post_id") or ""),
+                        "save_result": True,
+                        "reason": "inserted",
+                    }
+                    for r in to_insert
+                )
             except Exception as e:
                 session.rollback()
                 if isinstance(e, IntegrityError):
-                    logger.info("bulk insert integrity conflict, row-wise retry batch_size=%s", len(to_insert))
+                    logger.info(
+                        "bulk insert integrity conflict, row-wise retry batch_size=%s",
+                        len(to_insert),
+                    )
                 else:
-                    logger.exception("bulk_insert_mappings failed, falling back to row-wise inserts")
-                ins, dup, perr = _insert_rows_fallback(session, model, to_insert)
+                    logger.exception(
+                        "bulk_insert_mappings failed, falling back to row-wise inserts"
+                    )
+                ins, dup, perr, details = _insert_rows_fallback(session, model, to_insert)
                 inserted_total += ins
                 duplicated_total += dup
                 persist_errors_total += perr
+                row_results.extend(details)
 
     return {
+        "inserted_count": inserted_total,
+        "duplicated_count": duplicated_total,
+        "failed_count": persist_errors_total,
+        "skipped_count": skipped_total,
         "inserted": inserted_total,
         "duplicated": duplicated_total,
         "skipped": skipped_total,
         "persist_errors": persist_errors_total,
+        "row_results": row_results,
     }
 
 
-def _model_to_item(obj: Base) -> dict[str, Any]:
+def _model_to_result_item(obj: Base) -> dict[str, Any]:
+    """按 ORM 列名序列化单条结果；排除基层字段，不做跨平台字段映射。"""
     d: dict[str, Any] = {}
     for col in obj.__table__.columns:
+        if col.key in _RESULT_API_EXCLUDE_COLUMNS:
+            continue
         v = getattr(obj, col.key, None)
         if isinstance(v, datetime):
             d[col.key] = v.isoformat()
@@ -335,6 +483,12 @@ def paginate_task_results(
     total = int(session.execute(count_stmt).scalar_one())
 
     offset = max(0, (page - 1) * limit)
-    list_stmt = select(model).where(*filters).order_by(ct_col.desc()).offset(offset).limit(limit)
+    list_stmt = (
+        select(model)
+        .where(*filters)
+        .order_by(ct_col.desc())
+        .offset(offset)
+        .limit(limit)
+    )
     rows = session.execute(list_stmt).scalars().all()
-    return total, [_model_to_item(r) for r in rows]
+    return total, [_model_to_result_item(r) for r in rows]

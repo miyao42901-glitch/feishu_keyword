@@ -1,15 +1,16 @@
 """小红书：业务码重试 + XhsParser。"""
+
 from __future__ import annotations
 
 import logging
 import time
 from typing import Any, Optional
 
-from social_platform.api_status_codes import CODE_INSUFFICIENT_BALANCE, CODE_FAILED
+from xhs_worker.parser import XhsParser
+
+from social_platform.api_status_codes import CODE_FAILED, CODE_INSUFFICIENT_BALANCE
 from social_platform.http_client import BaseHttpClient, HttpClientError
 from social_platform.spider_base import BaseSpider
-
-from xhs_worker.parser import XhsParser
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,11 @@ class XhsSpider(BaseSpider):
                 return {
                     "data": [],
                     "balance": float(raw.get("balance", 0.0)),
-                    "error": {"origin": "xhs", "code": 5000, "msg": f"内部解析错误: {e!s}"},
+                    "error": {
+                        "origin": "xhs",
+                        "code": 5000,
+                        "msg": f"内部解析错误: {e!s}",
+                    },
                     "insufficient_balance": False,
                 }
 

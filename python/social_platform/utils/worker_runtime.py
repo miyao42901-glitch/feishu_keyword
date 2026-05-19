@@ -1,7 +1,7 @@
 """Worker 任务共用：meta、环境 URL、鉴权头名、排除词解析等。"""
+
 from __future__ import annotations
 
-import os
 from typing import Any
 
 API_KEY_HEADER = "X-API-Key"
@@ -11,8 +11,14 @@ def worker_meta(worker: str, version: str) -> dict[str, str]:
     return {"worker": worker, "version": version}
 
 
-def resolved_service_url(env_key: str, default_url: str) -> str:
-    return (os.environ.get(env_key) or default_url).strip()
+def service_url(url: str) -> str:
+    """第三方 API 地址以 ``http_api.constants`` 为准（不读环境变量）。"""
+    return (url or "").strip()
+
+
+def resolved_service_url(_env_key: str, default_url: str) -> str:
+    """兼容旧调用；等价于 :func:`service_url`。"""
+    return service_url(default_url)
 
 
 def split_exclude_needles(exclude_words: str) -> list[str]:

@@ -1,4 +1,5 @@
 """Deprecated: use ``http_api.constants`` for URL 常量。"""
+
 from http_api.constants import (
     BILIBILI_GENERAL_URL,
     DOUYIN_GENERAL_URL,

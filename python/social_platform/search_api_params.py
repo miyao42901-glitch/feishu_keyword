@@ -4,6 +4,7 @@ search-all 等：第三方检索 API 的占位参数映射。
 请按实际大加拉 / 平台接口字段名修改 ``build_search_all_api_params`` 的返回值，
 并在各 Worker 的 ``_third_party_json_body`` 中合并进最终 POST body。
 """
+
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -37,7 +38,9 @@ def build_search_all_api_params(
     return api_params
 
 
-def merge_search_all_api_params_into_body(body: dict[str, Any], params: dict[str, Any]) -> dict[str, Any]:
+def merge_search_all_api_params_into_body(
+    body: dict[str, Any], params: dict[str, Any]
+) -> dict[str, Any]:
     """将占位映射合并进下游 body；值为 ``None`` 的键不写入。"""
     fetch_count = int(params.get("fetch_count") or 100)
     time_range = int(params.get("time_range") or 7)

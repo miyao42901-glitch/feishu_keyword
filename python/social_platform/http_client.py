@@ -1,4 +1,5 @@
 """HTTP：POST JSON、超时、aiohttp 异步 IO + 同步封装 post_json。"""
+
 from __future__ import annotations
 
 import asyncio
@@ -38,18 +39,29 @@ class BaseHttpClient:
         async with aiohttp.ClientSession(timeout=client_timeout) as session:
             for attempt in range(self.max_retries):
                 try:
+                    print(f"url: {url}")
+                    print(f"payload: {payload}")
                     async with session.post(url, json=payload, headers=headers) as resp:
                         resp.raise_for_status()
                         data = await resp.json(content_type=None)
                         if not isinstance(data, dict):
                             raise HttpClientError(f"响应 JSON 非对象: {type(data)!s}")
                         return data
-                except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError) as e:
+                except (
+                    aiohttp.ClientError,
+                    asyncio.TimeoutError,
+                    ValueError,
+                    TypeError,
+                ) as e:
                     last_exc = e
-                    logger.warning("HTTP POST 失败 (%s/%s): %s", attempt + 1, self.max_retries, e)
+                    logger.warning(
+                        "HTTP POST 失败 (%s/%s): %s", attempt + 1, self.max_retries, e
+                    )
                     if attempt < self.max_retries - 1:
                         await asyncio.sleep(self.retry_sleep_sec)
-        raise HttpClientError(f"POST 重试{self.max_retries}次仍失败: {last_exc!s}") from last_exc
+        raise HttpClientError(
+            f"POST 重试{self.max_retries}次仍失败: {last_exc!s}"
+        ) from last_exc
 
     def post_json(
         self,

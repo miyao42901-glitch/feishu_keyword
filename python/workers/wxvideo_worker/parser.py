@@ -1,146 +1,124 @@
-"""抖音接口 JSON → 统一列表（仅处理业务已成功时的 body）。"""
+"""视频号接口 JSON → 统一列表（解析 subBoxes/items 及 report_extinfo_str）。"""
+
 from __future__ import annotations
 
+import json
 import logging
+import urllib.parse
 from typing import Any
 
+from social_platform.utils.duration import parse_duration, parse_htmlstr_to_clean
 from social_platform.utils.time_ms import to_ms_timestamp
-from social_platform.utils.worker_runtime import split_exclude_needles, text_contains_any_needle
+from social_platform.utils.worker_runtime import (
+    split_exclude_needles,
+    text_contains_any_needle,
+)
 
 logger = logging.getLogger(__name__)
 
 
-class DouyinParser:
+def _decode_report_extinfo_by_url(report_str: str) -> dict[str, Any]:
+    """URL 解码 report_extinfo_str JSON，提取统计数字。"""
+    if not report_str or not isinstance(report_str, str):
+        return {}
+    try:
+        # URL 解码
+        decoded = urllib.parse.unquote(report_str)
+
+        # 解析 JSON
+        data = json.loads(decoded)
+    except Exception as e:
+        print(f"Exception: {e}")
+        try:
+            # 兼容双重编码的情况
+            decoded = urllib.parse.unquote(urllib.parse.unquote(report_str))
+            data = json.loads(decoded)
+        except Exception:
+            return {}
+
+    if isinstance(data, dict):
+        return data
+    return {}
+
+
+class WxVideoParser:
     def parse(self, raw: dict[str, Any], *, exclude_words: str = "") -> dict[str, Any]:
         needles = split_exclude_needles(exclude_words)
         data = raw.get("data") or {}
-        balance = float(data.get("balance", 0.0))
-        inner = raw.get("data") or {}
-        items_list = inner.get("data") or []
+        balance = float(data.get("balance", raw.get("balance", 0.0)))
 
-        if not isinstance(items_list, list):
-            items_list = []
-
-        extra = inner.get("extra") or {}
-        logid = extra.get("logid", "") if isinstance(extra, dict) else ""
-        cursor = inner.get("cursor", "")
+        # 目标结构：data.data[i].subBoxes[j].items[k]
+        root_data = data.get("data") or []
+        if not isinstance(root_data, list):
+            root_data = []
 
         rows: list[dict[str, Any]] = []
-
-        for item in items_list:
-            if not isinstance(item, dict):
+        for block in root_data:
+            if not isinstance(block, dict):
                 continue
-
-            aweme = item.get("aweme_info")
-            if not isinstance(aweme, dict):
+            sub_boxes = block.get("subBoxes") or []
+            if not isinstance(sub_boxes, list):
                 continue
+            for sub in sub_boxes:
+                if not isinstance(sub, dict):
+                    continue
+                items = sub.get("items") or []
+                if not isinstance(items, list):
+                    continue
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
 
-            aweme_id = aweme.get("aweme_id")
-            if not aweme_id:
-                continue
+                    # 提取指定字段
+                    export_id = item.get("exportId") or ""
+                    if not export_id:
+                        continue
 
-            desc = (aweme.get("desc") or "").strip()
-            if not desc:
-                continue
+                    title = parse_htmlstr_to_clean(item.get("title")) or "无标题"
+                    if text_contains_any_needle(title, needles):
+                        continue
+                    time_raw = item.get("pubTime") or item.get("dateTime") or ""
+                    publish_time_ms = to_ms_timestamp(time_raw)
+                    duration_val = parse_duration(item.get("duration"))
+                    image = item.get("image") or ""
+                    video_url = item.get("videoUrl") or ""
 
-            title = desc or "无标题"
+                    source = item.get("source") or {}
+                    if not isinstance(source, dict):
+                        source = {}
+                    nickname = source.get("title") or ""
+                    avatar_url = source.get("iconUrl") or ""
 
-            if text_contains_any_needle(title, needles) or text_contains_any_needle(desc, needles):
-                continue
+                    # 解码统计
+                    report_str = item.get("report_extinfo_str") or ""
+                    stats = _decode_report_extinfo_by_url(report_str)
+                    like_cnt = stats.get("like_cnt", 0)
+                    thumb_cnt = stats.get("thumb_cnt", 0)
+                    forward_cnt = stats.get("forward_cnt", 0)
+                    comment_cnt = stats.get("comment_cnt", 0)
 
-            # 作者
-            author = aweme.get("author") or {}
-            if not isinstance(author, dict):
-                author = {}
-
-            # 视频
-            video = aweme.get("video") or {}
-            if not isinstance(video, dict):
-                video = {}
-
-            # 统计
-            stat = aweme.get("statistics") or {}
-            if not isinstance(stat, dict):
-                stat = {}
-
-            # 昵称
-            nickname = author.get("nickname", "")
-
-            # 签名
-            signature = author.get("signature", "")
-
-            # 头像
-            avatar = (
-                author.get("avatar_larger", {})
-                .get("url_list", [""])[0]
-            )
-
-            # 企业认证
-            enterprise_verify_reason = author.get(
-                "enterprise_verify_reason",
-                ""
-            )
-
-            # 时长（接口是毫秒）
-            duration = round(video.get("duration", 0) / 1000, 2)
-
-            # 封面
-            cover = (
-                video.get("cover", {})
-                .get("url_list", [""])[0]
-            )
-
-            # sec_uid
-            user_id = author.get("sec_uid", "")
-
-            # 无水印播放地址
-            play_addr = (
-                video.get("play_addr", {})
-                .get("url_list", [])
-            )
-
-        
-            rows.append(
-                {
-                    "title": title,
-                    "aweme_id": aweme_id,
-                    "desc": desc,
-
-                    "url": f"https://www.douyin.com/video/{aweme_id}",
-
-                    # 作者
-                    "nickname": nickname,
-                    "signature": signature,
-                    "avatar": avatar,
-                    "user_id": user_id,
-                    "verify_name": enterprise_verify_reason,
-
-                    # 视频
-                    "cover": cover,
-                    "duration": duration,
-
-                    # 视频地址
-                    "video_list": play_addr,
-
-                    # 数据
-                    "publish_time": to_ms_timestamp(
-                        aweme.get("create_time")
-                    ),
-
-                    "like_count": stat.get("digg_count", 0),
-                    "comment_count": stat.get("comment_count", 0),
-                    "share_count": stat.get("share_count", 0),
-                    "collect_count": stat.get("collect_count", 0),
-                }
-            )
-
-        logger.info("抖音解析成功，条数: %s", len(rows))
+                    row = {
+                        "post_id": str(export_id),
+                        "title": title,
+                        "publish_time": publish_time_ms,
+                        "duration": duration_val,
+                        "cover_url": image,
+                        "video_url": video_url,
+                        "nickname": nickname,
+                        "avatar_url": avatar_url,
+                        "like_count": like_cnt,
+                        "thumb_count": thumb_cnt,
+                        "forward_count": forward_cnt,
+                        "comment_count": comment_cnt,
+                    }
+                    rows.append(row)
 
         return {
             "data": rows,
             "balance": balance,
             "error": None,
             "insufficient_balance": False,
-            "next_cursor": cursor,
-            "next_logid": logid,
+            "next_offset": data.get("offset", ""),
+            "cookies_buffer": data.get("cookies_buffer", ""),
+            "total": len(rows),
         }

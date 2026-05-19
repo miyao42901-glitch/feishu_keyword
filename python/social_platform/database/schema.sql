@@ -7,12 +7,17 @@ CREATE TABLE IF NOT EXISTS feishu_async_tasks (
     status VARCHAR(32) NOT NULL DEFAULT 'pending' COMMENT '任务状态：pending/running/success/failed/cancelled',
     action VARCHAR(128) NOT NULL DEFAULT '' COMMENT '对外已注册 action（kebab-case），如 douyin-search-all',
     body_json JSON NOT NULL COMMENT '仅存储请求 body 对象（不含 API Key）；平台由 action 在应用层解析',
+    api_key VARCHAR(128) NOT NULL DEFAULT '' COMMENT '提交任务的API_KEY',
     error_message VARCHAR(64) NULL COMMENT '失败时的错误摘要，最长 64 字符',
     celery_task_id VARCHAR(128) NULL COMMENT 'Celery AsyncResult.id，用于撤销与排查',
     priority INT NOT NULL DEFAULT 0 COMMENT '任务优先级 0-9，数值越大优先级越高',
     cancel_requested TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已请求取消：0 否 1 是',
     success_count INT NOT NULL DEFAULT 0 COMMENT '落库成功条数累计（含去重后视为成功）',
     failed_count INT NOT NULL DEFAULT 0 COMMENT '落库失败/跳过条数累计',
+    task_start_time DATETIME NOT NULL COMMENT '定时任务开始时间（前端传入，UTC 存储）',
+    task_end_time DATETIME NOT NULL COMMENT '定时任务结束时间（前端传入，UTC 存储）',
+    interval_minutes INT NOT NULL DEFAULT 60 COMMENT '定时采集频率（分钟），最小 5，默认 60',
+    fetch_count INT NOT NULL DEFAULT 100 COMMENT '单次采集条数上限，1～500，默认 100',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后更新时间',
     INDEX ix_feishu_async_tasks_status (status),
@@ -99,3 +104,69 @@ CREATE TABLE IF NOT EXISTS feishu_xhs_results (
     CONSTRAINT fk_feishu_xhs_results_task
         FOREIGN KEY (task_id) REFERENCES feishu_async_tasks (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='小红书搜索结果';
+
+CREATE TABLE IF NOT EXISTS feishu_wxvideo_results (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '自增ID',
+    task_id BIGINT NULL COMMENT '关联异步任务ID',
+    user_id VARCHAR(64) NOT NULL COMMENT '用户ID',
+    post_id VARCHAR(64) NOT NULL COMMENT '视频 exportId',
+    keyword VARCHAR(64) NOT NULL DEFAULT '' COMMENT '搜索关键词',
+    nickname VARCHAR(64) NOT NULL DEFAULT '' COMMENT 'UP主名字',
+    avatar_url VARCHAR(256) NOT NULL DEFAULT '' COMMENT 'UP主头像',
+    title VARCHAR(500) NOT NULL DEFAULT '' COMMENT '视频标题',
+    publish_time BIGINT NOT NULL DEFAULT 0 COMMENT '发布时间（毫秒时间戳）',
+    duration INT NOT NULL DEFAULT 0 COMMENT '视频时长（秒）',
+    cover_url VARCHAR(512) NOT NULL DEFAULT '' COMMENT '封面图',
+    video_url VARCHAR(512) NOT NULL DEFAULT '' COMMENT '视频下载链接',
+    like_count INT NOT NULL DEFAULT 0 COMMENT '点赞数',
+    comment_count INT NOT NULL DEFAULT 0 COMMENT '评论数',
+    forward_count INT NOT NULL DEFAULT 0 COMMENT '转发数',
+    thumb_count INT NOT NULL DEFAULT 0 COMMENT '小心心数',
+    is_upload TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已上传',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uq_feishu_wxvideo_results_post_id (post_id),
+    INDEX ix_feishu_wxvideo_results_task_id (task_id),
+    INDEX ix_feishu_wxvideo_results_user_id (user_id),
+    INDEX ix_feishu_wxvideo_results_is_upload (is_upload),
+    INDEX ix_feishu_wxvideo_results_create_time (create_time),
+    INDEX ix_feishu_wxvideo_results_keyword (keyword),
+    CONSTRAINT fk_feishu_wxvideo_results_task
+        FOREIGN KEY (task_id) REFERENCES feishu_async_tasks (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='视频号搜索结果';
+
+CREATE TABLE IF NOT EXISTS feishu_mp_results (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '自增ID',
+    task_id BIGINT NULL COMMENT '关联异步任务ID',
+    user_id VARCHAR(64) NOT NULL COMMENT '用户ID',
+    post_id VARCHAR(64) NOT NULL COMMENT '文章ID',
+    keyword VARCHAR(64) NOT NULL DEFAULT '' COMMENT '搜索关键词',
+    company_name VARCHAR(128) NOT NULL DEFAULT '' COMMENT '公众号名称',
+    biz VARCHAR(64) NOT NULL DEFAULT '' COMMENT '微信公众号 biz',
+    title VARCHAR(500) NOT NULL DEFAULT '' COMMENT '文章标题',
+    summary TEXT NOT NULL COMMENT '正文摘要',
+    url VARCHAR(512) NOT NULL DEFAULT '' COMMENT '文章链接',
+    avatar_url VARCHAR(256) NOT NULL DEFAULT '' COMMENT '作者头像',
+    publish_time BIGINT NOT NULL DEFAULT 0 COMMENT '发布时间（毫秒时间戳）',
+    is_upload TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已上传',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uq_feishu_mp_results_post_id (post_id),
+    INDEX ix_feishu_mp_results_task_id (task_id),
+    INDEX ix_feishu_mp_results_user_id (user_id),
+    INDEX ix_feishu_mp_results_is_upload (is_upload),
+    INDEX ix_feishu_mp_results_create_time (create_time),
+    INDEX ix_feishu_mp_results_keyword (keyword),
+    CONSTRAINT fk_feishu_mp_results_task
+        FOREIGN KEY (task_id) REFERENCES feishu_async_tasks (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='公众号文章搜索结果';
+
+-- 已有库升级（在 feishu_async_tasks 已存在时执行一次）：
+-- ALTER TABLE feishu_async_tasks
+--     ADD COLUMN task_start_time DATETIME NOT NULL COMMENT '定时任务开始时间（前端传入，UTC 存储）' AFTER failed_count,
+--     ADD COLUMN task_end_time DATETIME NOT NULL COMMENT '定时任务结束时间（前端传入，UTC 存储）' AFTER task_start_time,
+--     ADD COLUMN interval_minutes INT NOT NULL DEFAULT 60 COMMENT '定时采集频率（分钟），最小 5，默认 60' AFTER task_end_time,
+--     ADD COLUMN fetch_count INT NOT NULL DEFAULT 100 COMMENT '单次采集条数上限，1～500，默认 100' AFTER interval_minutes;
+--
+-- ALTER TABLE feishu_async_tasks
+--     ADD COLUMN api_key VARCHAR(128) NOT NULL DEFAULT '' COMMENT '提交任务的API_KEY' AFTER body_json;
