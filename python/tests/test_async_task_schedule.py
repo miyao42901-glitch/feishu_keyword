@@ -41,6 +41,7 @@ def _fake_row(
         task_end_time=end or (now + timedelta(hours=24)),
         interval_minutes=interval_minutes,
         fetch_count=100,
+        next_run_at=None,
         update_time=update_time or now,
     )
 
@@ -63,22 +64,26 @@ class TestRowToCache(unittest.TestCase):
         self.assertEqual(payload["interval_seconds"], 900)
         self.assertEqual(payload["next_run_at"], schedule_utc_iso(nxt))
 
-    def test_running_clears_next_run(self) -> None:
+    def test_running_keeps_next_run(self) -> None:
+        from social_platform.schedule_time import schedule_utc_iso
+
         row = _fake_row(status="running")
         payload = async_task_redis._row_to_cache(
             row,
             next_run_at=datetime(2026, 5, 19, 11, 0, 0),
             previous={"next_run_at": "2026-05-19T11:00:00"},
         )
-        self.assertNotIn("next_run_at", payload)
+        self.assertEqual(
+            payload["next_run_at"], schedule_utc_iso(datetime(2026, 5, 19, 11, 0, 0))
+        )
 
 
 class TestResolveNextRunAt(unittest.TestCase):
     def test_uses_cached_next_run_when_future(self) -> None:
         from social_platform.schedule_time import schedule_utc_iso
 
-        row = _fake_row()
         now = datetime(2026, 5, 19, 2, 5, 0)
+        row = _fake_row(start=datetime(2026, 5, 19, 2, 0, 0))
         nxt = datetime(2026, 5, 19, 2, 20, 0)
         cached = {"next_run_at": schedule_utc_iso(nxt)}
         resolved = async_task_redis.resolve_next_run_at(row, cached=cached, now=now)
@@ -175,6 +180,7 @@ class TestRecoverStaleRunning(unittest.TestCase):
         self.assertEqual(n, 1)
         self.assertEqual(row.status, "pending")
         mock_schedule.assert_called_once()
+        mock_dispatch.assert_not_called()
 
 
 class TestRecoverStalePending(unittest.TestCase):
@@ -201,6 +207,7 @@ class TestRecoverStalePending(unittest.TestCase):
             end=datetime(2026, 5, 20, 5, 0, 0),
         )
         future = now + timedelta(minutes=30)
+        row.next_run_at = future
 
         db = MagicMock()
         db.scalars.return_value = [row]
@@ -209,10 +216,7 @@ class TestRecoverStalePending(unittest.TestCase):
         mock_api_key.return_value = "key-1"
         from social_platform.schedule_time import schedule_utc_iso
 
-        mock_cached.return_value = {
-            "next_run_at": schedule_utc_iso(future),
-            "interval_seconds": 600,
-        }
+        mock_cached.return_value = {"next_run_at": schedule_utc_iso(future)}
 
         with patch(
             "social_platform.services.async_task_redis.schedule_now_utc_naive",
@@ -260,7 +264,7 @@ class TestRecoverStalePending(unittest.TestCase):
             "social_platform.services.async_task_redis.schedule_now_utc_naive",
             return_value=now,
         ), patch(
-            "social_platform.services.async_task_redis._pending_already_queued",
+            "social_platform.services.async_task_redis._pending_celery_in_flight",
             return_value=True,
         ):
             n = async_task_redis.recover_stale_pending_tasks()
@@ -288,7 +292,7 @@ class TestEnqueueAsyncTaskExecution(unittest.TestCase):
         now = datetime(2026, 5, 19, 10, 0, 0)
         mock_now.return_value = now
         row = _fake_row(start=now, end=now + timedelta(hours=1))
-        mock_apply.return_value = "celery-1"
+        mock_dispatch.return_value = "celery-1"
 
         cid = async_task_redis.enqueue_async_task_execution(
             row, api_key="key-1", run_at=now
@@ -296,8 +300,8 @@ class TestEnqueueAsyncTaskExecution(unittest.TestCase):
 
         self.assertEqual(cid, "celery-1")
         mock_schedule.assert_not_called()
-        mock_unschedule.assert_called_once_with(int(row.id))
-        mock_dispatch.assert_not_called()
+        mock_dispatch.assert_called_once_with(int(row.id))
+        mock_apply.assert_not_called()
 
     @patch("social_platform.services.async_task_redis.apply_celery_run_at")
     @patch("social_platform.services.async_task_redis.schedule_async_task_run")

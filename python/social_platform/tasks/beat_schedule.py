@@ -19,15 +19,10 @@ def build_async_dispatch_beat_schedule() -> dict[str, dict[str, Any]]:
     from config.settings import get_settings
 
     settings = get_settings()
-    if settings.async_dispatch_http_enabled and settings.async_schedule_beat_enabled:
-        logger.warning(
-            "dual_dispatch_warning",
-            extra={
-                "dispatch_mode": "http+beat",
-                "duplicate_dispatch_risk": True,
-                "dual_dispatch_warning": 1,
-            },
-        )
+    if settings.async_dispatch_http_enabled:
+        return {}
+    if not settings.async_schedule_beat_enabled:
+        return {}
     interval = max(15.0, float(settings.async_dispatch_poll_seconds))
     return {
         "beat-async-schedule-dispatch": {

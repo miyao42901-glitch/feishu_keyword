@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 from config.settings import get_settings
@@ -199,6 +200,147 @@ class SearchFetchAllGuardsTests(unittest.TestCase):
         )
         self.assertEqual(out["meta"]["stop_reason"], sfa.STOP_FETCH_COUNT_REACHED)
         self.assertEqual(len(out["records"]), 2)
+
+    @patch.object(sfa, "_guards_apply", return_value=True)
+    @patch("config.settings.get_settings")
+    def test_date_filter_mixed_page_persists_valid_records_and_continues(
+        self, mock_settings: MagicMock, _guards: MagicMock
+    ) -> None:
+        mock_settings.return_value = self._settings(async_search_all_max_pages=10)
+        start = datetime(2026, 5, 18, 0, 0, 0)
+        end = datetime(2026, 5, 20, 0, 0, 0)
+        start_ms = int(start.timestamp() * 1000)
+        old_ms = int(datetime(2026, 5, 17, 0, 0, 0).timestamp() * 1000)
+        new_ms = int(datetime(2026, 5, 19, 0, 0, 0).timestamp() * 1000)
+        calls = [0]
+        persisted: list[list[dict]] = []
+
+        def api_call(_url: str, _key: str, _body: dict) -> dict:
+            calls[0] += 1
+            if calls[0] == 1:
+                data = [{"aweme_id": f"new{i}", "publish_time": new_ms} for i in range(5)]
+                data.extend(
+                    [{"aweme_id": f"old{i}", "publish_time": old_ms} for i in range(5)]
+                )
+                return {
+                    "data": data,
+                    "next_cursor": "c2",
+                    "next_logid": "l2",
+                    "has_more": True,
+                }
+            return {
+                "data": [{"aweme_id": "new-last", "publish_time": new_ms}],
+                "next_cursor": "",
+                "next_logid": "",
+                "has_more": False,
+            }
+
+        out = sfa.fetch_douyin_search_all(
+            "http://test",
+            "key",
+            {"keyword": "k", "sort_type": 2, "start_ms": start_ms},
+            body_builder=_body,
+            api_call=api_call,
+            list_sort_type=2,
+            start_date=start,
+            end_date=end,
+            fetch_count_cap=500,
+            after_each_page=lambda chunk: persisted.append(chunk),
+        )
+        self.assertEqual(len(persisted[0]), 5)
+        self.assertEqual(len(persisted[1]), 1)
+        self.assertEqual(len(out["records"]), 6)
+        self.assertEqual(out["meta"]["stop_reason"], sfa.STOP_NO_MORE_DATA)
+
+    @patch.object(sfa, "_guards_apply", return_value=True)
+    @patch("config.settings.get_settings")
+    def test_date_filter_all_old_stops_before_start_date_when_time_sort(
+        self, mock_settings: MagicMock, _guards: MagicMock
+    ) -> None:
+        mock_settings.return_value = self._settings(async_search_all_max_pages=10)
+        start = datetime(2026, 5, 18, 0, 0, 0)
+        end = datetime(2026, 5, 20, 0, 0, 0)
+        old_ms = int(datetime(2026, 5, 17, 0, 0, 0).timestamp() * 1000)
+        persisted: list[list[dict]] = []
+
+        def api_call(_url: str, _key: str, _body: dict) -> dict:
+            return {
+                "data": [{"aweme_id": "old1", "publish_time": old_ms}],
+                "next_cursor": "c2",
+                "next_logid": "l2",
+                "has_more": True,
+            }
+
+        out = sfa.fetch_douyin_search_all(
+            "http://test",
+            "key",
+            {"keyword": "k", "sort_type": 2},
+            body_builder=_body,
+            api_call=api_call,
+            list_sort_type=2,
+            start_date=start,
+            end_date=end,
+            fetch_count_cap=500,
+            after_each_page=lambda chunk: persisted.append(chunk),
+        )
+        self.assertEqual(len(out["records"]), 0)
+        self.assertEqual(out["meta"]["stop_reason"], sfa.STOP_BEFORE_START_DATE)
+        self.assertEqual(persisted, [])
+
+    @patch.object(sfa, "_guards_apply", return_value=True)
+    @patch("config.settings.get_settings")
+    def test_date_filter_all_old_not_stop_before_start_when_non_time_sort(
+        self, mock_settings: MagicMock, _guards: MagicMock
+    ) -> None:
+        mock_settings.return_value = self._settings(async_search_all_max_pages=10)
+        start = datetime(2026, 5, 18, 0, 0, 0)
+        end = datetime(2026, 5, 20, 0, 0, 0)
+        old_ms = int(datetime(2026, 5, 17, 0, 0, 0).timestamp() * 1000)
+
+        def api_call(_url: str, _key: str, _body: dict) -> dict:
+            return {
+                "data": [{"aweme_id": "old1", "publish_time": old_ms}],
+                "next_cursor": "",
+                "next_logid": "",
+                "has_more": False,
+            }
+
+        out = sfa.fetch_douyin_search_all(
+            "http://test",
+            "key",
+            {"keyword": "k", "sort_type": 0},
+            body_builder=_body,
+            api_call=api_call,
+            list_sort_type=0,
+            start_date=start,
+            end_date=end,
+            fetch_count_cap=500,
+        )
+        self.assertEqual(out["meta"]["stop_reason"], sfa.STOP_NO_MORE_DATA)
+
+    @patch.object(sfa, "_guards_apply", return_value=True)
+    @patch("config.settings.get_settings")
+    def test_no_default_date_window_when_no_time_params(
+        self, mock_settings: MagicMock, _guards: MagicMock
+    ) -> None:
+        mock_settings.return_value = self._settings(async_search_all_max_pages=10)
+        mode = sfa.resolve_fetch_all_mode(
+            start_date=None,
+            end_date=None,
+            max_pages=None,
+            list_sort_type=None,
+        )
+        self.assertFalse(mode.use_date_window)
+
+    def test_resolve_search_all_date_bounds_no_default_for_time_sort(self) -> None:
+        start_d, end_d = sfa.resolve_search_all_date_bounds(
+            params={"time_range": 7},
+            list_sort_type=2,
+            start_d=None,
+            end_d=None,
+        )
+        self.assertIsNone(start_d)
+        self.assertIsNone(end_d)
 
 
 if __name__ == "__main__":

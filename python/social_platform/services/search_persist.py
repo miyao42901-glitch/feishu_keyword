@@ -26,6 +26,7 @@ class SearchAllAsyncPersistState:
 
     db: Session
     task_id: int
+    run_id: str
     user_id: str
     public_action: str
     body: dict[str, Any]
@@ -72,6 +73,7 @@ def try_save_search_result_chunk(
     *,
     user_id: str,
     task_id: int | str | None = None,
+    run_id: str = "",
 ) -> Optional[dict[str, Any]]:
     """search-all 单页结果落库；异常吞掉。``rows`` 为空时返回 None。"""
     try:
@@ -90,17 +92,21 @@ def try_save_search_result_chunk(
             platform, keyword, rows, user_id=uid, task_id=task_id
         )
         logger.info(
-            "search results chunk persisted action=%s platform=%s task_id=%s user_id=%s stats=%s",
+            "search results chunk persisted action=%s platform=%s task_id=%s run_id=%s user_id=%s stats=%s",
             action,
             platform,
             task_id,
+            run_id,
             uid,
             stats,
         )
         return stats
     except Exception:
         logger.exception(
-            "search results chunk persist failed action=%s task_id=%s", action, task_id
+            "search results chunk persist failed action=%s task_id=%s run_id=%s",
+            action,
+            task_id,
+            run_id,
         )
         return None
 
@@ -210,6 +216,7 @@ def apply_search_persist_stats_to_async_task(
             "duplicate skipped",
             extra={
                 "task_id": int(task_id),
+                "run_id": str(getattr(task, "current_run_id", "") or ""),
                 "platform": platform,
                 "duplicated_count": int(duplicated_count),
             },
@@ -218,6 +225,7 @@ def apply_search_persist_stats_to_async_task(
         "persist_result",
         extra={
             "task_id": int(task_id),
+            "run_id": str(getattr(task, "current_run_id", "") or ""),
             "platform": platform,
             "inserted_count": int(inserted_count),
             "duplicated_count": int(duplicated_count),
@@ -229,36 +237,39 @@ def apply_search_persist_stats_to_async_task(
     db.add(task)
 
 
-def persist_search_all_page_if_async(chunk: list[Any]) -> bool:
-    """Celery 上下文中对当前页落库并累加任务计数；无上下文或空 chunk 时返回 False。"""
+def persist_search_all_page_if_async(chunk: list[Any]) -> int:
+    """Celery 上下文中对当前页落库并累加任务计数；返回本页真实 inserted_count。"""
     ctx = search_all_async_ctx.get()
     if ctx is None or not chunk:
         if ctx is None:
             logger.debug("skip async page persist: missing async context")
         elif not chunk:
             logger.debug("skip async page persist: empty chunk")
-        return False
+        return 0
     stats = try_save_search_result_chunk(
         ctx.public_action,
         ctx.body,
         chunk,
         user_id=ctx.user_id,
         task_id=int(ctx.task_id),
+        run_id=ctx.run_id,
     )
     if stats:
         logger.info(
-            "search-all chunk saved task_id=%s inserted=%s duplicated=%s skipped=%s persist_errors=%s",
+            "search-all chunk saved task_id=%s run_id=%s inserted=%s duplicated=%s skipped=%s persist_errors=%s",
             int(ctx.task_id),
+            str(ctx.run_id or ""),
             int(_stat_int(stats, "inserted_count", "inserted")),
             int(_stat_int(stats, "duplicated_count", "duplicated")),
             int(_stat_int(stats, "skipped_count", "skipped")),
             int(_stat_int(stats, "failed_count", "persist_errors")),
         )
         apply_search_persist_stats_to_async_task(ctx.db, int(ctx.task_id), stats)
-        return True
+        return int(_stat_int(stats, "inserted_count", "inserted"))
     logger.warning(
-        "search-all chunk persist skipped/failed task_id=%s action=%s",
+        "search-all chunk persist skipped/failed task_id=%s run_id=%s action=%s",
         int(ctx.task_id),
+        str(ctx.run_id or ""),
         ctx.public_action,
     )
-    return False
+    return 0

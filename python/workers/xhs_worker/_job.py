@@ -153,8 +153,7 @@ def fetch_xhs_all(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     list_sort_type: Optional[int] = None,
-    fetch_count_cap: int = 100,
-    after_each_page: Optional[Callable[[list[dict[str, Any]]], None]] = None,
+    after_each_page: Optional[Callable[[list[dict[str, Any]]], Optional[int]]] = None,
 ) -> dict[str, Any]:
     """
     多页拉取小红书搜索结果。
@@ -163,6 +162,7 @@ def fetch_xhs_all(
     底层 API 若支持 ``publish_time`` / ``note_time`` 等筛选项，仍可通过 ``params`` 传入；
     时间窗过滤以解析后的 ``publish_time``（毫秒）在客户端完成。
     """
+    fetch_count_cap = clamp_fetch_count_cap(params)
     return fetch_xhs_search_all(
         api_url,
         key,
@@ -193,20 +193,27 @@ def execute_xhs_search_all(
         return {"ok": False, "error": "XHS_GENERAL_URL 为空", "meta": meta}
     max_pages = _optional_max_pages(params)
     list_st = coerce_optional_list_sort_type(params)
-    fetch_n = clamp_fetch_count_cap(params)
-    start_d = parse_optional_datetime(params.get("start_date"))
-    end_d = parse_optional_datetime(params.get("end_date"))
+    # 统一使用 time 参数（日期+时间）；兼容历史 start_date / end_date。
+    start_d = parse_optional_datetime(params.get("start_time") or params.get("start_date"))
+    end_d = parse_optional_datetime(params.get("end_time") or params.get("end_date"))
     start_d, end_d = resolve_search_all_date_bounds(
         params, list_sort_type=list_st, start_d=start_d, end_d=end_d
     )
     use_after = sync_page_save is not None or search_all_async_ctx.get() is not None
 
-    def after_chunk(chunk: list[dict[str, Any]]) -> None:
+    def after_chunk(chunk: list[dict[str, Any]]) -> Optional[int]:
         if not chunk:
-            return
+            return 0
+        has_async_ctx = search_all_async_ctx.get() is not None
+        inserted_count = 0
         if sync_page_save is not None:
             sync_page_save(chunk)
-        persist_search_all_page_if_async(chunk)
+            if not has_async_ctx:
+                inserted_count = len(chunk)
+        async_inserted = persist_search_all_page_if_async(chunk)
+        if has_async_ctx:
+            return int(async_inserted)
+        return inserted_count
 
     summary = fetch_xhs_all(
         url,
@@ -216,7 +223,6 @@ def execute_xhs_search_all(
         start_date=start_d,
         end_date=end_d,
         list_sort_type=list_st,
-        fetch_count_cap=fetch_n,
         after_each_page=after_chunk if use_after else None,
     )
     if use_after:

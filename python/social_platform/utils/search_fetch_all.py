@@ -94,6 +94,19 @@ def _get_task_id_for_log() -> Optional[int]:
         return None
 
 
+def _get_run_id_for_log() -> Optional[str]:
+    try:
+        from social_platform.services.search_persist import search_all_async_ctx
+
+        ctx = search_all_async_ctx.get()
+        if ctx is None:
+            return None
+        rid = str(getattr(ctx, "run_id", "") or "").strip()
+        return rid or None
+    except Exception:
+        return None
+
+
 def _log_fetch_structured(
     *,
     platform: str,
@@ -106,13 +119,15 @@ def _log_fetch_structured(
     stop_reason: Optional[str] = None,
 ) -> None:
     task_id = _get_task_id_for_log()
+    run_id = _get_run_id_for_log()
     if stop_reason:
         logger.info(
-            "search_fetch_all platform=%s task_id=%s page=%s pages_fetched=%s "
+            "search_fetch_all platform=%s task_id=%s run_id=%s page=%s pages_fetched=%s "
             "records_returned=%s fetch_count_cap=%s has_more=%s duration_sec=%.3f "
             "stop_reason=%s",
             platform,
             task_id if task_id is not None else "-",
+            run_id or "-",
             page,
             pages_fetched,
             records_returned,
@@ -123,10 +138,11 @@ def _log_fetch_structured(
         )
         return
     logger.info(
-        "search_fetch_all platform=%s task_id=%s page=%s pages_fetched=%s "
+        "search_fetch_all platform=%s task_id=%s run_id=%s page=%s pages_fetched=%s "
         "records_returned=%s fetch_count_cap=%s has_more=%s duration_sec=%.3f",
         platform,
         task_id if task_id is not None else "-",
+        run_id or "-",
         page,
         pages_fetched,
         records_returned,
@@ -134,6 +150,67 @@ def _log_fetch_structured(
         has_more,
         duration_sec,
     )
+
+
+def _log_search_fetch_all_stop(
+    *,
+    task_id: Optional[int],
+    run_id: Optional[str],
+    platform: str,
+    pages_fetched: int,
+    inserted_count: int,
+    fetch_count: int,
+    stop_reason: Optional[str],
+    duration_sec: float,
+) -> None:
+    logger.info(
+        "search_fetch_all_stop",
+        extra={
+            "task_id": task_id,
+            "run_id": run_id,
+            "platform": platform,
+            "pages_fetched": int(pages_fetched),
+            "inserted_count": int(inserted_count),
+            "fetch_count": int(fetch_count),
+            "stop_reason": stop_reason,
+            "duration_sec": float(duration_sec),
+        },
+    )
+
+
+def _log_date_filter_result(
+    *,
+    platform: str,
+    page: int,
+    records_total: int,
+    records_after_date_filter: int,
+    before_start_date_count: int,
+    stop_reason: Optional[str],
+) -> None:
+    logger.info(
+        "date_filter_result platform=%s page=%s records_total=%s "
+        "records_after_date_filter=%s before_start_date_count=%s stop_reason=%s",
+        platform,
+        page,
+        records_total,
+        records_after_date_filter,
+        before_start_date_count,
+        stop_reason,
+    )
+
+
+def _allow_before_start_stop(*, platform: str, list_sort_type: Optional[int]) -> bool:
+    """
+    仅在明确“时间倒序”时，允许整页全部早于 start_date 后提前停止。
+    - douyin/xhs/mp: sort_type=2 视为时间倒序
+    - wxvideo: sort_type=1(最新) 视为时间倒序
+    """
+    if list_sort_type is None:
+        return False
+    p = (platform or "").strip().lower()
+    if p == "wxvideo":
+        return int(list_sort_type) == 1
+    return int(list_sort_type) == 2
 
 
 def _resolve_page_limit(mode: FetchAllMode) -> int:
@@ -188,12 +265,13 @@ def _evaluate_post_page_stop(
     platform: str,
     page_no: int,
     pages_fetched: int,
-    records_returned: int,
+    current_run_inserted_count: int,
     fetch_count_cap: int,
     has_more: bool,
     raw_data: list[Any],
     new_chunk: list[dict[str, Any]],
-    window_stop: bool,
+    all_before_start_date: bool,
+    allow_before_start_stop: bool,
     duplicate_pages_in_row: int,
     loop_started_monotonic: float,
     page_token: Optional[tuple[str, ...]] = None,
@@ -207,12 +285,12 @@ def _evaluate_post_page_stop(
     duration = time.monotonic() - loop_started_monotonic
     dup_threshold = _guard_limits().duplicate_page_threshold
 
-    if records_returned >= fetch_count_cap:
+    if current_run_inserted_count >= fetch_count_cap:
         _log_fetch_structured(
             platform=platform,
             page=page_no,
             pages_fetched=pages_fetched,
-            records_returned=records_returned,
+            records_returned=current_run_inserted_count,
             fetch_count_cap=fetch_count_cap,
             has_more=has_more,
             duration_sec=duration,
@@ -220,12 +298,12 @@ def _evaluate_post_page_stop(
         )
         return STOP_FETCH_COUNT_REACHED, duplicate_pages_in_row
 
-    if window_stop:
+    if all_before_start_date and allow_before_start_stop:
         _log_fetch_structured(
             platform=platform,
             page=page_no,
             pages_fetched=pages_fetched,
-            records_returned=records_returned,
+            records_returned=current_run_inserted_count,
             fetch_count_cap=fetch_count_cap,
             has_more=has_more,
             duration_sec=duration,
@@ -238,7 +316,7 @@ def _evaluate_post_page_stop(
             platform=platform,
             page=page_no,
             pages_fetched=pages_fetched,
-            records_returned=records_returned,
+            records_returned=current_run_inserted_count,
             fetch_count_cap=fetch_count_cap,
             has_more=has_more,
             duration_sec=duration,
@@ -253,7 +331,7 @@ def _evaluate_post_page_stop(
                 platform=platform,
                 page=page_no,
                 pages_fetched=pages_fetched,
-                records_returned=records_returned,
+                records_returned=current_run_inserted_count,
                 fetch_count_cap=fetch_count_cap,
                 has_more=has_more,
                 duration_sec=duration,
@@ -271,7 +349,7 @@ def _evaluate_post_page_stop(
             platform=platform,
             page=page_no,
             pages_fetched=pages_fetched,
-            records_returned=records_returned,
+            records_returned=current_run_inserted_count,
             fetch_count_cap=fetch_count_cap,
             has_more=has_more,
             duration_sec=duration,
@@ -285,7 +363,7 @@ def _evaluate_post_page_stop(
                 platform=platform,
                 page=page_no,
                 pages_fetched=pages_fetched,
-                records_returned=records_returned,
+                records_returned=current_run_inserted_count,
                 fetch_count_cap=fetch_count_cap,
                 has_more=has_more,
                 duration_sec=duration,
@@ -419,6 +497,15 @@ def unique_new_records(
     return out
 
 
+def coerce_inserted_count(value: Any, *, fallback: int) -> int:
+    if value is None:
+        return max(0, int(fallback))
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return max(0, int(fallback))
+
+
 @dataclass
 class FetchAllMode:
     """内部使用的模式描述。"""
@@ -440,32 +527,18 @@ def resolve_fetch_all_mode(
     list_sort_type: Optional[int] = None,
 ) -> FetchAllMode:
     """
-    - ``list_sort_type in (0, 1)`` 且无显式日期且无 ``max_pages``：不按时间窗过滤（客户端不按 ``time_range`` 截窗）。
-    - ``list_sort_type is None`` 且无日期且无 ``max_pages``：**兼容旧行为**「昨天 00:00～当前」。
-    - ``list_sort_type == 2`` 且无显式日期：由上层用 ``time_range`` 解析出起止时间后再进入本函数（见 ``resolve_search_all_date_bounds``）。
+    - 无显式日期且无 ``max_pages``：不按时间窗过滤（不会自动补默认时间段）。
     - 有显式 ``start_date`` / ``end_date``：时间窗模式（与 ``list_sort_type`` 无关）。
     - 仅有 ``max_pages``：纯页数上限模式。
     """
     has_dates = start_date is not None or end_date is not None
     has_max = max_pages is not None
 
-    if not has_dates and not has_max and list_sort_type in (0, 1):
+    if not has_dates and not has_max:
         return FetchAllMode(
             use_date_window=False,
             start_ms=0,
             end_ms=2**63 - 1,
-            page_cap=None,
-            safety_max_pages=_configured_safety_max_pages(),
-        )
-
-    if not has_dates and not has_max and list_sort_type is None:
-        now = datetime.now()
-        sd = yesterday_midnight_local()
-        ed = now
-        return FetchAllMode(
-            use_date_window=True,
-            start_ms=to_epoch_ms(sd),
-            end_ms=to_epoch_ms(ed),
             page_cap=None,
             safety_max_pages=_configured_safety_max_pages(),
         )
@@ -510,17 +583,19 @@ def filter_records_by_publish_window(
     records: list[Any],
     start_ms: int,
     end_ms: int,
-) -> tuple[list[dict[str, Any]], bool]:
+) -> tuple[list[dict[str, Any]], int, bool]:
     """
     按发布时间窗口过滤；假设 **新 → 旧** 排序。
 
-    :return: (保留的记录, 是否应停止继续请求下一页——因已遇到早于 start 的条目)
+    :return: (保留记录, 早于 start 的数量, 是否整页都早于 start)
     """
     kept: list[dict[str, Any]] = []
-    stop_fetching = False
+    before_start_date_count = 0
+    records_total = 0
     for rec in records:
         if not isinstance(rec, dict):
             continue
+        records_total += 1
         ts = publish_time_ms_from_record(rec)
         if ts is None:
             kept.append(rec)
@@ -528,10 +603,11 @@ def filter_records_by_publish_window(
         if ts > end_ms:
             continue
         if ts < start_ms:
-            stop_fetching = True
-            break
+            before_start_date_count += 1
+            continue
         kept.append(rec)
-    return kept, stop_fetching
+    all_before_start_date = records_total > 0 and before_start_date_count == records_total
+    return kept, before_start_date_count, all_before_start_date
 
 
 def build_fetch_all_meta(
@@ -590,20 +666,10 @@ def resolve_search_all_date_bounds(
     end_d: Optional[datetime],
 ) -> tuple[Optional[datetime], Optional[datetime]]:
     """
-    显式 ``start_date`` / ``end_date`` 优先；否则当 ``list_sort_type == 2`` 时，
-    用 ``time_range``（天）得到 ``[now - days, now]``。
+    仅使用显式 ``start`` / ``end`` 时间边界；不再自动补默认时间窗。
     """
     if start_d is not None or end_d is not None:
         return start_d, end_d
-    if list_sort_type == 2:
-        end = datetime.now()
-        try:
-            tr = int(params.get("time_range") or 7)
-        except (TypeError, ValueError):
-            tr = 7
-        tr = max(1, tr)
-        start = end - timedelta(days=tr)
-        return start, end
     return start_d, end_d
 
 
@@ -619,7 +685,7 @@ def fetch_douyin_search_all(
     end_date: Optional[datetime] = None,
     list_sort_type: Optional[int] = None,
     fetch_count_cap: int = 100,
-    after_each_page: Optional[Callable[[list[dict[str, Any]]], None]] = None,
+    after_each_page: Optional[Callable[[list[dict[str, Any]]], Optional[int]]] = None,
 ) -> dict[str, Any]:
     """
     抖音多页拉取。
@@ -663,6 +729,7 @@ def fetch_douyin_search_all(
     pages = 0
     duplicate_pages_in_row = 0
     stop_reason: Optional[str] = None
+    current_run_inserted_count = 0
 
     platform = "douyin"
     page_limit = _resolve_page_limit(mode)
@@ -676,21 +743,21 @@ def fetch_douyin_search_all(
             loop_started_monotonic=loop_started,
             platform=platform,
             fetch_count_cap=fetch_count_cap,
-            records_returned=len(all_data),
+            records_returned=current_run_inserted_count,
         )
         if pre_stop:
             stop_reason = pre_stop
             break
 
         page_no = pages + 1
-        remaining = fetch_count_cap - len(all_data)
-        if remaining <= 0:
+        remaining_in_run = fetch_count_cap - current_run_inserted_count
+        if remaining_in_run <= 0:
             stop_reason = STOP_FETCH_COUNT_REACHED
             _log_fetch_structured(
                 platform=platform,
                 page=page_no,
                 pages_fetched=pages,
-                records_returned=len(all_data),
+                records_returned=current_run_inserted_count,
                 fetch_count_cap=fetch_count_cap,
                 has_more=True,
                 duration_sec=time.monotonic() - loop_started,
@@ -706,7 +773,7 @@ def fetch_douyin_search_all(
                 platform=platform,
                 page=page_no,
                 pages_fetched=pages,
-                records_returned=len(all_data),
+                records_returned=current_run_inserted_count,
                 fetch_count_cap=fetch_count_cap,
                 has_more=False,
                 duration_sec=time.monotonic() - loop_started,
@@ -720,7 +787,7 @@ def fetch_douyin_search_all(
                 platform=platform,
                 page=page_no,
                 pages_fetched=pages,
-                records_returned=len(all_data),
+                records_returned=current_run_inserted_count,
                 fetch_count_cap=fetch_count_cap,
                 has_more=False,
                 duration_sec=time.monotonic() - loop_started,
@@ -740,31 +807,54 @@ def fetch_douyin_search_all(
         balance = result.get("balance", balance)
 
         if mode.use_date_window:
-            chunk, stop = filter_records_by_publish_window(
-                raw_data, mode.start_ms, mode.end_ms
-            )
+            (
+                chunk,
+                before_start_count,
+                all_before_start_date,
+            ) = filter_records_by_publish_window(raw_data, mode.start_ms, mode.end_ms)
         else:
             chunk = [r for r in raw_data if isinstance(r, dict)]
-            stop = False
+            before_start_count = 0
+            all_before_start_date = False
 
-        window_stop = stop
-        new_chunk = unique_new_records(chunk, seen_ids, limit=remaining)
+        allow_before_start_stop = _allow_before_start_stop(
+            platform=platform, list_sort_type=list_sort_type
+        )
+        new_chunk = unique_new_records(chunk, seen_ids, limit=remaining_in_run)
+        _log_date_filter_result(
+            platform=platform,
+            page=page_no,
+            records_total=len(raw_data),
+            records_after_date_filter=len(chunk),
+            before_start_date_count=before_start_count,
+            stop_reason=(
+                STOP_BEFORE_START_DATE
+                if (all_before_start_date and allow_before_start_stop)
+                else None
+            ),
+        )
         all_data.extend(new_chunk)
         pages += 1
+        inserted_delta = len(new_chunk)
         if after_each_page is not None and new_chunk:
-            after_each_page(list(new_chunk))
+            inserted_delta = coerce_inserted_count(
+                after_each_page(list(new_chunk)),
+                fallback=len(new_chunk),
+            )
+        current_run_inserted_count += inserted_delta
 
         next_token: tuple[str, str] = (next_cursor.strip(), next_logid.strip())
         post_stop, duplicate_pages_in_row = _evaluate_post_page_stop(
             platform=platform,
             page_no=page_no,
             pages_fetched=pages,
-            records_returned=len(all_data),
+            current_run_inserted_count=current_run_inserted_count,
             fetch_count_cap=fetch_count_cap,
             has_more=has_more,
             raw_data=raw_data,
             new_chunk=new_chunk,
-            window_stop=window_stop,
+            all_before_start_date=all_before_start_date,
+            allow_before_start_stop=allow_before_start_stop,
             duplicate_pages_in_row=duplicate_pages_in_row,
             loop_started_monotonic=loop_started,
             page_token=next_token,
@@ -781,7 +871,7 @@ def fetch_douyin_search_all(
             platform=platform,
             page=page_no,
             pages_fetched=pages,
-            records_returned=len(all_data),
+            records_returned=current_run_inserted_count,
             fetch_count_cap=fetch_count_cap,
             has_more=has_more,
             duration_sec=time.monotonic() - loop_started,
@@ -807,13 +897,24 @@ def fetch_douyin_search_all(
         pages_fetched=pages,
     )
     meta["fetch_count_cap"] = fetch_count_cap
-    meta["records_returned"] = len(all_data)
-    meta["max_success_count"] = len(all_data)
+    meta["run_id"] = _get_run_id_for_log()
+    meta["records_returned"] = current_run_inserted_count
+    meta["max_success_count"] = current_run_inserted_count
     meta["stop_reason"] = _finalize_meta_stop_reason(
         stop_reason, pages_fetched=pages, page_limit=page_limit
     )
     meta["max_pages_effective"] = page_limit
     meta["max_run_seconds_effective"] = _guard_limits().max_run_seconds
+    _log_search_fetch_all_stop(
+        task_id=_get_task_id_for_log(),
+        run_id=_get_run_id_for_log(),
+        platform=platform,
+        pages_fetched=pages,
+        inserted_count=current_run_inserted_count,
+        fetch_count=fetch_count_cap,
+        stop_reason=meta.get("stop_reason"),
+        duration_sec=time.monotonic() - loop_started,
+    )
 
     return {
         "records": all_data,
@@ -836,7 +937,7 @@ def fetch_xhs_search_all(
     end_date: Optional[datetime] = None,
     list_sort_type: Optional[int] = None,
     fetch_count_cap: int = 100,
-    after_each_page: Optional[Callable[[list[dict[str, Any]]], None]] = None,
+    after_each_page: Optional[Callable[[list[dict[str, Any]]], Optional[int]]] = None,
 ) -> dict[str, Any]:
     """小红书多页拉取（页码递增）。行为说明同 :func:`fetch_douyin_search_all`。"""
     fetch_count_cap = max(1, min(500, int(fetch_count_cap)))
@@ -868,6 +969,7 @@ def fetch_xhs_search_all(
     pages = 0
     duplicate_pages_in_row = 0
     stop_reason: Optional[str] = None
+    current_run_inserted_count = 0
 
     platform = "xhs"
     page_limit = _resolve_page_limit(mode)
@@ -880,21 +982,21 @@ def fetch_xhs_search_all(
             loop_started_monotonic=loop_started,
             platform=platform,
             fetch_count_cap=fetch_count_cap,
-            records_returned=len(all_data),
+            records_returned=current_run_inserted_count,
         )
         if pre_stop:
             stop_reason = pre_stop
             break
 
         page_no = pages + 1
-        remaining = fetch_count_cap - len(all_data)
-        if remaining <= 0:
+        remaining_in_run = fetch_count_cap - current_run_inserted_count
+        if remaining_in_run <= 0:
             stop_reason = STOP_FETCH_COUNT_REACHED
             _log_fetch_structured(
                 platform=platform,
                 page=page_no,
                 pages_fetched=pages,
-                records_returned=len(all_data),
+                records_returned=current_run_inserted_count,
                 fetch_count_cap=fetch_count_cap,
                 has_more=True,
                 duration_sec=time.monotonic() - loop_started,
@@ -913,7 +1015,7 @@ def fetch_xhs_search_all(
                 platform=platform,
                 page=page_no,
                 pages_fetched=pages,
-                records_returned=len(all_data),
+                records_returned=current_run_inserted_count,
                 fetch_count_cap=fetch_count_cap,
                 has_more=False,
                 duration_sec=time.monotonic() - loop_started,
@@ -927,7 +1029,7 @@ def fetch_xhs_search_all(
                 platform=platform,
                 page=page_no,
                 pages_fetched=pages,
-                records_returned=len(all_data),
+                records_returned=current_run_inserted_count,
                 fetch_count_cap=fetch_count_cap,
                 has_more=False,
                 duration_sec=time.monotonic() - loop_started,
@@ -945,30 +1047,53 @@ def fetch_xhs_search_all(
         balance = result.get("balance", balance)
 
         if mode.use_date_window:
-            chunk, stop = filter_records_by_publish_window(
-                raw_data, mode.start_ms, mode.end_ms
-            )
+            (
+                chunk,
+                before_start_count,
+                all_before_start_date,
+            ) = filter_records_by_publish_window(raw_data, mode.start_ms, mode.end_ms)
         else:
             chunk = [r for r in raw_data if isinstance(r, dict)]
-            stop = False
+            before_start_count = 0
+            all_before_start_date = False
 
-        window_stop = stop
-        new_chunk = unique_new_records(chunk, seen_ids, limit=remaining)
+        allow_before_start_stop = _allow_before_start_stop(
+            platform=platform, list_sort_type=list_sort_type
+        )
+        new_chunk = unique_new_records(chunk, seen_ids, limit=remaining_in_run)
+        _log_date_filter_result(
+            platform=platform,
+            page=page_no,
+            records_total=len(raw_data),
+            records_after_date_filter=len(chunk),
+            before_start_date_count=before_start_count,
+            stop_reason=(
+                STOP_BEFORE_START_DATE
+                if (all_before_start_date and allow_before_start_stop)
+                else None
+            ),
+        )
         all_data.extend(new_chunk)
         pages += 1
+        inserted_delta = len(new_chunk)
         if after_each_page is not None and new_chunk:
-            after_each_page(list(new_chunk))
+            inserted_delta = coerce_inserted_count(
+                after_each_page(list(new_chunk)),
+                fallback=len(new_chunk),
+            )
+        current_run_inserted_count += inserted_delta
 
         post_stop, duplicate_pages_in_row = _evaluate_post_page_stop(
             platform=platform,
             page_no=page_no,
             pages_fetched=pages,
-            records_returned=len(all_data),
+            current_run_inserted_count=current_run_inserted_count,
             fetch_count_cap=fetch_count_cap,
             has_more=has_more,
             raw_data=raw_data,
             new_chunk=new_chunk,
-            window_stop=window_stop,
+            all_before_start_date=all_before_start_date,
+            allow_before_start_stop=allow_before_start_stop,
             duplicate_pages_in_row=duplicate_pages_in_row,
             loop_started_monotonic=loop_started,
             no_more=not has_more,
@@ -983,7 +1108,7 @@ def fetch_xhs_search_all(
             platform=platform,
             page=page_no,
             pages_fetched=pages,
-            records_returned=len(all_data),
+            records_returned=current_run_inserted_count,
             fetch_count_cap=fetch_count_cap,
             has_more=has_more,
             duration_sec=time.monotonic() - loop_started,
@@ -1006,13 +1131,24 @@ def fetch_xhs_search_all(
         pages_fetched=pages,
     )
     meta["fetch_count_cap"] = fetch_count_cap
-    meta["records_returned"] = len(all_data)
-    meta["max_success_count"] = len(all_data)
+    meta["run_id"] = _get_run_id_for_log()
+    meta["records_returned"] = current_run_inserted_count
+    meta["max_success_count"] = current_run_inserted_count
     meta["stop_reason"] = _finalize_meta_stop_reason(
         stop_reason, pages_fetched=pages, page_limit=page_limit
     )
     meta["max_pages_effective"] = page_limit
     meta["max_run_seconds_effective"] = _guard_limits().max_run_seconds
+    _log_search_fetch_all_stop(
+        task_id=_get_task_id_for_log(),
+        run_id=_get_run_id_for_log(),
+        platform=platform,
+        pages_fetched=pages,
+        inserted_count=current_run_inserted_count,
+        fetch_count=fetch_count_cap,
+        stop_reason=meta.get("stop_reason"),
+        duration_sec=time.monotonic() - loop_started,
+    )
 
     return {
         "records": all_data,
@@ -1068,7 +1204,7 @@ def fetch_offset_cookies_search_all(
     end_date: Optional[datetime] = None,
     list_sort_type: Optional[int] = None,
     fetch_count_cap: int = 100,
-    after_each_page: Optional[Callable[[list[dict[str, Any]]], None]] = None,
+    after_each_page: Optional[Callable[[list[dict[str, Any]]], Optional[int]]] = None,
     log_platform: str = "offset",
 ) -> dict[str, Any]:
     """
@@ -1101,6 +1237,7 @@ def fetch_offset_cookies_search_all(
     pages = 0
     duplicate_pages_in_row = 0
     stop_reason: Optional[str] = None
+    current_run_inserted_count = 0
 
     platform = log_platform
     page_limit = _resolve_page_limit(mode)
@@ -1114,21 +1251,21 @@ def fetch_offset_cookies_search_all(
             loop_started_monotonic=loop_started,
             platform=platform,
             fetch_count_cap=fetch_count_cap,
-            records_returned=len(all_data),
+            records_returned=current_run_inserted_count,
         )
         if pre_stop:
             stop_reason = pre_stop
             break
 
         page_no = pages + 1
-        remaining = fetch_count_cap - len(all_data)
-        if remaining <= 0:
+        remaining_in_run = fetch_count_cap - current_run_inserted_count
+        if remaining_in_run <= 0:
             stop_reason = STOP_FETCH_COUNT_REACHED
             _log_fetch_structured(
                 platform=platform,
                 page=page_no,
                 pages_fetched=pages,
-                records_returned=len(all_data),
+                records_returned=current_run_inserted_count,
                 fetch_count_cap=fetch_count_cap,
                 has_more=True,
                 duration_sec=time.monotonic() - loop_started,
@@ -1144,7 +1281,7 @@ def fetch_offset_cookies_search_all(
                 platform=platform,
                 page=page_no,
                 pages_fetched=pages,
-                records_returned=len(all_data),
+                records_returned=current_run_inserted_count,
                 fetch_count_cap=fetch_count_cap,
                 has_more=False,
                 duration_sec=time.monotonic() - loop_started,
@@ -1158,7 +1295,7 @@ def fetch_offset_cookies_search_all(
                 platform=platform,
                 page=page_no,
                 pages_fetched=pages,
-                records_returned=len(all_data),
+                records_returned=current_run_inserted_count,
                 fetch_count_cap=fetch_count_cap,
                 has_more=False,
                 duration_sec=time.monotonic() - loop_started,
@@ -1178,19 +1315,41 @@ def fetch_offset_cookies_search_all(
         balance = result.get("balance", balance)
 
         if mode.use_date_window:
-            chunk, stop = filter_records_by_publish_window(
-                raw_data, mode.start_ms, mode.end_ms
-            )
+            (
+                chunk,
+                before_start_count,
+                all_before_start_date,
+            ) = filter_records_by_publish_window(raw_data, mode.start_ms, mode.end_ms)
         else:
             chunk = [r for r in raw_data if isinstance(r, dict)]
-            stop = False
+            before_start_count = 0
+            all_before_start_date = False
 
-        window_stop = stop
-        new_chunk = unique_new_records(chunk, seen_ids, limit=remaining)
+        allow_before_start_stop = _allow_before_start_stop(
+            platform=platform, list_sort_type=list_sort_type
+        )
+        new_chunk = unique_new_records(chunk, seen_ids, limit=remaining_in_run)
+        _log_date_filter_result(
+            platform=platform,
+            page=page_no,
+            records_total=len(raw_data),
+            records_after_date_filter=len(chunk),
+            before_start_date_count=before_start_count,
+            stop_reason=(
+                STOP_BEFORE_START_DATE
+                if (all_before_start_date and allow_before_start_stop)
+                else None
+            ),
+        )
         all_data.extend(new_chunk)
         pages += 1
+        inserted_delta = len(new_chunk)
         if after_each_page is not None and new_chunk:
-            after_each_page(list(new_chunk))
+            inserted_delta = coerce_inserted_count(
+                after_each_page(list(new_chunk)),
+                fallback=len(new_chunk),
+            )
+        current_run_inserted_count += inserted_delta
 
         page_state: tuple[str, str] = (next_offset.strip(), next_cookies.strip())
         offset_no_more = (not has_more) and _offset_pagination_exhausted(
@@ -1200,12 +1359,13 @@ def fetch_offset_cookies_search_all(
             platform=platform,
             page_no=page_no,
             pages_fetched=pages,
-            records_returned=len(all_data),
+            current_run_inserted_count=current_run_inserted_count,
             fetch_count_cap=fetch_count_cap,
             has_more=has_more,
             raw_data=raw_data,
             new_chunk=new_chunk,
-            window_stop=window_stop,
+            all_before_start_date=all_before_start_date,
+            allow_before_start_stop=allow_before_start_stop,
             duplicate_pages_in_row=duplicate_pages_in_row,
             loop_started_monotonic=loop_started,
             page_token=page_state,
@@ -1222,7 +1382,7 @@ def fetch_offset_cookies_search_all(
             platform=platform,
             page=page_no,
             pages_fetched=pages,
-            records_returned=len(all_data),
+            records_returned=current_run_inserted_count,
             fetch_count_cap=fetch_count_cap,
             has_more=has_more,
             duration_sec=time.monotonic() - loop_started,
@@ -1246,13 +1406,24 @@ def fetch_offset_cookies_search_all(
         pages_fetched=pages,
     )
     meta["fetch_count_cap"] = fetch_count_cap
-    meta["records_returned"] = len(all_data)
-    meta["max_success_count"] = len(all_data)
+    meta["run_id"] = _get_run_id_for_log()
+    meta["records_returned"] = current_run_inserted_count
+    meta["max_success_count"] = current_run_inserted_count
     meta["stop_reason"] = _finalize_meta_stop_reason(
         stop_reason, pages_fetched=pages, page_limit=page_limit
     )
     meta["max_pages_effective"] = page_limit
     meta["max_run_seconds_effective"] = _guard_limits().max_run_seconds
+    _log_search_fetch_all_stop(
+        task_id=_get_task_id_for_log(),
+        run_id=_get_run_id_for_log(),
+        platform=platform,
+        pages_fetched=pages,
+        inserted_count=current_run_inserted_count,
+        fetch_count=fetch_count_cap,
+        stop_reason=meta.get("stop_reason"),
+        duration_sec=time.monotonic() - loop_started,
+    )
 
     return {
         "records": all_data,

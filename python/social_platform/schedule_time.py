@@ -17,12 +17,22 @@ def schedule_now_utc_naive() -> datetime:
 
 def normalize_schedule_datetime(dt: datetime) -> datetime:
     """
-    将 API / DB 中的时刻规范为 UTC naive。
+    将 API 入参时刻规范为 UTC naive。
     无时区的 naive 按东八区（Asia/Shanghai）理解，避免与 ``utcnow`` 混比导致永不执行。
     """
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=SCHEDULE_TZ)
     return dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def utc_naive_from_storage(dt: datetime) -> datetime:
+    """
+    读取 MySQL / 内部调度写入的 UTC naive，不再按东八区二次偏移。
+    （``next_run_at``、``schedule_next`` 等由 ``utc_now_naive`` 计算的值须用本函数。）
+    """
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt.replace(tzinfo=None)
 
 
 def normalize_schedule_optional(dt: Optional[datetime]) -> Optional[datetime]:

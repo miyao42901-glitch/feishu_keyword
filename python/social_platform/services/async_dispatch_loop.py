@@ -26,12 +26,8 @@ def start_async_dispatch_loop() -> None:
     settings = get_settings()
     if settings.async_dispatch_http_enabled and settings.async_schedule_beat_enabled:
         logger.warning(
-            "dual_dispatch_warning",
-            extra={
-                "dispatch_mode": "http+beat",
-                "duplicate_dispatch_risk": True,
-                "dual_dispatch_warning": 1,
-            },
+            "dual_dispatch_disabled_beat: HTTP 与 Beat 不可同时调度，已忽略 Beat 侧重叠",
+            extra={"dispatch_mode": "http_only"},
         )
     if not settings.async_dispatch_http_enabled:
         return

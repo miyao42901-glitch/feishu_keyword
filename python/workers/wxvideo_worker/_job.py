@@ -162,11 +162,10 @@ def fetch_wxvideo_all(
 
     list_sort_type: Optional[int] = None,
 
-    fetch_count_cap: int = 100,
-
-    after_each_page: Optional[Callable[[list[dict[str, Any]]], None]] = None,
+    after_each_page: Optional[Callable[[list[dict[str, Any]]], Optional[int]]] = None,
 
 ) -> dict[str, Any]:
+    fetch_count_cap = clamp_fetch_count_cap(params)
 
     return fetch_offset_cookies_search_all(
 
@@ -251,11 +250,10 @@ def execute_wxvideo_search_all(
 
     list_st = coerce_optional_list_sort_type(params)
 
-    fetch_n = clamp_fetch_count_cap(params)
+    # 统一使用 time 参数（日期+时间）；兼容历史 start_date / end_date。
+    start_d = parse_optional_datetime(params.get("start_time") or params.get("start_date"))
 
-    start_d = parse_optional_datetime(params.get("start_date"))
-
-    end_d = parse_optional_datetime(params.get("end_date"))
+    end_d = parse_optional_datetime(params.get("end_time") or params.get("end_date"))
 
     start_d, end_d = resolve_search_all_date_bounds(
 
@@ -267,17 +265,25 @@ def execute_wxvideo_search_all(
 
 
 
-    def after_chunk(chunk: list[dict[str, Any]]) -> None:
+    def after_chunk(chunk: list[dict[str, Any]]) -> Optional[int]:
 
         if not chunk:
 
-            return
+            return 0
+
+        has_async_ctx = search_all_async_ctx.get() is not None
+        inserted_count = 0
 
         if sync_page_save is not None:
 
             sync_page_save(chunk)
+            if not has_async_ctx:
+                inserted_count = len(chunk)
 
-        persist_search_all_page_if_async(chunk)
+        async_inserted = persist_search_all_page_if_async(chunk)
+        if has_async_ctx:
+            return int(async_inserted)
+        return inserted_count
 
 
 
@@ -296,8 +302,6 @@ def execute_wxvideo_search_all(
         end_date=end_d,
 
         list_sort_type=list_st,
-
-        fetch_count_cap=fetch_n,
 
         after_each_page=after_chunk if use_after else None,
 

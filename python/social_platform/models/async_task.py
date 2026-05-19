@@ -28,6 +28,11 @@ class AsyncTask(Base):
     failed_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     task_start_time: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)
     task_end_time: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)
+    next_run_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)
+    current_run_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    running_lease_until: Mapped[Optional[dt.datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
     interval_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
     fetch_count: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
     create_time: Mapped[dt.datetime] = mapped_column(

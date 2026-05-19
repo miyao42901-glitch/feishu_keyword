@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Optional, Union
 
@@ -47,6 +48,7 @@ from social_platform.utils.async_task_ids import parse_async_task_pk
 from social_platform.schedule_time import (
     normalize_schedule_datetime,
     schedule_now_utc_naive,
+    utc_naive_from_storage,
 )
 from social_platform.utils.search_fetch_all import parse_optional_datetime
 
@@ -55,6 +57,7 @@ MIN_INTERVAL_MINUTES = 5
 DEFAULT_FETCH_COUNT = 100
 MIN_FETCH_COUNT = 1
 MAX_FETCH_COUNT = 500
+logger = logging.getLogger(__name__)
 
 _SEARCH_ALL_PUBLIC_ACTIONS = frozenset(
     {
@@ -147,14 +150,11 @@ def prepare_async_task_body(
 
 
 def body_for_worker_execution(task: AsyncTask) -> dict[str, Any]:
-    """Worker 执行用 body：search-all 注入本任务剩余可抓取数量。"""
+    """Worker 执行用 body：search-all 注入「本轮」抓取上限。"""
     body = dict(task.body_json or {})
     action = (task.action or "").strip()
     if action in _SEARCH_ALL_PUBLIC_ACTIONS:
-        total = normalize_fetch_count(task.fetch_count)
-        done = max(0, int(task.success_count or 0))
-        remaining = total - done
-        body["fetch_count"] = max(1, remaining)
+        body["fetch_count"] = normalize_fetch_count(task.fetch_count)
     return body
 
 
@@ -241,7 +241,7 @@ def count_active_async_tasks(db: Session, user_id: str) -> int:
 def first_run_at(task: AsyncTask, *, now: Optional[datetime] = None) -> datetime:
     """定时窗口内首次执行时刻：max(now, task_start_time)（均为 UTC naive）。"""
     t = now if now is not None else utc_now_naive()
-    start = normalize_schedule_datetime(task.task_start_time)
+    start = utc_naive_from_storage(task.task_start_time)
     return start if start > t else t
 
 
@@ -252,7 +252,7 @@ def next_run_after_completion(
     """本次采集结束后，若仍在窗口内则返回下次执行时刻，否则 None。"""
     if task.cancel_requested:
         return None
-    end = normalize_schedule_datetime(task.task_end_time)
+    end = utc_naive_from_storage(task.task_end_time)
     done = _utc_naive(completed_at)
     if done >= end:
         return None
@@ -281,17 +281,22 @@ def enqueue_async_task_run(
     if row.cancel_requested:
         return None
     now = utc_now_naive()
-    end = normalize_schedule_datetime(row.task_end_time)
+    end = utc_naive_from_storage(row.task_end_time)
     if now >= end:
         return None
 
     target = (
         first_run_at(row, now=now)
         if run_at is None
-        else normalize_schedule_datetime(run_at)
+        else utc_naive_from_storage(run_at)
     )
     if target >= end:
         return None
+
+    row.next_run_at = target
+    row.update_time = datetime.utcnow()
+    db.add(row)
+    db.commit()
 
     key = (api_key or "").strip() or str(getattr(row, "api_key", "") or "").strip()
     return async_task_redis.enqueue_async_task_execution(row, api_key=key, run_at=target)
@@ -312,32 +317,53 @@ def schedule_next_async_run(
     task = db.get(AsyncTask, task_id)
     if task is None:
         return False
+
+    def _log_schedule_next_decision(will_continue: bool) -> None:
+        logger.info(
+            "schedule_next_decision",
+            extra={
+                "task_id": int(task.id),
+                "run_id": str(getattr(task, "current_run_id", "") or ""),
+                "success_count": int(task.success_count or 0),
+                "fetch_count_per_run": normalize_fetch_count(task.fetch_count),
+                "task_end_time": normalize_schedule_datetime(task.task_end_time).isoformat(),
+                "next_run_at": (
+                    normalize_schedule_datetime(task.next_run_at).isoformat()
+                    if task.next_run_at is not None
+                    else None
+                ),
+                "will_continue_schedule": bool(will_continue),
+            },
+        )
+
     if task.cancel_requested:
         task.status = "cancelled"
+        task.next_run_at = None
+        task.current_run_id = None
+        task.running_lease_until = None
         task.update_time = datetime.utcnow()
         db.add(task)
         db.commit()
+        _log_schedule_next_decision(False)
         return False
-    if (task.action or "").strip() in _SEARCH_ALL_PUBLIC_ACTIONS:
-        max_fetch = normalize_fetch_count(task.fetch_count)
-        success_done = max(0, int(task.success_count or 0))
-        if success_done >= max_fetch:
-            task.status = "success"
-            task.update_time = datetime.utcnow()
-            db.add(task)
-            db.commit()
-            return False
 
     done = completed_at if completed_at is not None else utc_now_naive()
     nxt = next_run_after_completion(task, done)
     if nxt is None:
         task.status = "success" if last_ok else "failed"
+        task.next_run_at = None
+        task.current_run_id = None
+        task.running_lease_until = None
         task.update_time = datetime.utcnow()
         db.add(task)
         db.commit()
+        _log_schedule_next_decision(False)
         return False
 
     task.status = "pending"
+    task.next_run_at = nxt
+    task.current_run_id = None
+    task.running_lease_until = None
     task.update_time = datetime.utcnow()
     db.add(task)
     db.commit()
@@ -347,6 +373,7 @@ def schedule_next_async_run(
         or (api_key or "").strip()
     )
     async_task_redis.enqueue_async_task_execution(task, api_key=key, run_at=nxt)
+    _log_schedule_next_decision(True)
     return True
 
 
@@ -408,6 +435,9 @@ def submit_async_task(
         priority=pri,
         task_start_time=task_start_time,
         task_end_time=task_end_time,
+        next_run_at=None,
+        current_run_id=None,
+        running_lease_until=None,
         interval_minutes=interval,
         fetch_count=fc,
     )
@@ -444,6 +474,9 @@ def get_task_status(db: Session, task_id: str) -> Optional[AsyncTaskStatusRespon
         failed_count=int(row.failed_count or 0),
         task_start_time=_iso(row.task_start_time),
         task_end_time=_iso(row.task_end_time),
+        next_run_at=_iso(row.next_run_at),
+        current_run_id=row.current_run_id,
+        running_lease_until=_iso(row.running_lease_until),
         interval_minutes=int(row.interval_minutes or 60),
         fetch_count=int(row.fetch_count or 100),
         create_time=_iso(row.create_time),
@@ -489,6 +522,9 @@ def cancel_async_task(
     was_active = row.status in ("pending", "running")
     row.cancel_requested = True
     row.status = "cancelled"
+    row.next_run_at = None
+    row.current_run_id = None
+    row.running_lease_until = None
     row.update_time = datetime.utcnow()
     db.add(row)
     db.commit()
@@ -538,7 +574,7 @@ def restart_async_task(
         return "already_active"
 
     now = utc_now_naive()
-    if now >= normalize_schedule_datetime(row.task_end_time):
+    if now >= utc_naive_from_storage(row.task_end_time):
         return "window_ended"
 
     settings = get_settings()
@@ -556,6 +592,9 @@ def restart_async_task(
     row.cancel_requested = False
     row.status = "pending"
     row.celery_task_id = None
+    row.next_run_at = None
+    row.current_run_id = None
+    row.running_lease_until = None
     row.error_message = None
     row.update_time = datetime.utcnow()
     db.add(row)

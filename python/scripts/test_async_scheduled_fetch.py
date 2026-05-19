@@ -3,8 +3,8 @@
 四平台定时异步任务集成测试脚本。
 
 检查项：
-  1. 单次执行内 success_count 增量不超过 fetch_count（停止条件）
-  2. 累计 success_count 不超过 fetch_count
+  1. 单次执行内 success_count 增量不超过 fetch_count（单轮停止）
+  2. 周期任务允许累计 success_count 超过 fetch_count
   3. 定时窗口内按 interval_minutes 触发执行（success_count 阶梯增长或 status=running）
   4. 结果表 post_id 无重复（单次入库去重）
 
@@ -69,11 +69,6 @@ class TaskProbe:
             self.run_deltas.append(success_count - prev)
 
     def analyze(self) -> dict[str, Any]:
-        max_sc = max((s for _, s, _ in self.success_history), default=0)
-        if max_sc > self.fetch_count:
-            self.issues.append(
-                f"累计 success_count={max_sc} 超过 fetch_count={self.fetch_count}"
-            )
         for i, delta in enumerate(self.run_deltas, 1):
             if delta > self.fetch_count:
                 self.issues.append(
@@ -316,6 +311,7 @@ def execute_once_direct(task_id: int, api_key: str) -> dict[str, Any]:
             SearchAllAsyncPersistState(
                 db=db,
                 task_id=int(task_id),
+                run_id=str(getattr(row, "current_run_id", "") or "manual-run"),
                 user_id=str(row.user_id or ""),
                 public_action=str(row.action or ""),
                 body=body,

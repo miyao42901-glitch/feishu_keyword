@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS feishu_async_tasks (
     failed_count INT NOT NULL DEFAULT 0 COMMENT '落库失败/跳过条数累计',
     task_start_time DATETIME NOT NULL COMMENT '定时任务开始时间（前端传入，UTC 存储）',
     task_end_time DATETIME NOT NULL COMMENT '定时任务结束时间（前端传入，UTC 存储）',
+    next_run_at DATETIME NULL DEFAULT NULL COMMENT 'pending 等待 dispatch；running 必须为 NULL（UTC）',
+    current_run_id VARCHAR(64) NULL DEFAULT NULL COMMENT '当前执行轮次 run_id（UUID）',
+    running_lease_until DATETIME NULL DEFAULT NULL COMMENT 'running 状态租约到期时间（UTC）',
     interval_minutes INT NOT NULL DEFAULT 60 COMMENT '定时采集频率（分钟），最小 5，默认 60',
     fetch_count INT NOT NULL DEFAULT 100 COMMENT '单次采集条数上限，1～500，默认 100',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -165,6 +168,9 @@ CREATE TABLE IF NOT EXISTS feishu_mp_results (
 -- ALTER TABLE feishu_async_tasks
 --     ADD COLUMN task_start_time DATETIME NOT NULL COMMENT '定时任务开始时间（前端传入，UTC 存储）' AFTER failed_count,
 --     ADD COLUMN task_end_time DATETIME NOT NULL COMMENT '定时任务结束时间（前端传入，UTC 存储）' AFTER task_start_time,
+--     ADD COLUMN next_run_at DATETIME NULL DEFAULT NULL COMMENT '下一次调度执行时间（UTC）' AFTER task_end_time,
+--     ADD COLUMN current_run_id VARCHAR(64) NULL DEFAULT NULL COMMENT '当前执行轮次 run_id（UUID）' AFTER next_run_at,
+--     ADD COLUMN running_lease_until DATETIME NULL DEFAULT NULL COMMENT 'running 状态租约到期时间（UTC）' AFTER current_run_id,
 --     ADD COLUMN interval_minutes INT NOT NULL DEFAULT 60 COMMENT '定时采集频率（分钟），最小 5，默认 60' AFTER task_end_time,
 --     ADD COLUMN fetch_count INT NOT NULL DEFAULT 100 COMMENT '单次采集条数上限，1～500，默认 100' AFTER interval_minutes;
 --

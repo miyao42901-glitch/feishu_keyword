@@ -22,7 +22,9 @@ def _task_row(
     now = datetime.utcnow()
     return SimpleNamespace(
         id=1,
+        user_id="u1",
         action=action,
+        body_json={},
         success_count=success_count,
         failed_count=failed_count,
         fetch_count=fetch_count,
@@ -134,12 +136,10 @@ class TestPersistCountRules(unittest.TestCase):
 
 
 class TestScheduleNextWithUnifiedSuccessCount(unittest.TestCase):
-    def test_fetch_count_reached_stops(self) -> None:
-        task = _task_row(success_count=10, fetch_count=10)
-        db = _FakeDb(task)
-        ok = task_service.schedule_next_async_run(db, 1, "k")
-        self.assertFalse(ok)
-        self.assertEqual(task.status, "success")
+    def test_body_for_worker_uses_per_run_fetch_count(self) -> None:
+        task = _task_row(success_count=35, fetch_count=10)
+        body = task_service.body_for_worker_execution(task)
+        self.assertEqual(body["fetch_count"], 10)
 
     @patch("social_platform.services.task_service.async_task_redis.enqueue_async_task_execution")
     @patch("social_platform.services.task_service.async_task_redis.get_cached_api_key", return_value="k")
@@ -147,13 +147,13 @@ class TestScheduleNextWithUnifiedSuccessCount(unittest.TestCase):
         "social_platform.services.task_service.next_run_after_completion",
         return_value=datetime.utcnow() + timedelta(minutes=10),
     )
-    def test_duplicate_many_can_still_continue_until_fetch_count(
+    def test_fetch_count_reached_still_schedules_next_run(
         self,
         _next: MagicMock,
         _cached: MagicMock,
         mock_enqueue: MagicMock,
     ) -> None:
-        task = _task_row(success_count=2, fetch_count=10)
+        task = _task_row(success_count=10, fetch_count=10)
         db = _FakeDb(task)
         ok = task_service.schedule_next_async_run(
             db,
@@ -165,6 +165,53 @@ class TestScheduleNextWithUnifiedSuccessCount(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(task.status, "pending")
         mock_enqueue.assert_called_once()
+
+    @patch("social_platform.services.task_service.async_task_redis.enqueue_async_task_execution")
+    @patch("social_platform.services.task_service.async_task_redis.get_cached_api_key", return_value="k")
+    @patch(
+        "social_platform.services.task_service.next_run_after_completion",
+        return_value=datetime.utcnow() + timedelta(minutes=10),
+    )
+    def test_success_count_accumulates_but_schedule_continues(
+        self,
+        _next: MagicMock,
+        _cached: MagicMock,
+        mock_enqueue: MagicMock,
+    ) -> None:
+        task = _task_row(success_count=35, fetch_count=10)
+        db = _FakeDb(task)
+        ok = task_service.schedule_next_async_run(
+            db,
+            1,
+            "k",
+            completed_at=datetime.utcnow(),
+            last_ok=True,
+        )
+        self.assertTrue(ok)
+        self.assertEqual(task.status, "pending")
+        mock_enqueue.assert_called_once()
+
+    def test_window_end_marks_success(self) -> None:
+        task = _task_row(success_count=10, fetch_count=10)
+        db = _FakeDb(task)
+        done = datetime.utcnow() + timedelta(hours=2)
+        ok = task_service.schedule_next_async_run(
+            db,
+            1,
+            "k",
+            completed_at=done,
+            last_ok=True,
+        )
+        self.assertFalse(ok)
+        self.assertEqual(task.status, "success")
+
+    def test_cancel_requested_marks_cancelled(self) -> None:
+        task = _task_row(success_count=10, fetch_count=10)
+        task.cancel_requested = True
+        db = _FakeDb(task)
+        ok = task_service.schedule_next_async_run(db, 1, "k")
+        self.assertFalse(ok)
+        self.assertEqual(task.status, "cancelled")
 
 
 if __name__ == "__main__":

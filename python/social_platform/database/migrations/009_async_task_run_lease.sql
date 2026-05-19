@@ -1,0 +1,3 @@
+ALTER TABLE feishu_async_tasks
+ADD COLUMN current_run_id VARCHAR(64) NULL DEFAULT NULL,
+ADD COLUMN running_lease_until DATETIME NULL DEFAULT NULL;

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any
+from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ from social_platform.services.search_persist import (
     try_save_search_after_crawl,
     unbind_search_all_async_persist,
 )
-from social_platform.schedule_time import normalize_schedule_datetime
+from social_platform.schedule_time import utc_naive_from_storage
 from social_platform.services import async_task_redis, task_service
 
 
@@ -42,8 +43,17 @@ def _async_search_all_should_bind_context(public_action: str) -> bool:
     return a.endswith("-search-all") or a in _SEARCH_ALL_WORKER_ACTIONS
 
 
+def _lease_active(task: AsyncTask, *, now: datetime) -> bool:
+    lease_until = task.running_lease_until
+    if lease_until is None:
+        return False
+    if lease_until.tzinfo is not None:
+        lease_until = lease_until.astimezone(timezone.utc).replace(tzinfo=None)
+    return lease_until > now
+
+
 def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
-    """Celery worker：在 task_start～task_end 窗口内按 interval_minutes 周期执行采集。"""
+    """Celery worker：执行当前轮；不写未来 next_run_at（由 schedule_next 负责）。"""
     task = db.get(AsyncTask, task_id)
     if task is None:
         return
@@ -58,39 +68,36 @@ def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
         return
 
     now = task_service.utc_now_naive()
-    window_start = normalize_schedule_datetime(task.task_start_time)
-    window_end = normalize_schedule_datetime(task.task_end_time)
+    window_start = utc_naive_from_storage(task.task_start_time)
+    window_end = utc_naive_from_storage(task.task_end_time)
+
     if task.cancel_requested:
         task.status = "cancelled"
+        task.next_run_at = None
+        task.current_run_id = None
+        task.running_lease_until = None
         task.update_time = datetime.utcnow()
         db.add(task)
         db.commit()
+        async_task_redis.unschedule_async_task(task_id)
         return
-    if _async_search_all_should_bind_context(str(task.action or "")):
-        max_fetch = task_service.normalize_fetch_count(task.fetch_count)
-        success_done = max(0, int(task.success_count or 0))
-        if success_done >= max_fetch:
-            logger.info(
-                "async task %s reached fetch_count: success_count=%s fetch_count=%s",
-                task_id,
-                success_done,
-                max_fetch,
-            )
-            task.status = "success"
-            task.update_time = datetime.utcnow()
-            db.add(task)
-            db.commit()
-            return
 
     if now >= window_end:
         task.status = "success"
+        task.next_run_at = None
+        task.current_run_id = None
+        task.running_lease_until = None
         task.update_time = datetime.utcnow()
         db.add(task)
         db.commit()
+        async_task_redis.unschedule_async_task(task_id)
         return
 
     if now < window_start:
         task.status = "pending"
+        task.next_run_at = window_start
+        task.current_run_id = None
+        task.running_lease_until = None
         task.update_time = datetime.utcnow()
         db.add(task)
         db.commit()
@@ -99,25 +106,40 @@ def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
         )
         return
 
-    if task.status == "running":
-        from config.settings import get_settings
+    if task.status == "running" and _lease_active(task, now=now):
+        logger.info(
+            "worker_skip_duplicate_running",
+            extra={"task_id": int(task_id), "run_id": task.current_run_id},
+        )
+        return
 
-        stale_sec = max(300.0, float(get_settings().async_task_running_stale_seconds))
-        updated = task.update_time or task.create_time
-        if updated is not None:
-            u = updated.replace(tzinfo=None) if updated.tzinfo else updated
-            if (now - u).total_seconds() < stale_sec:
-                return
-        task.status = "pending"
-        task.celery_task_id = None
-        task.update_time = datetime.utcnow()
-        db.add(task)
-        db.commit()
+    if task.status == "running" and not _lease_active(task, now=now):
+        logger.warning("worker_skip_expired_running", extra={"task_id": int(task_id)})
+        return
+
+    from config.settings import get_settings
+
+    lease_seconds = max(300.0, float(get_settings().async_task_running_stale_seconds))
+    run_id = str(uuid4())
+    running_lease_until = now + timedelta(seconds=lease_seconds)
 
     task.status = "running"
+    task.next_run_at = None
+    task.current_run_id = run_id
+    task.running_lease_until = running_lease_until
     task.update_time = datetime.utcnow()
     db.add(task)
     db.commit()
+    async_task_redis.unschedule_async_task(task_id)
+    async_task_redis.update_async_task_cache(task, clear_next_run=True)
+    logger.info(
+        "async_task_run_started",
+        extra={
+            "task_id": int(task_id),
+            "run_id": run_id,
+            "running_lease_until": running_lease_until.isoformat(),
+        },
+    )
 
     body = task_service.body_for_worker_execution(task)
     ok = False
@@ -128,6 +150,7 @@ def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
                 SearchAllAsyncPersistState(
                     db=db,
                     task_id=int(task_id),
+                    run_id=run_id,
                     user_id=str(task.user_id or ""),
                     public_action=str(task.action or ""),
                     body=body,
@@ -169,7 +192,6 @@ def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
             task.error_message = None
         db.add(task)
         db.commit()
-        async_task_redis.update_async_task_cache(task, clear_next_run=True)
     except Exception:
         logger.exception("async task %s execution failed", task_id)
         task = db.get(AsyncTask, task_id)
@@ -180,7 +202,6 @@ def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
         task.update_time = datetime.utcnow()
         db.add(task)
         db.commit()
-        async_task_redis.update_async_task_cache(task, clear_next_run=True)
         ok = False
 
     task_service.schedule_next_async_run(

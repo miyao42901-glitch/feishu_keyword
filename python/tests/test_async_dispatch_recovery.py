@@ -15,6 +15,7 @@ def _row(
     cancel_requested: bool = False,
     start: datetime | None = None,
     end: datetime | None = None,
+    next_run_at: datetime | None = None,
 ) -> SimpleNamespace:
     now = datetime(2026, 5, 19, 8, 0, 0)
     return SimpleNamespace(
@@ -23,6 +24,7 @@ def _row(
         cancel_requested=cancel_requested,
         task_start_time=start or (now - timedelta(hours=12)),
         task_end_time=end or (now + timedelta(hours=24)),
+        next_run_at=next_run_at,
         priority=0,
         celery_task_id=None,
         update_time=now,
@@ -50,13 +52,14 @@ class TestRestoreSchedule(unittest.TestCase):
         mock_update_cache: MagicMock,
     ) -> None:
         now = datetime(2026, 5, 19, 8, 0, 0)
-        row = _row(status="pending")
+        nxt = now + timedelta(minutes=5)
+        row = _row(status="pending", next_run_at=nxt)
         db = MagicMock()
         db.scalars.return_value = [row]
         mock_scope.return_value.__enter__.return_value = db
         mock_api_key.return_value = "k"
         mock_cached.return_value = {}
-        mock_next.return_value = now + timedelta(minutes=5)
+        mock_next.return_value = nxt
         mock_settings.return_value = SimpleNamespace(async_restore_dispatch_due_on_startup=False)
         r = MagicMock()
         r.set.return_value = True
@@ -135,12 +138,13 @@ class TestRestoreSchedule(unittest.TestCase):
         _dispatch: MagicMock,
     ) -> None:
         now = datetime(2026, 5, 19, 8, 0, 0)
-        row = _row(status="pending")
+        due = now - timedelta(seconds=1)
+        row = _row(status="pending", next_run_at=due)
         db = MagicMock()
         db.scalars.return_value = [row]
         mock_scope.return_value.__enter__.return_value = db
         mock_api_key.return_value = "k"
-        mock_next.return_value = now - timedelta(seconds=1)
+        mock_next.return_value = due
         mock_settings.return_value = SimpleNamespace(async_restore_dispatch_due_on_startup=True)
         r = MagicMock()
         r.set.return_value = True
@@ -177,7 +181,7 @@ class TestDispatchLockAndCleanup(unittest.TestCase):
         _apply: MagicMock,
     ) -> None:
         now = datetime(2026, 5, 19, 8, 0, 0)
-        row = _row(status="pending")
+        row = _row(status="pending", next_run_at=now)
         db = MagicMock()
         db.get.return_value = row
         mock_scope.return_value.__enter__.return_value = db

@@ -32,10 +32,20 @@ from config.settings import get_settings
 _settings = get_settings()
 logger = logging.getLogger(__name__)
 
+_broker_url = _settings.resolved_celery_broker()
+_backend_url = _settings.resolved_celery_backend()
+if _broker_url.startswith("amqp://") and not (_settings.celery_broker_url or "").strip():
+    logger.warning(
+        "CELERY broker 解析为 %s；本地开发请确保 RabbitMQ 已启动，"
+        "或将 CELERY_BROKER_URL 留空以使用 REDIS_URL（%s）",
+        _broker_url,
+        _settings.redis_url,
+    )
+
 celery_app = Celery(
     "feishu_keyword",
-    broker=_settings.resolved_celery_broker(),
-    backend=_settings.resolved_celery_backend(),
+    broker=_broker_url,
+    backend=_backend_url,
 )
 
 celery_app.conf.update(

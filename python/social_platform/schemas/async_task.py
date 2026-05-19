@@ -27,6 +27,9 @@ class AsyncTaskStatusResponse(BaseModel):
     failed_count: int = 0
     task_start_time: Optional[str] = None
     task_end_time: Optional[str] = None
+    next_run_at: Optional[str] = None
+    current_run_id: Optional[str] = None
+    running_lease_until: Optional[str] = None
     interval_minutes: int = 60
     fetch_count: int = 100
     create_time: Optional[str] = None
