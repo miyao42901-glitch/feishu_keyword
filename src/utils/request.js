@@ -73,6 +73,10 @@ pluginAPI.interceptors.response.use(
   error => {
     console.log('请求错误：', error)
     
+    // 检查是否是超时错误
+    const isTimeout = error.code === 'ECONNABORTED' || 
+                      (error.message && error.message.includes('timeout'))
+    
     // 如果是请求错误，尝试重试
     const config = error.config
     if (config) {
@@ -88,6 +92,19 @@ pluginAPI.interceptors.response.use(
       }
     }
     
+    // 如果是超时错误，不抛出异常，返回默认响应
+    if (isTimeout) {
+      console.warn('请求超时，已达到最大重试次数，返回默认响应')
+      return {
+        data: {
+          code: -1,
+          message: '请求超时',
+          data: null
+        }
+      }
+    }
+    
+    // 其他错误继续抛出
     return Promise.reject(error)
   }
 )

@@ -190,6 +190,7 @@ const handleRecharge = async () => {
         if (accessToken) {
           const formData = new FormData();
           formData.append('money', rechargeForm.value.amount);
+          formData.append('accesstoken', accessToken);
           // const res = await axios.post('https://www.dajiala.com/fbmain/account/v1/api_create_order', formData, {
           //   headers: {
           //     'Content-Type': 'multipart/form-data',
@@ -197,12 +198,7 @@ const handleRecharge = async () => {
           //   }
           // })
 
-          const res = await pluginAPI.post('/plugin_order_forward', formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-              accesstoken: accessToken,
-            }
-          })
+          const res = await pluginAPI.post('/plugin_order_forward', formData)
           
           if (res.data && res.data.error_code === 0){
             const order_no = res.data.data.order_no
