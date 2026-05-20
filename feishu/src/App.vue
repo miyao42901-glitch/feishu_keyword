@@ -42,7 +42,13 @@ function onHeaderNavClick() {
 }
 
 const operationsDocUrl = (import.meta.env.VITE_OPERATIONS_DOC_URL as string | undefined)?.trim()
-const userGroupUrl = (import.meta.env.VITE_USER_GROUP_URL as string | undefined)?.trim()
+
+/** 首页「加入用户群」默认飞书 applink（可用 `VITE_USER_GROUP_URL` 覆盖） */
+const DEFAULT_USER_GROUP_URL =
+  'https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=446k3c7f-8f37-4f28-8384-369fb27d348d'
+
+const userGroupUrl =
+  (import.meta.env.VITE_USER_GROUP_URL as string | undefined)?.trim() || DEFAULT_USER_GROUP_URL
 const userGroupQrUrl = (import.meta.env.VITE_CUSTOMER_SERVICE_QR_URL as string | undefined)?.trim()
 
 const userGroupDialogVisible = ref(false)

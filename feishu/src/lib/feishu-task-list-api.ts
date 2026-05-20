@@ -233,22 +233,23 @@ export function taskStatsFromAsyncSummary(
   cards: TaskCardModel[],
 
 ): TaskListStatCounts {
+  if (cards.length > 0) {
+    return {
+      total: cards.length,
+      running: cards.filter((t) => t.status === 'running').length,
+      completed: cards.filter((t) => t.status === 'completed').length,
+    }
+  }
 
   if (summary) {
     return {
       total: summary.total,
-      /** 与 YDDM `summary.running` 一致，不含 `pending` */
       running: summary.running,
       completed: summary.success,
     }
   }
 
-  return {
-    total: cards.length,
-    running: cards.filter((t) => t.status === 'running').length,
-    completed: cards.filter((t) => t.status === 'completed').length,
-  }
-
+  return { total: 0, running: 0, completed: 0 }
 }
 
 
@@ -257,6 +258,13 @@ export function taskStatsFromAsyncSummary(
 
 export function isAsyncCardRunningStatus(status: TaskRunStatus): boolean {
   return status === 'running'
+}
+
+/** 联调/演示用任务名（如「测试定时任务」），列表页不展示、不参与轮询 */
+export function shouldHideAsyncListTaskRecord(rec: Record<string, unknown>): boolean {
+  const name = String(rec.task_name ?? rec.taskName ?? '').trim()
+  if (!name) return false
+  return /^测试/.test(name)
 }
 
 
@@ -288,11 +296,9 @@ export async function listTaskCardsFromAsync(
   const cards: TaskCardModel[] = []
 
   for (const rec of page.items) {
-
+    if (shouldHideAsyncListTaskRecord(rec)) continue
     const card = asyncListItemToTaskCard(rec)
-
     if (card) cards.push(card)
-
   }
 
   cards.sort((a, b) => b.id - a.id)
