@@ -1,9 +1,13 @@
 /**
  * 小红书搜索同步：`POST /api/v1/sync/xhs/search-page`
+ *
+ * 翻页：单次约 {@link expectedApiPageRows}('xiaohongshu') 条（通常 20）。
+ * 选择 20 条且首屏已满 20 条时不再请求第 2 页；不足 20 条且仍有 `has_more` 时翻页。
  */
 
-import { extractSyncResultItems } from '@/lib/sync-api-common'
+import { extractSyncResultItems, extractSyncResultPageMeta } from '@/lib/sync-api-common'
 import type { SyncFetchContext } from '@/lib/sync-api-common'
+import { expectedApiPageRows } from '@/lib/sync-platform-page-size'
 import {
   assertKeywordLength,
   buildExcludeWords,
@@ -67,8 +71,8 @@ export async function fetchXhsSearchItems(
   ctx: SyncFetchContext,
 ): Promise<Record<string, unknown>[]> {
   const keywords = readSearchKeywords(config)
-
   const limit = readDataRange(config)
+  const rowsPerPage = expectedApiPageRows('xiaohongshu')
   const collected: Record<string, unknown>[] = []
   const seenIds = new Set<string>()
 
@@ -81,6 +85,7 @@ export async function fetchXhsSearchItems(
         body: buildXhsSearchPageBody(config, keyword, pageNum),
       })
       const batch = extractSyncResultItems(payload)
+      const before = collected.length
       if (
         mergeResultItems({
           batch,
@@ -93,6 +98,29 @@ export async function fetchXhsSearchItems(
         break
       }
       if (!batch.length) break
+
+      const pageMeta = extractSyncResultPageMeta(payload)
+      const remaining = limit - collected.length
+
+      if (import.meta.env.DEV) {
+        console.log('[xhs-search-page]', {
+          keyword,
+          page: pageNum,
+          batch: batch.length,
+          added: collected.length - before,
+          total: collected.length,
+          limit,
+          remaining,
+          hasMore: pageMeta.hasMore,
+        })
+      }
+
+      if (collected.length >= limit) break
+      /* 已凑满或本页不足一页且无更多 → 不翻页 */
+      if (remaining <= 0) break
+      if (batch.length < rowsPerPage && !pageMeta.hasMore) break
+      if (!pageMeta.hasMore && batch.length < remaining) break
+
       pageNum += 1
     }
 

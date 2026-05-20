@@ -115,6 +115,111 @@ export function effectiveAtFormItemRules(): FormItemRule[] {
  * 结束时间：`el-form` 规则（必填 + 不早于当前 + 不早于开始时间）。
  * @param getEffectiveAt - 读取当前开始时间字符串（如 `() => form.effectiveAt`）
  */
+/**
+ * 定时任务各轮采集时刻（毫秒时间戳，与提交 YDDM 的 `task_start_time` / `interval_minutes` 对齐）。
+ *
+ * 规则：首轮在「开始时间」执行，之后每隔采集频率一轮；若结束时间未落在整点上，结束时刻再补一轮。
+ *
+ * 例：14:29 开始、14:41 结束、5 分钟 → 14:29、14:34、14:39、14:41，共 4 轮。
+ */
+export function listScheduledExecutionRunAtMs(
+  effectiveAt: unknown,
+  expireAt: unknown,
+  intervalMinutes: unknown,
+): number[] {
+  const start = parseTaskDateTimeString(effectiveAt)
+  const end = parseTaskDateTimeString(expireAt)
+  if (!start || !end) return []
+
+  const startMs = start.valueOf()
+  const endMs = end.valueOf()
+  if (endMs <= startMs) return []
+
+  const interval =
+    typeof intervalMinutes === 'number'
+      ? intervalMinutes
+      : Number(String(intervalMinutes ?? '').trim())
+  const mins = Number.isFinite(interval) && interval > 0 ? Math.floor(interval) : 10
+  const intervalMs = mins * 60_000
+
+  const runAtMs: number[] = []
+  let t = startMs
+  while (t <= endMs) {
+    runAtMs.push(t)
+    t += intervalMs
+  }
+  if (runAtMs.length === 0 || runAtMs[runAtMs.length - 1]! < endMs) {
+    runAtMs.push(endMs)
+  }
+  return runAtMs
+}
+
+/** 定时任务在监控窗口内的预计采集轮次 */
+export function countScheduledExecutionRounds(
+  effectiveAt: unknown,
+  expireAt: unknown,
+  intervalMinutes: unknown,
+): number {
+  const start = parseTaskDateTimeString(effectiveAt)
+  const end = parseTaskDateTimeString(expireAt)
+  if (!start || !end) return 1
+  return listScheduledExecutionRunAtMs(effectiveAt, expireAt, intervalMinutes).length
+}
+
+/**
+ * 距离下一次应按采集时刻表刷新接口的毫秒数。
+ * - `0`：当前已跨过某一采集点且尚未为该点拉过 results
+ * - `> 0`：等到 upcoming 采集时刻（如 14:34）
+ * - `null`：窗口内计划轮次均已拉取过
+ */
+export function msUntilNextScheduledRunPoll(
+  effectiveAt: unknown,
+  expireAt: unknown,
+  intervalMinutes: unknown,
+  lastPolledRunAtMs: number | undefined,
+  nowMs = Date.now(),
+): number | null {
+  const runs = listScheduledExecutionRunAtMs(effectiveAt, expireAt, intervalMinutes)
+  if (!runs.length) return null
+
+  const startMs = runs[0]!
+  if (nowMs < startMs) return startMs - nowMs
+
+  const last = lastPolledRunAtMs ?? 0
+  for (const runAt of runs) {
+    if (runAt > last) {
+      if (runAt > nowMs) return runAt - nowMs
+      return 0
+    }
+  }
+  return null
+}
+
+/** 本轮刷新完成后，记录已覆盖到的最大采集时刻（用于下一轮对齐 14:29 / 14:34 …） */
+export function scheduledRunPolledMarkThrough(
+  effectiveAt: unknown,
+  expireAt: unknown,
+  intervalMinutes: unknown,
+  nowMs = Date.now(),
+): number {
+  const runs = listScheduledExecutionRunAtMs(effectiveAt, expireAt, intervalMinutes)
+  let mark = 0
+  for (const runAt of runs) {
+    if (runAt <= nowMs) mark = Math.max(mark, runAt)
+  }
+  return mark
+}
+
+export function isScheduledFeedPollDue(
+  effectiveAt: unknown,
+  expireAt: unknown,
+  intervalMinutes: unknown,
+  lastPolledRunAtMs: number | undefined,
+  nowMs = Date.now(),
+): boolean {
+  return msUntilNextScheduledRunPoll(effectiveAt, expireAt, intervalMinutes, lastPolledRunAtMs, nowMs) === 0
+}
+
 export function expireAtFormItemRules(getEffectiveAt: () => string): FormItemRule[] {
   return [
     { required: true, message: '请输入结束时间', trigger: 'change' },

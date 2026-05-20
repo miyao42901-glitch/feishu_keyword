@@ -9,11 +9,10 @@ import { platformDisplayNames, sourcePlatforms } from '@/views/TaskCreateForm/co
 import TaskDetailDialog from '@/views/tasks/components/TaskDetailDialog.vue'
 import TaskListCard from '@/views/tasks/components/TaskListCard.vue'
 import type { TaskCardModel, TaskStoppedKind } from '@/views/tasks/types'
+import type { TaskRunStatus } from '@/views/TaskCreateForm/types'
 import {
-  deleteFeishuTaskConfig,
   feishuDetailToListItem,
   getFeishuTaskConfig,
-  listFeishuTaskConfigs,
   parseBackendDisplayStatus,
   parseBackendStoppedKind,
   updateFeishuTaskConfig,
@@ -24,32 +23,57 @@ import {
 import {
   appendTestFeedRowsToBitable,
   clearTestFeedAppendStateForTask,
+  countRowsPendingBitableAppend,
   pruneTestFeedAppendState,
 } from '@/lib/feishu-bitable-append-feed'
 import { createTestFeedBitableDeps, syncTaskCollectionToBitable } from '@/lib/feishu-bitable-task-sync'
 import {
-  aggregateAsyncTaskLifecycles,
-  getAsyncTaskStatus,
   applyCollectionResultToConfig,
+  configPatchFromAsyncTaskRecord,
+  deleteAsyncTask,
+  getAsyncTaskStatus,
   isRealtimeTaskConfig,
-  readAsyncTaskIds,
   submitCollectionFromConfig,
+  type AsyncTaskStatusResult,
 } from '@/lib/async-task-api'
 import { buildCollectionFetchContext } from '@/lib/collection-context'
+import { readCrawlPollIntervalMs } from '@/lib/feishu-webhook-notify'
+import {
+  isScheduledFeedPollDue,
+  msUntilNextScheduledRunPoll,
+  scheduledRunPolledMarkThrough,
+} from '@/lib/datetime-task-window'
+import {
+  notifyWebhookAfterScheduledPoll,
+  notifyWebhookCollectionRunFailed,
+  prepareTaskWebhookForNewRun,
+} from '@/lib/feishu-webhook-task-triggers'
+import {
+  isAsyncCardRunningStatus,
+  lifecycleToTaskRunStatus,
+  listTaskCardsFromAsync,
+  taskStatsFromAsyncSummary,
+} from '@/lib/feishu-task-list-api'
+import { resolveFeedConfigForListCard } from '@/lib/feishu-task-feed-config'
+import type { AsyncTaskListSummary } from '@/lib/async-task-api'
 import { refreshYddmUserBalance } from '@/lib/refresh-yddm-balance'
 import { buildTestDataFeedFromConfig, taskUsesOnlyTestDataPlatforms, type TestFeedRow } from '@/lib/test-data-feed'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
 import { useYddmAuthStore } from '@/stores/yddmAuth'
 
-/** 任务列表空态图（`public/empty.png`） */
-const taskListEmptyImgSrc = `${import.meta.env.BASE_URL}empty.png`
+/** 任务列表空态图（`public/images/task-list/empty.png`） */
+const taskListEmptyImgSrc = `${import.meta.env.BASE_URL}images/task-list/empty.png`
 
 const tasks = ref<TaskCardModel[]>([])
+/** `GET /api/v1/async/tasks` 的 `data.result.summary`（顶部统计优先用此） */
+const asyncListSummary = ref<AsyncTaskListSummary | null>(null)
 /** 列表每页条数 */
 const pageSize = ref(10)
 const listCurrentPage = ref(1)
 const screen = ref<'list' | 'create'>('list')
 const editingTaskId = ref<number | null>(null)
+/** 编辑态 YDDM 任务状态（决定 edit 接口是否可改调度字段） */
+const editingTaskStatus = ref<TaskRunStatus | null>(null)
 const taskDetail = ref<FeishuTaskConfigDetail | null>(null)
 
 const globalSettings = useGlobalSettingsStore()
@@ -58,154 +82,216 @@ const { authCode } = storeToRefs(globalSettings)
 
 /** 运行中且仅抖音/小红书：按 test_data 与任务配置写入飞书表并更新条数统计 */
 let testFeedDebounce: ReturnType<typeof setTimeout> | null = null
-/** 运行中任务定时同步 test_data → 飞书（列表页） */
-let testFeedPollTimer: ReturnType<typeof setInterval> | null = null
-/** 定时任务在生效/过期边界到达时刷新列表状态（不依赖点击统计卡片） */
-let taskListStatusPollTimer: ReturnType<typeof setTimeout> | null = null
+/** 运行中任务按采集频率调度下一次同步（列表页） */
+let testFeedPollTimeout: ReturnType<typeof setTimeout> | null = null
+/** 列表最短刷新间隔（毫秒），避免反复 `GET /api/v1/async/tasks` */
+const TASK_LIST_MIN_REFRESH_MS = 60_000
+/** 有待运行/运行中任务时，列表页自动刷新 YDDM 状态（便于捕捉 `pending`→`running`） */
+const TASK_LIST_ACTIVE_POLL_MS = 15_000
+let lastTaskListFetchedAt = 0
+let taskListPollInterval: ReturnType<typeof setInterval> | null = null
+let taskListLoadInFlight: Promise<void> | null = null
+let asyncListSyncInFlight: Promise<void> | null = null
 /** 避免同一任务并发执行两次同步 */
 const testFeedSyncInFlight = new Set<number>()
+/** 单次任务：上次拉取时刻（按采集频率节流） */
+const lastRealtimeFeedPollAtByTaskId = new Map<number, number>()
+/** 定时任务：已拉取到的最大采集时刻（对齐 14:29 / 14:34 …） */
+const lastScheduledRunPolledAtByTaskId = new Map<number, number>()
+/** 轮询用任务配置缓存（含开始/结束/频率） */
+const feedPollConfigByTaskId = new Map<number, Record<string, unknown>>()
 
 const testFeedBitableDeps = createTestFeedBitableDeps()
 
-function syncTestFeedPollTimer() {
-  const want =
-    screen.value === 'list' &&
-    authCode.value.trim() &&
-    tasks.value.some((t) => t.status === 'running' && taskUsesOnlyTestDataPlatforms(t.platformKeys))
-  if (want && !testFeedPollTimer) {
-    testFeedPollTimer = setInterval(() => {
-      void refreshTestDataFeed()
-    }, 12_000)
-  }
-  if (!want && testFeedPollTimer) {
-    clearInterval(testFeedPollTimer)
-    testFeedPollTimer = null
-  }
-}
+/** `running` 时缩短轮询间隔，便于在采集中拉 results */
+const RUNNING_FEED_POLL_MS = 30_000
 
-function parseScheduleBoundaryMs(raw: string | null | undefined): number | null {
-  if (!raw?.trim()) return null
-  const d = dayjs(raw.trim())
-  return d.isValid() ? d.valueOf() : null
-}
-
-/** 是否存在需在时间边界后刷新 `display_status` 的定时任务 */
-function hasScheduledTasksAwaitingBoundary(): boolean {
-  return tasks.value.some(
-    (t) =>
-      t.taskTypeLabel === '定时任务' &&
-      (t.status === 'pending_run' || t.status === 'running'),
-  )
-}
-
-/**
- * 计算下次拉列表的延迟：对齐最近生效/过期时刻；无明确边界时每 30s 兜底。
- */
-function computeNextTaskListStatusPollDelayMs(): number | null {
-  if (screen.value !== 'list' || !authCode.value.trim()) return null
-  if (!hasScheduledTasksAwaitingBoundary()) return null
-
-  const now = Date.now()
-  let nextBoundary: number | null = null
-
-  for (const t of tasks.value) {
-    if (t.taskTypeLabel !== '定时任务') continue
-    const eff = parseScheduleBoundaryMs(t.effectiveAtRaw)
-    const exp = parseScheduleBoundaryMs(t.expireAtRaw)
-
-    if (t.status === 'pending_run') {
-      if (eff != null) {
-        if (eff <= now) return 800
-        nextBoundary = nextBoundary == null ? eff : Math.min(nextBoundary, eff)
-      }
-    }
-    if (t.status === 'running') {
-      if (exp != null) {
-        if (exp <= now) return 800
-        nextBoundary = nextBoundary == null ? exp : Math.min(nextBoundary, exp)
-      }
-    }
-  }
-
-  if (nextBoundary != null) {
-    return Math.max(800, Math.min(nextBoundary - now + 400, 5 * 60_000))
-  }
-  return 30_000
-}
-
-function clearTaskListStatusPollTimer() {
-  if (taskListStatusPollTimer) {
-    clearTimeout(taskListStatusPollTimer)
-    taskListStatusPollTimer = null
-  }
-}
-
-function buildSyncFetchContext() {
-  return {
-    apiKey: authCode.value.trim(),
-    userId: yddmAuth.me?.id,
-    phoneNum: yddmAuth.me?.phone_num,
-  }
-}
-
-/** 轮询同步服务异步子任务状态，并回写本地 `runStatus` */
-async function refreshAsyncTaskStatuses() {
-  if (screen.value !== 'list' || !authCode.value.trim()) return
-  const targets = tasks.value.filter(
+function listRunningFeedTargets(): TaskCardModel[] {
+  return tasks.value.filter(
     (t) =>
       (t.status === 'running' || t.status === 'pending_run') &&
       taskUsesOnlyTestDataPlatforms(t.platformKeys),
   )
-  if (!targets.length) return
-
-  const ctx = buildSyncFetchContext()
-  let changed = false
-
-  for (const t of targets) {
-    try {
-      const detail = await getFeishuTaskConfig(t.id)
-      const cfg =
-        detail.config != null && typeof detail.config === 'object' && !Array.isArray(detail.config)
-          ? (detail.config as Record<string, unknown>)
-          : {}
-      if (isRealtimeTaskConfig(cfg)) continue
-      const ids = readAsyncTaskIds(cfg)
-      if (!ids.length) continue
-
-      const results = await Promise.all(ids.map((id) => getAsyncTaskStatus(ctx, id)))
-      const agg = aggregateAsyncTaskLifecycles(results)
-      if (agg === 'completed') {
-        const wr = await patchTaskConfig(t.id, { runStatus: 'completed', taskAbnormal: false })
-        applyDisplayFromWrite(t.id, wr)
-        changed = true
-      } else if (agg === 'failed') {
-        await markTaskAbnormal(t.id)
-        changed = true
-      }
-    } catch {
-      /* 单任务查询失败时跳过 */
-    }
-  }
-
-  if (changed) await loadTaskList()
 }
 
-function syncTaskListStatusPollTimer() {
-  clearTaskListStatusPollTimer()
-  const delay = computeNextTaskListStatusPollDelayMs()
-  if (delay == null) return
-  taskListStatusPollTimer = setTimeout(() => {
-    taskListStatusPollTimer = null
-    void (async () => {
-      if (screen.value !== 'list' || !authCode.value.trim()) return
+function listActiveRunningFeedTargets(): TaskCardModel[] {
+  return tasks.value.filter(
+    (t) => t.status === 'running' && taskUsesOnlyTestDataPlatforms(t.platformKeys),
+  )
+}
+
+function pruneFeedPollState(runningIds: Set<number>): void {
+  for (const id of [...lastRealtimeFeedPollAtByTaskId.keys()]) {
+    if (!runningIds.has(id)) lastRealtimeFeedPollAtByTaskId.delete(id)
+  }
+  for (const id of [...lastScheduledRunPolledAtByTaskId.keys()]) {
+    if (!runningIds.has(id)) lastScheduledRunPolledAtByTaskId.delete(id)
+  }
+  for (const id of [...feedPollConfigByTaskId.keys()]) {
+    if (!runningIds.has(id)) feedPollConfigByTaskId.delete(id)
+  }
+}
+
+function readScheduleFields(cfg: Record<string, unknown>) {
+  return {
+    effectiveAt: cfg.effectiveAt ?? cfg.effective_at,
+    expireAt: cfg.expireAt ?? cfg.expire_at,
+    intervalMinutes: cfg.crawlFrequency ?? cfg.crawl_frequency ?? cfg.interval_minutes,
+  }
+}
+
+function computeMsUntilNextFeedPoll(): number {
+  const targets = listRunningFeedTargets()
+  if (!targets.length) return 10 * 60_000
+
+  const now = Date.now()
+  let minWait = Number.POSITIVE_INFINITY
+  for (const t of targets) {
+    if (t.status === 'running') {
+      const last =
+        lastRealtimeFeedPollAtByTaskId.get(t.id) ?? lastScheduledRunPolledAtByTaskId.get(t.id)
+      if (last == null) minWait = Math.min(minWait, 0)
+      else minWait = Math.min(minWait, Math.max(0, RUNNING_FEED_POLL_MS - (now - last)))
+    }
+    const cfg = feedPollConfigByTaskId.get(t.id)
+    if (!cfg) {
+      minWait = Math.min(minWait, 0)
+      continue
+    }
+    if (isRealtimeTaskConfig(cfg)) {
+      const interval = readCrawlPollIntervalMs(cfg)
+      const last = lastRealtimeFeedPollAtByTaskId.get(t.id)
+      if (last == null) minWait = Math.min(minWait, 0)
+      else minWait = Math.min(minWait, Math.max(0, interval - (now - last)))
+      continue
+    }
+    const { effectiveAt, expireAt, intervalMinutes } = readScheduleFields(cfg)
+    const ms = msUntilNextScheduledRunPoll(
+      effectiveAt,
+      expireAt,
+      intervalMinutes,
+      lastScheduledRunPolledAtByTaskId.get(t.id),
+      now,
+    )
+    if (ms === 0) minWait = 0
+    else if (ms != null) minWait = Math.min(minWait, ms)
+    else minWait = Math.min(minWait, 60_000)
+  }
+  if (!Number.isFinite(minWait)) return 10 * 60_000
+  return Math.max(minWait, 1_000)
+}
+
+function isFeedPollDueForTask(t: TaskCardModel, cfg: Record<string, unknown>, now: number): boolean {
+  if (t.status === 'running') {
+    const last =
+      lastRealtimeFeedPollAtByTaskId.get(t.id) ?? lastScheduledRunPolledAtByTaskId.get(t.id)
+    return last == null || now - last >= RUNNING_FEED_POLL_MS
+  }
+  if (isRealtimeTaskConfig(cfg)) {
+    const interval = readCrawlPollIntervalMs(cfg)
+    const last = lastRealtimeFeedPollAtByTaskId.get(t.id)
+    return last == null || now - last >= interval
+  }
+  const { effectiveAt, expireAt, intervalMinutes } = readScheduleFields(cfg)
+  return isScheduledFeedPollDue(
+    effectiveAt,
+    expireAt,
+    intervalMinutes,
+    lastScheduledRunPolledAtByTaskId.get(t.id),
+    now,
+  )
+}
+
+function markTaskFeedPolled(taskId: number, cfg: Record<string, unknown>, cardStatus?: TaskRunStatus): void {
+  const now = Date.now()
+  if (cardStatus === 'running') {
+    lastRealtimeFeedPollAtByTaskId.set(taskId, now)
+    return
+  }
+  if (isRealtimeTaskConfig(cfg)) {
+    lastRealtimeFeedPollAtByTaskId.set(taskId, now)
+    return
+  }
+  const { effectiveAt, expireAt, intervalMinutes } = readScheduleFields(cfg)
+  lastScheduledRunPolledAtByTaskId.set(
+    taskId,
+    scheduledRunPolledMarkThrough(effectiveAt, expireAt, intervalMinutes, now),
+  )
+}
+
+/** 预读运行中任务配置，用于按采集时刻表调度刷新 */
+async function bootstrapFeedPollConfigForRunningTasks(): Promise<void> {
+  const running = listRunningFeedTargets()
+  const pending = running.filter((t) => !feedPollConfigByTaskId.has(t.id))
+  if (!pending.length) return
+
+  await Promise.all(
+    pending.map(async (t) => {
       try {
-        await refreshAsyncTaskStatuses()
-        await loadTaskList()
-      } finally {
-        syncTaskListStatusPollTimer()
+        const cfg = await resolveFeedConfigForListCard(t)
+        feedPollConfigByTaskId.set(t.id, cfg)
+      } catch {
+        feedPollConfigByTaskId.set(t.id, {})
       }
-    })()
+    }),
+  )
+}
+
+function clearTestFeedPollTimeout(): void {
+  if (testFeedPollTimeout != null) {
+    clearTimeout(testFeedPollTimeout)
+    testFeedPollTimeout = null
+  }
+}
+
+function scheduleNextTestFeedPoll(): void {
+  clearTestFeedPollTimeout()
+  const want =
+    screen.value === 'list' &&
+    authCode.value.trim() &&
+    listRunningFeedTargets().length > 0
+  if (!want) return
+
+  const delay = computeMsUntilNextFeedPoll()
+  testFeedPollTimeout = setTimeout(() => {
+    testFeedPollTimeout = null
+    void refreshTestDataFeed().finally(() => scheduleNextTestFeedPoll())
   }, delay)
+}
+
+/** 有待运行/运行中子任务时定时 `GET /api/v1/async/tasks`，无需手动点「运行中」筛选 */
+function syncActiveTaskListPolling(): void {
+  if (taskListPollInterval != null) {
+    clearInterval(taskListPollInterval)
+    taskListPollInterval = null
+  }
+  const active =
+    screen.value === 'list' && authCode.value.trim() && listRunningFeedTargets().length > 0
+  if (!active) return
+  taskListPollInterval = setInterval(() => {
+    if (screen.value !== 'list' || !authCode.value.trim()) {
+      syncActiveTaskListPolling()
+      return
+    }
+    void syncTaskListFromAsyncTasks()
+  }, TASK_LIST_ACTIVE_POLL_MS)
+}
+
+function syncTestFeedPollTimer() {
+  const scopeTargets = listRunningFeedTargets()
+  pruneFeedPollState(new Set(scopeTargets.map((t) => t.id)))
+  syncActiveTaskListPolling()
+  if (screen.value === 'list' && authCode.value.trim() && scopeTargets.length) {
+    void bootstrapFeedPollConfigForRunningTasks().finally(() => {
+      if (listActiveRunningFeedTargets().length > 0) {
+        void refreshTestDataFeed().finally(() => scheduleNextTestFeedPoll())
+      } else {
+        scheduleNextTestFeedPoll()
+      }
+    })
+    return
+  }
+  clearTestFeedPollTimeout()
 }
 
 function syncDetailDialogRowFromList() {
@@ -214,49 +300,102 @@ function syncDetailDialogRowFromList() {
   if (next) detailDialogRow.value = next
 }
 
-async function refreshTestDataFeed() {
+type RefreshTestDataFeedOptions = { /** 忽略采集频率节流（保存/执行后立即同步） */ forceAll?: boolean }
+
+async function refreshTestDataFeed(options?: RefreshTestDataFeedOptions) {
   if (screen.value !== 'list') return
-  const targets = tasks.value.filter(
-    (t) => t.status === 'running' && taskUsesOnlyTestDataPlatforms(t.platformKeys),
-  )
-  pruneTestFeedAppendState(new Set(targets.map((t) => t.id)))
-  if (!targets.length) {
+  const scopeTargets = listRunningFeedTargets()
+  /** 仅 `running` 拉 status/results（`pending_run` 只参与列表轮询，不请求 results） */
+  const resultsTargets = listActiveRunningFeedTargets()
+  pruneTestFeedAppendState(new Set(scopeTargets.map((t) => t.id)))
+  pruneFeedPollState(new Set(scopeTargets.map((t) => t.id)))
+
+  const now = Date.now()
+  const targets = options?.forceAll
+    ? resultsTargets
+    : resultsTargets.filter((t) => {
+        const cfg = feedPollConfigByTaskId.get(t.id)
+        if (!cfg) return true
+        return isFeedPollDueForTask(t, cfg, now)
+      })
+
+  if (!scopeTargets.length) {
     tasks.value = tasks.value.map((c) =>
       c.status === 'running' && c.notificationCount !== 0 ? { ...c, notificationCount: 0 } : c,
     )
+    syncTestFeedPollTimer()
+    return
+  }
+
+  if (!targets.length) {
+    syncTestFeedPollTimer()
     return
   }
 
   const targetIds = targets.map((t) => t.id)
-  if (targetIds.some((id) => testFeedSyncInFlight.has(id))) return
+  if (targetIds.some((id) => testFeedSyncInFlight.has(id))) {
+    syncTestFeedPollTimer()
+    return
+  }
   for (const id of targetIds) testFeedSyncInFlight.add(id)
 
+  const configByTaskId = new Map<number, Record<string, unknown>>()
   try {
+    const syncCtx = await buildCollectionFetchContext()
     const counts = new Map<number, number>()
-    const configByTaskId = new Map<number, Record<string, unknown>>()
+    const feedMetaByTaskId = new Map<
+      number,
+      {
+        taskName: string
+        config: Record<string, unknown>
+        maxCollectedAtMs: number
+        pendingRowCount: number
+        asyncStatusMap?: Map<string, AsyncTaskStatusResult>
+      }
+    >()
     const rows: TestFeedRow[] = []
     for (const t of targets) {
       try {
-        const detail = await getFeishuTaskConfig(t.id)
-        const cfg =
-          detail.config != null && typeof detail.config === 'object' && !Array.isArray(detail.config)
-            ? (detail.config as Record<string, unknown>)
-            : {}
+        const cfg = await resolveFeedConfigForListCard(t)
         configByTaskId.set(t.id, cfg)
-        const part = await buildTestDataFeedFromConfig({
+        feedPollConfigByTaskId.set(t.id, cfg)
+        const feed = await buildTestDataFeedFromConfig({
           taskId: t.id,
           taskName: t.name,
           config: cfg,
-          sync: await buildCollectionFetchContext(),
+          sync: syncCtx,
         })
-        counts.set(t.id, part.length)
-        rows.push(...part)
-      } catch {
-        /* 忽略单任务失败 */
+        counts.set(t.id, feed.rows.length)
+        const maxCollected = feed.rows.reduce((m, r) => Math.max(m, r.collectedAtMs), 0)
+        feedMetaByTaskId.set(t.id, {
+          taskName: t.name,
+          config: cfg,
+          maxCollectedAtMs: maxCollected,
+          pendingRowCount: countRowsPendingBitableAppend(feed.rows),
+          asyncStatusMap: feed.asyncStatusMap,
+        })
+        rows.push(...feed.rows)
+      } catch (feedErr) {
+        const failCfg = configByTaskId.get(t.id) ?? {}
+        void notifyWebhookCollectionRunFailed({
+          taskId: t.id,
+          taskName: t.name,
+          config: failCfg,
+          message: feedErr instanceof Error ? feedErr.message : '拉取采集数据失败',
+        })
       }
     }
-    rows.sort((a, b) => b.publishMs - a.publishMs)
-    const displayRows = rows.slice(0, 120)
+    const displayRows: TestFeedRow[] = []
+    const rowsByTask = new Map<number, TestFeedRow[]>()
+    for (const r of rows) {
+      const list = rowsByTask.get(r.taskId) ?? []
+      list.push(r)
+      rowsByTask.set(r.taskId, list)
+    }
+    for (const list of rowsByTask.values()) {
+      list.sort((a, b) => b.publishMs - a.publishMs)
+      displayRows.push(...list)
+    }
 
     let writtenByTask = new Map<number, number>()
     try {
@@ -269,13 +408,26 @@ async function refreshTestDataFeed() {
       /* 非插件环境或表结构不匹配时静默失败 */
     }
 
+    for (const [taskId, meta] of feedMetaByTaskId) {
+      if (isRealtimeTaskConfig(meta.config)) continue
+      const totalRowCount = counts.get(taskId) ?? 0
+      const writtenRowCount = writtenByTask.get(taskId) ?? 0
+      void notifyWebhookAfterScheduledPoll({
+        taskId,
+        taskName: meta.taskName,
+        config: meta.config,
+        writtenRowCount: writtenRowCount > 0 ? writtenRowCount : meta.pendingRowCount,
+        totalRowCount,
+        sync: syncCtx,
+        asyncStatusMap: meta.asyncStatusMap,
+      })
+    }
+
     tasks.value = tasks.value.map((c) => {
       if (c.status !== 'running') return c
-      const n = counts.get(c.id)
-      const written = writtenByTask.get(c.id)
-      const display = written != null && written > 0 ? written : (n ?? 0)
-      if (display === 0) return c.notificationCount === 0 ? c : { ...c, notificationCount: 0 }
-      return { ...c, notificationCount: display }
+      const written = writtenByTask.get(c.id) ?? 0
+      if (written === 0) return c.notificationCount === 0 ? c : { ...c, notificationCount: 0 }
+      return { ...c, notificationCount: written }
     })
 
     let completedAny = false
@@ -291,12 +443,18 @@ async function refreshTestDataFeed() {
       }
     }
     if (completedAny) {
-      await loadTaskList()
+      await loadTaskList({ force: true })
       syncTestFeedPollTimer()
     }
   } finally {
-    for (const id of targetIds) testFeedSyncInFlight.delete(id)
+    for (const id of targetIds) {
+      testFeedSyncInFlight.delete(id)
+      const cfg = configByTaskId.get(id) ?? feedPollConfigByTaskId.get(id)
+      const card = tasks.value.find((t) => t.id === id)
+      if (cfg) markTaskFeedPolled(id, cfg, card?.status)
+    }
     if (targetIds.length) void refreshYddmUserBalance()
+    syncTestFeedPollTimer()
   }
 }
 
@@ -304,7 +462,7 @@ function scheduleRefreshTestDataFeed() {
   if (testFeedDebounce != null) clearTimeout(testFeedDebounce)
   testFeedDebounce = setTimeout(() => {
     testFeedDebounce = null
-    void refreshTestDataFeed()
+    void refreshTestDataFeed({ forceAll: true })
   }, 350)
 }
 
@@ -406,15 +564,8 @@ function formatCardDate(raw: string | null | undefined): string {
   return d.isValid() ? d.format('YYYY-MM-DD') : raw.slice(0, 10) || '—'
 }
 
-/** 任务列表统计（与后端返回的 `display_status` 映射后一致） */
-const taskStats = computed(() => {
-  const list = tasks.value
-  return {
-    total: list.length,
-    running: list.filter((t) => t.status === 'running').length,
-    completed: list.filter((t) => t.status === 'completed').length,
-  }
-})
+/** 任务列表统计：优先 `summary.total` / `summary.running` / `summary.success`（`pending` 不计入运行中） */
+const taskStats = computed(() => taskStatsFromAsyncSummary(asyncListSummary.value, tasks.value))
 
 /** 点击统计卡片筛选列表：`all` | `running` | `completed` */
 const listFilter = ref<'all' | 'running' | 'completed'>('all')
@@ -422,7 +573,7 @@ const listFilter = ref<'all' | 'running' | 'completed'>('all')
 const displayedTasks = computed(() => {
   switch (listFilter.value) {
     case 'running':
-      return tasks.value.filter((t) => t.status === 'running')
+      return tasks.value.filter((t) => isAsyncCardRunningStatus(t.status))
     case 'completed':
       return tasks.value.filter((t) => t.status === 'completed')
     default:
@@ -479,19 +630,42 @@ function onPageSizeChange(s: number) {
   listCurrentPage.value = 1
 }
 
-const listFilterLoading = ref(false)
-
-/** 切换统计维度时重新拉列表，保证与后端状态一致 */
-async function selectListFilter(next: 'all' | 'running' | 'completed') {
-  if (listFilterLoading.value) return
+/** 切换统计维度：请求 `GET /api/v1/async/tasks` 同步子任务状态后本地筛选 */
+function selectListFilter(next: 'all' | 'running' | 'completed') {
   listFilter.value = next
   listCurrentPage.value = 1
-  listFilterLoading.value = true
-  try {
-    await loadTaskList()
-  } finally {
-    listFilterLoading.value = false
+  void syncTaskListFromAsyncTasks()
+}
+
+/** 从 `GET /api/v1/async/tasks` 加载列表与 `summary`（切换筛选 / 刷新列表） */
+async function syncTaskListFromAsyncTasks() {
+  if (!authCode.value.trim()) {
+    tasks.value = []
+    asyncListSummary.value = null
+    return
   }
+  if (asyncListSyncInFlight) return asyncListSyncInFlight
+
+  asyncListSyncInFlight = (async () => {
+    try {
+      const ctx = await buildCollectionFetchContext()
+      const { cards, summary } = await listTaskCardsFromAsync(ctx)
+      tasks.value = cards
+      asyncListSummary.value = summary
+      lastTaskListFetchedAt = Date.now()
+      const maxPage = Math.max(1, Math.ceil(displayedTasks.value.length / pageSize.value))
+      if (listCurrentPage.value > maxPage) listCurrentPage.value = maxPage
+      syncDetailDialogRowFromList()
+      syncTestFeedPollTimer()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '加载任务列表失败'
+      ElMessage.error(msg)
+    } finally {
+      asyncListSyncInFlight = null
+    }
+  })()
+
+  return asyncListSyncInFlight
 }
 
 /** 停止/启动后：优先用 PUT 返回的 `display_status` 覆盖；否则再拉详情（列表缺字段时） */
@@ -541,32 +715,34 @@ function mapRows(rows: FeishuTaskConfigListItem[]): TaskCardModel[] {
   })
 }
 
-async function loadTaskList() {
+type LoadTaskListOptions = { force?: boolean }
+
+async function loadTaskList(options?: LoadTaskListOptions) {
   if (!authCode.value.trim()) {
     tasks.value = []
+    asyncListSummary.value = null
     listCurrentPage.value = 1
+    lastTaskListFetchedAt = 0
     return
   }
-  try {
-    const rows = await listFeishuTaskConfigs(0, 100)
-    tasks.value = mapRows(rows)
-    const maxPage = Math.max(1, Math.ceil(displayedTasks.value.length / pageSize.value))
-    if (listCurrentPage.value > maxPage) listCurrentPage.value = maxPage
-    syncDetailDialogRowFromList()
-    scheduleRefreshTestDataFeed()
-    syncTaskListStatusPollTimer()
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : '加载任务列表失败'
-    ElMessage.error(msg)
-    tasks.value = []
-    listCurrentPage.value = 1
+  const now = Date.now()
+  if (!options?.force && now - lastTaskListFetchedAt < TASK_LIST_MIN_REFRESH_MS) {
+    return
   }
+  if (taskListLoadInFlight) {
+    return taskListLoadInFlight
+  }
+
+  taskListLoadInFlight = syncTaskListFromAsyncTasks().finally(() => {
+    taskListLoadInFlight = null
+  })
+
+  return taskListLoadInFlight
 }
 
 watch(authCode, () => {
-  void loadTaskList()
+  void loadTaskList({ force: true })
   syncTestFeedPollTimer()
-  syncTaskListStatusPollTimer()
 })
 
 watch(
@@ -578,38 +754,47 @@ watch(
       )
       .join('|'),
   () => {
-    scheduleRefreshTestDataFeed()
     syncTestFeedPollTimer()
-    syncTaskListStatusPollTimer()
+  },
+)
+
+/** 子任务变为 `running` 时立即拉 results（无需点击筛选卡片） */
+watch(
+  () =>
+    tasks.value
+      .filter((t) => t.status === 'running')
+      .map((t) => t.id)
+      .sort((a, b) => a - b)
+      .join(','),
+  (ids, prev) => {
+    if (!ids || ids === prev) return
+    if (screen.value !== 'list' || !authCode.value.trim()) return
+    void refreshTestDataFeed({ forceAll: true })
   },
 )
 
 watch(screen, (s) => {
   if (s === 'list') {
-    scheduleRefreshTestDataFeed()
-    syncTaskListStatusPollTimer()
+    void refreshTestDataFeed({ forceAll: true })
   } else {
-    clearTaskListStatusPollTimer()
+    syncActiveTaskListPolling()
   }
   syncTestFeedPollTimer()
 })
 
 onScopeDispose(() => {
-  if (testFeedPollTimer) {
-    clearInterval(testFeedPollTimer)
-    testFeedPollTimer = null
-  }
-  clearTaskListStatusPollTimer()
+  clearTestFeedPollTimeout()
+  syncActiveTaskListPolling()
 })
 
 onMounted(() => {
-  void loadTaskList()
+  void loadTaskList({ force: true })
   syncTestFeedPollTimer()
-  syncTaskListStatusPollTimer()
 })
 
 function onCreateTask() {
   editingTaskId.value = null
+  editingTaskStatus.value = null
   taskDetail.value = null
   screen.value = 'create'
 }
@@ -617,8 +802,9 @@ function onCreateTask() {
 async function onBackFromCreate() {
   screen.value = 'list'
   editingTaskId.value = null
+  editingTaskStatus.value = null
   taskDetail.value = null
-  await loadTaskList()
+  await loadTaskList({ force: true })
 }
 
 const emit = defineEmits<{
@@ -637,14 +823,51 @@ defineExpose({
   leaveCreateToList: onBackFromCreate,
 })
 
-/** 保存并提交采集成功后回到列表，并触发后续轮询 */
-async function onSaved(id: number) {
-  await onBackFromCreate()
-  await loadTaskList()
+/** 保存后确保列表中有对应卡片（列表 GET 偶发缺行时用详情补齐） */
+async function ensureTaskCardInList(id: number): Promise<TaskCardModel | null> {
+  const existing = tasks.value.find((t) => t.id === id)
+  if (existing) return existing
+  try {
+    const detail = await getFeishuTaskConfig(id)
+    const [card] = mapRows([feishuDetailToListItem(detail)])
+    tasks.value = [card, ...tasks.value.filter((t) => t.id !== id)]
+    return card
+  } catch {
+    return null
+  }
+}
+
+/** 新建保存后触发采集；编辑保存仅调 YDDM edit 并刷新列表 */
+async function onSaved(id: number, isEdit = false) {
+  screen.value = 'list'
+  editingTaskId.value = null
+  editingTaskStatus.value = null
+  taskDetail.value = null
+  await loadTaskList({ force: true })
+  if (isEdit) {
+    showListTip('任务已更新')
+    return
+  }
   clearTestFeedAppendStateForTask(id)
-  scheduleRefreshTestDataFeed()
-  void refreshAsyncTaskStatuses()
-  showListTip('任务已提交执行')
+  const row = (await ensureTaskCardInList(id)) ?? tasks.value.find((t) => t.id === id)
+  if (!row) {
+    showListTip('任务已保存')
+    return
+  }
+  let cfg: Record<string, unknown> = {}
+  try {
+    const detail = await getFeishuTaskConfig(id)
+    if (detail.config != null && typeof detail.config === 'object' && !Array.isArray(detail.config)) {
+      cfg = detail.config as Record<string, unknown>
+    }
+  } catch {
+    /* 仍尝试执行，由采集接口报错 */
+  }
+  if (row.status === 'completed' && !isRealtimeTaskConfig(cfg)) {
+    showListTip('任务已保存（当前不在运行窗口或已结束）')
+    return
+  }
+  await runTaskExecutionFromList(row)
 }
 
 async function openView(row: TaskCardModel) {
@@ -653,13 +876,40 @@ async function openView(row: TaskCardModel) {
   detailDialogLoading.value = true
   detailDialogPayload.value = null
   try {
-    detailDialogPayload.value = await getFeishuTaskConfig(row.id)
+    const ctx = await buildCollectionFetchContext()
+    const status = await getAsyncTaskStatus(ctx, String(row.id))
+    const displayStatus = lifecycleToTaskRunStatus(status.lifecycle)
+    const yddmPatch = configPatchFromAsyncTaskRecord({
+      ...status.data,
+      task_name: row.name,
+      task_start_time: row.effectiveAtRaw,
+      task_end_time: row.expireAtRaw,
+    })
+    try {
+      const detail = await getFeishuTaskConfig(row.id)
+      const base =
+        detail.config != null && typeof detail.config === 'object' && !Array.isArray(detail.config)
+          ? (detail.config as Record<string, unknown>)
+          : {}
+      detailDialogPayload.value = {
+        ...detail,
+        config: { ...base, ...yddmPatch },
+        display_status: displayStatus,
+      }
+    } catch {
+      detailDialogPayload.value = {
+        id: row.id,
+        plan_name: row.name,
+        config: yddmPatch,
+        display_status: displayStatus,
+      }
+    }
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载配置失败')
+    ElMessage.error(e instanceof Error ? e.message : '加载任务详情失败')
     detailDialogVisible.value = false
     detailDialogRow.value = null
     void markTaskAbnormal(row.id)
-    await loadTaskList()
+    await loadTaskList({ force: true })
   } finally {
     detailDialogLoading.value = false
   }
@@ -670,94 +920,200 @@ async function openEdit(row: TaskCardModel) {
   detailDialogPayload.value = null
   detailDialogRow.value = null
   editingTaskId.value = row.id
+  editingTaskStatus.value = row.status
   taskDetail.value = null
   screen.value = 'create'
   try {
     taskDetail.value = await getFeishuTaskConfig(row.id)
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载配置失败')
-    void markTaskAbnormal(row.id)
-    await loadTaskList()
-    screen.value = 'list'
-    editingTaskId.value = null
+  } catch {
+    try {
+      const ctx = await buildCollectionFetchContext()
+      const status = await getAsyncTaskStatus(ctx, String(row.id))
+      const lifecycle = status.lifecycle
+      if (lifecycle === 'pending') editingTaskStatus.value = 'pending_run'
+      else if (lifecycle === 'running') editingTaskStatus.value = 'running'
+      else if (lifecycle === 'completed') editingTaskStatus.value = 'completed'
+      else if (lifecycle === 'failed') editingTaskStatus.value = 'failed'
+      const patch = configPatchFromAsyncTaskRecord({
+        ...status.data,
+        task_name: row.name,
+        task_start_time: row.effectiveAtRaw,
+        task_end_time: row.expireAtRaw,
+      })
+      taskDetail.value = {
+        id: row.id,
+        plan_name: row.name,
+        config: patch,
+        display_status: editingTaskStatus.value,
+      }
+    } catch (e) {
+      ElMessage.error(e instanceof Error ? e.message : '加载配置失败')
+      void markTaskAbnormal(row.id)
+      await loadTaskList({ force: true })
+      screen.value = 'list'
+      editingTaskId.value = null
+      editingTaskStatus.value = null
+    }
   }
 }
 
 async function executeTaskCollectionAndPatch(
   row: TaskCardModel,
   cfg: Record<string, unknown>,
-): Promise<FeishuTaskConfigWriteResult> {
-  const collection = await submitCollectionFromConfig(cfg, await buildCollectionFetchContext())
+): Promise<{ wr: FeishuTaskConfigWriteResult; collection: Awaited<ReturnType<typeof submitCollectionFromConfig>> }> {
+  prepareTaskWebhookForNewRun(row.id, cfg)
+  const collection = await submitCollectionFromConfig(cfg, await buildCollectionFetchContext(), {
+    taskId: row.id,
+  })
   const next: Record<string, unknown> = {
     ...cloneConfigRecord(cfg),
     taskPaused: false,
     taskAbnormal: false,
   }
   applyCollectionResultToConfig(next, collection)
-  return updateFeishuTaskConfig(row.id, next)
+  const wr = await updateFeishuTaskConfig(row.id, next)
+  return { wr, collection }
+}
+
+function showExecutionResultTip(
+  wr: FeishuTaskConfigWriteResult,
+  cfg: Record<string, unknown>,
+  collection: Awaited<ReturnType<typeof submitCollectionFromConfig>>,
+) {
+  if (collection.mode === 'sync' && collection.emptyPlatformHints?.length) {
+    const hint = collection.emptyPlatformHints.join('；')
+    if (collection.itemCount === 0) {
+      ElMessage.warning(hint)
+      return
+    }
+    ElMessage.warning(`部分平台无数据：${hint}`)
+  }
+  if (wr.display_status === 'running') {
+    showListTip('已提交执行')
+  } else if (wr.display_status === 'completed') {
+    showListTip(isRealtimeTaskConfig(cfg) ? '已执行完成' : '任务已过期或未在窗口内')
+  } else if (wr.display_status === 'pending_run') {
+    showListTip('已提交执行，未到生效时间仍为待运行')
+  } else if (parseBackendStoppedKind(wr) === 'before_effective') {
+    showListTip('已提交执行，未到生效时间仍为已停止')
+  } else {
+    showListTip('已提交执行')
+  }
+}
+
+/** 列表页执行采集：search-page / 异步任务、写多维表格、刷新状态 */
+async function runTaskExecutionFromList(row: TaskCardModel) {
+  if (primaryActionRowId.value != null) return
+  primaryActionRowId.value = row.id
+  try {
+    const detail = await getFeishuTaskConfig(row.id)
+    const cfg =
+      detail.config != null && typeof detail.config === 'object' && !Array.isArray(detail.config)
+        ? (detail.config as Record<string, unknown>)
+        : {}
+    const { wr, collection } = await executeTaskCollectionAndPatch(row, cfg)
+
+    if (collection.mode === 'sync' && collection.emptyPlatformHints?.length && collection.itemCount === 0) {
+      await loadTaskList({ force: true })
+      await mergeTaskCardFromDetail(row.id, wr)
+      return
+    }
+
+    let cfgForBitable = cfg
+    try {
+      const after = await getFeishuTaskConfig(row.id)
+      if (after.config != null && typeof after.config === 'object' && !Array.isArray(after.config)) {
+        cfgForBitable = after.config as Record<string, unknown>
+      }
+    } catch {
+      /* 使用采集前配置 */
+    }
+    const syncCtx = await buildCollectionFetchContext()
+    let bitableWritten = 0
+    let bitableTotal = 0
+    try {
+      const bitable = await syncTaskCollectionToBitable({
+        taskId: row.id,
+        taskName: row.name,
+        config: cfgForBitable,
+        syncCtx,
+        preloadedItems: collection.mode === 'sync' ? collection.itemsByPlatform : undefined,
+      })
+      bitableWritten = bitable.written
+      bitableTotal = bitable.rowCount
+      if (bitable.tableReady && bitable.rowCount > 0 && bitable.written === 0) {
+        showListTip('采集成功，但未写入多维表格（请在插件内打开或检查表配置）')
+      }
+    } catch (bitableErr) {
+      const msg = bitableErr instanceof Error ? bitableErr.message : '写入飞书表格失败'
+      showListTip(`采集完成，但飞书表格失败：${msg}`)
+      void notifyWebhookCollectionRunFailed({
+        taskId: row.id,
+        taskName: row.name,
+        config: cfgForBitable,
+        message: `飞书表格写入失败：${msg}`,
+      })
+    }
+
+    if (!isRealtimeTaskConfig(cfgForBitable)) {
+      void notifyWebhookAfterScheduledPoll({
+        taskId: row.id,
+        taskName: row.name,
+        config: cfgForBitable,
+        writtenRowCount: bitableWritten,
+        totalRowCount: bitableTotal,
+        sync: syncCtx,
+      })
+    }
+
+    await loadTaskList({ force: true })
+    await mergeTaskCardFromDetail(row.id, wr)
+    clearTestFeedAppendStateForTask(row.id)
+    scheduleRefreshTestDataFeed()
+    showExecutionResultTip(wr, cfg, collection)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '执行失败'
+    ElMessage.error(msg)
+    try {
+      const detail = await getFeishuTaskConfig(row.id)
+      const failCfg =
+        detail.config != null && typeof detail.config === 'object' && !Array.isArray(detail.config)
+          ? (detail.config as Record<string, unknown>)
+          : {}
+      void notifyWebhookCollectionRunFailed({
+        taskId: row.id,
+        taskName: row.name,
+        config: failCfg,
+        message: msg,
+      })
+    } catch {
+      /* 无法加载配置时跳过 Webhook */
+    }
+    void markTaskAbnormal(row.id)
+    await loadTaskList({ force: true })
+  } finally {
+    primaryActionRowId.value = null
+    if (detailDialogVisible.value && detailDialogRow.value?.id === row.id) {
+      const next = tasks.value.find((t) => t.id === row.id)
+      if (next) detailDialogRow.value = next
+    }
+  }
 }
 
 async function onPrimaryAction(row: TaskCardModel) {
+  if (row.status === 'failed') {
+    await runTaskExecutionFromList(row)
+    return
+  }
   if (primaryActionRowId.value != null) return
   primaryActionRowId.value = row.id
   try {
     switch (row.status) {
       case 'running': {
         const wr = await patchTaskConfig(row.id, { taskPaused: true })
-        await loadTaskList()
+        await loadTaskList({ force: true })
         await mergeTaskCardFromDetail(row.id, wr)
         showListTip(parseBackendDisplayStatus(wr) === 'stopped' ? '已停止' : '已保存')
-        break
-      }
-      case 'pending_run':
-      case 'stopped':
-      case 'completed':
-      case 'failed': {
-        const detail = await getFeishuTaskConfig(row.id)
-        const cfg =
-          detail.config != null && typeof detail.config === 'object' && !Array.isArray(detail.config)
-            ? (detail.config as Record<string, unknown>)
-            : {}
-        const wr = await executeTaskCollectionAndPatch(row, cfg)
-        let cfgForBitable = cfg
-        try {
-          const after = await getFeishuTaskConfig(row.id)
-          if (
-            after.config != null &&
-            typeof after.config === 'object' &&
-            !Array.isArray(after.config)
-          ) {
-            cfgForBitable = after.config as Record<string, unknown>
-          }
-        } catch {
-          /* 使用采集前配置 */
-        }
-        try {
-          await syncTaskCollectionToBitable({
-            taskId: row.id,
-            taskName: row.name,
-            config: cfgForBitable,
-            syncCtx: await buildCollectionFetchContext(),
-          })
-        } catch {
-          /* 采集成功但飞书写入失败时仍保留任务状态 */
-        }
-        await loadTaskList()
-        await mergeTaskCardFromDetail(row.id, wr)
-        clearTestFeedAppendStateForTask(row.id)
-        scheduleRefreshTestDataFeed()
-        void refreshAsyncTaskStatuses()
-        if (wr.display_status === 'running') {
-          showListTip('已提交执行')
-        } else if (wr.display_status === 'completed') {
-          showListTip(isRealtimeTaskConfig(cfg) ? '已执行完成' : '任务已过期或未在窗口内，请编辑生效/过期时间后再启动')
-        } else if (wr.display_status === 'pending_run') {
-          showListTip('已提交执行，未到生效时间仍为待运行')
-        } else if (parseBackendStoppedKind(wr) === 'before_effective') {
-          showListTip('已提交执行，未到生效时间仍为已停止')
-        } else {
-          showListTip('已提交执行')
-        }
         break
       }
       default:
@@ -766,7 +1122,7 @@ async function onPrimaryAction(row: TaskCardModel) {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '操作失败')
     void markTaskAbnormal(row.id)
-    await loadTaskList()
+    await loadTaskList({ force: true })
   } finally {
     primaryActionRowId.value = null
     if (detailDialogVisible.value && detailDialogRow.value?.id === row.id) {
@@ -794,10 +1150,12 @@ async function confirmDeleteTask() {
   deleteSubmitting.value = true
   try {
     const deletedId = row.id
-    await deleteFeishuTaskConfig(row.id)
+    const ctx = await buildCollectionFetchContext()
+    await deleteAsyncTask(ctx, String(row.id))
+    clearTestFeedAppendStateForTask(row.id)
     deleteDialogVisible.value = false
     showListTip('已删除')
-    await loadTaskList()
+    await loadTaskList({ force: true })
     if (detailDialogVisible.value && detailDialogRow.value?.id === deletedId) {
       detailDialogVisible.value = false
       detailDialogPayload.value = null
@@ -866,6 +1224,7 @@ async function confirmDeleteTask() {
         v-else
         :task-config-id="editingTaskId"
         :detail="taskDetail"
+        :edit-task-status="editingTaskStatus"
         @back="onBackFromCreate"
         @saved="onSaved"
       />
@@ -887,7 +1246,6 @@ async function confirmDeleteTask() {
             type="button"
             class="task-stat-card"
             :class="{ 'task-stat-card--active': listFilter === 'all' }"
-            :disabled="listFilterLoading"
             @click="selectListFilter('all')"
           >
             <div class="task-stat-num task-stat-num--total">{{ taskStats.total }}</div>
@@ -897,7 +1255,6 @@ async function confirmDeleteTask() {
             type="button"
             class="task-stat-card"
             :class="{ 'task-stat-card--active': listFilter === 'running' }"
-            :disabled="listFilterLoading"
             @click="selectListFilter('running')"
           >
             <div class="task-stat-num task-stat-num--running">{{ taskStats.running }}</div>
@@ -907,7 +1264,6 @@ async function confirmDeleteTask() {
             type="button"
             class="task-stat-card"
             :class="{ 'task-stat-card--active': listFilter === 'completed' }"
-            :disabled="listFilterLoading"
             @click="selectListFilter('completed')"
           >
             <div class="task-stat-num task-stat-num--completed">{{ taskStats.completed }}</div>

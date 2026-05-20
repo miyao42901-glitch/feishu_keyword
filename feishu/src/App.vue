@@ -3,12 +3,12 @@ import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { computed, onMounted, ref, watch } from 'vue'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import { storeToRefs } from 'pinia'
 import GlobalApiKeyBar from '@/components/GlobalApiKeyBar.vue'
 import YddmLoginDialog from '@/components/YddmLoginDialog.vue'
 import TasksView from '@/views/TasksView.vue'
 import YddmAuthView from '@/views/YddmAuthView.vue'
-import { formatPointsBalance } from '@/lib/account-balance'
+import { formatPointsBadge } from '@/lib/account-balance'
+import { homeHeroAccountPointsIconImgAttrs } from '@/lib/home-hero-media'
 import { useAccountPointsStore } from '@/stores/accountPoints'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
 import { useYddmAuthStore } from '@/stores/yddmAuth'
@@ -17,19 +17,10 @@ const activeTab = ref<'tasks' | 'yddmAuth'>('tasks')
 const accountPoints = useAccountPointsStore()
 const globalSettings = useGlobalSettingsStore()
 const yddmAuth = useYddmAuthStore()
-const { authCode } = storeToRefs(globalSettings)
 
-/** 已登录或可调用 API（含仅填写授权码）：展示退出登录 */
-const showLogoutBtn = computed(
-  () => Boolean(yddmAuth.isLoggedIn) || authCode.value.trim().length > 0,
-)
+/** 未登录时展示「登录账户」 */
+const showLoginAccountBtn = computed(() => !yddmAuth.isLoggedIn)
 
-function onLogout() {
-  yddmAuth.clearSession()
-  globalSettings.authCode = ''
-  accountPoints.resetToDefaultBalance()
-  ElMessage.success('已退出登录')
-}
 /** 任务页是否处于新建/编辑配置（由 TasksView 同步） */
 const inTaskCreate = ref(false)
 const tasksViewRef = ref<{ leaveCreateToList: () => Promise<void> } | null>(null)
@@ -80,10 +71,10 @@ function openLoginDialog() {
   loginDialogVisible.value = true
 }
 
-/** 顶部栏：积分来自 YDDM 登录个人信息 */
-const headerBalanceText = computed(() => {
+/** 首页横幅右上角：剩余积分（YDDM 登录个人信息） */
+const heroBalanceBadgeText = computed(() => {
   if (!yddmAuth.isLoggedIn && !yddmAuth.me) return '—'
-  return formatPointsBalance(accountPoints.currentBalancePoints)
+  return formatPointsBadge(accountPoints.currentBalancePoints)
 })
 
 watch(
@@ -156,6 +147,17 @@ onMounted(() => {
             </button>
           </div>
         </div>
+        <div class="home-hero__balance" role="status" aria-label="剩余积分">
+          <img
+            class="home-hero__balance-icon"
+            v-bind="homeHeroAccountPointsIconImgAttrs()"
+            width="14"
+            height="14"
+            alt=""
+            decoding="async"
+          />
+          <span class="home-hero__balance-text">{{ heroBalanceBadgeText }}</span>
+        </div>
       </div>
     </div>
 
@@ -183,20 +185,10 @@ onMounted(() => {
           <template v-else>首页</template>
         </button>
         <div
+          v-if="showLoginAccountBtn"
           v-show="!(activeTab === 'tasks' && inTaskCreate)"
           class="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3"
         >
-          <span class="max-w-[9rem] truncate text-xs text-slate-500 sm:max-w-none"
-            >{{ headerBalanceText }}</span
-          >
-          <button
-            v-if="showLogoutBtn"
-            type="button"
-            class="inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-md px-2 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
-            @click="onLogout"
-          >
-            退出登录
-          </button>
           <button
             type="button"
             class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-slate-700 transition-colors hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
@@ -254,7 +246,7 @@ onMounted(() => {
   inset: 0;
   z-index: 0;
   background-color: transparent;
-  background-image: url('/im.png');
+  background-image: url('/images/home/hero-banner.png');
   background-repeat: no-repeat;
   background-position: right center;
   background-size: auto 100%;
@@ -269,7 +261,7 @@ onMounted(() => {
 
 @media (min-resolution: 2dppx) {
   .home-hero__bg {
-    background-image: url('/im@2x.png');
+    background-image: url('/images/home/hero-banner@2x.png');
   }
 }
 
@@ -283,8 +275,37 @@ onMounted(() => {
   min-width: 0;
   min-height: 5.75rem;
   flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.home-hero__balance {
+  display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
-  justify-content: flex-start;
+  gap: 0.25rem;
+  margin-left: auto;
+  margin-top: 0.125rem;
+  padding: 0.375rem 0.625rem;
+  border-radius: 0.375rem;
+  background: linear-gradient(135deg, #3370ff 0%, #1f22f6 100%);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  box-shadow: 0 2px 6px rgba(31, 34, 246, 0.22);
+}
+
+.home-hero__balance-icon {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
+.home-hero__balance-text {
+  white-space: nowrap;
 }
 
 .home-hero__copy {

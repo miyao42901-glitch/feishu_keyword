@@ -17,6 +17,8 @@ export type SourceFieldKey =
   | 'videoTypeTag'
   | 'durationSeconds'
   | 'publishedAt'
+  /** 本条数据采集完成时刻（非接口字段，写入时由前端生成） */
+  | 'collectedAt'
   | 'like'
   | 'comment'
   | 'share'
@@ -25,6 +27,10 @@ export type SourceFieldKey =
   | 'authorId'
   | 'authorFollowers'
   | 'authorAvatar'
+  /** 抖音：作者个人简介 `author_signature` */
+  | 'authorSignature'
+  /** 抖音：星标认证 `verify_name` */
+  | 'verifyName'
   | 'hashtagList'
   | 'city'
   | 'ipLocation'
@@ -36,6 +42,38 @@ export type SourceFieldKey =
   | 'location'
   | 'noteType'
   | 'mentionedUsers'
+  /** 公众号专用 */
+  | 'gzhArticleId'
+  | 'gzhArticleTitle'
+  | 'gzhArticleBody'
+  | 'gzhArticleSummary'
+  | 'gzhArticleUrl'
+  | 'gzhArticleType'
+  | 'gzhAccountId'
+  | 'gzhAccountNickname'
+  | 'gzhAccountAvatar'
+  | 'gzhAccountBio'
+  | 'gzhReadCount'
+  | 'gzhLikeCount'
+  | 'gzhRepostCount'
+  | 'gzhCollectCount'
+  | 'gzhWowCount'
+  | 'gzhFeaturedCommentCount'
+  /** 视频号专用 */
+  | 'wxvVideoUniqueId'
+  | 'wxvVideoUrl'
+  | 'wxvVideoTitle'
+  | 'wxvVideoDescription'
+  | 'wxvAuthorNickname'
+  | 'wxvAuthorAvatar'
+  | 'wxvAuthorBio'
+  | 'wxvAuthorId'
+  | 'wxvLikeCount'
+  | 'wxvCommentCount'
+  | 'wxvRepostCount'
+  | 'wxvHeartCount'
+  | 'wxvCoverUrl'
+  | 'wxvDuration'
 
 /** 定时任务需填写开始/结束时间；单次任务不展示时间选择 */
 export type TaskType = 'scheduled' | 'realtime'
@@ -62,7 +100,7 @@ export type TaskStoppedKind = 'before_effective' | 'paused_in_window' | 'neutral
 export interface TaskCreateFormModel {
   /** 任务展示名，同步到服务端 `plan_name` */
   planName: string
-  /** 任务完成后是否推送飞书群机器人消息 */
+  /** 定时任务完成后是否推送飞书群机器人消息（单次任务不推送） */
   feishuNotifyEnabled: boolean
   /** 飞书自定义机器人 Webhook；仅在 `feishuNotifyEnabled` 时必填 */
   feishuWebhookUrl: string

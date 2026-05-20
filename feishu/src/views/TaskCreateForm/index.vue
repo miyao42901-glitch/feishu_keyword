@@ -9,13 +9,13 @@ import {
   createFeishuTaskConfig,
   updateFeishuTaskConfig,
 } from '@/lib/api'
-import type { FeishuTaskConfigDetail } from '@/lib/api'
-import {
-  applyCollectionResultToConfig,
-  submitCollectionFromConfig,
-} from '@/lib/async-task-api'
 import { buildCollectionFetchContext } from '@/lib/collection-context'
-import { syncTaskCollectionToBitable } from '@/lib/feishu-bitable-task-sync'
+import {
+  buildAsyncTaskEditRequest,
+  canEditAsyncScheduleFields,
+  editAsyncTask,
+} from '@/lib/async-task-api'
+import type { FeishuTaskConfigDetail } from '@/lib/api'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
 import { useAccountPointsStore } from '@/stores/accountPoints'
 import { estimateTaskPointsBreakdown } from '@/lib/task-estimate-points'
@@ -53,13 +53,15 @@ const props = withDefaults(
     taskConfigId?: number | null
     /** 详情接口回显用 */
     detail?: FeishuTaskConfigDetail | null
+    /** 编辑态：YDDM 列表卡片状态（决定调度字段是否可改） */
+    editTaskStatus?: TaskRunStatus | null
   }>(),
-  { taskConfigId: null, detail: null },
+  { taskConfigId: null, detail: null, editTaskStatus: null },
 )
 
 const emit = defineEmits<{
   back: []
-  saved: [id: number]
+  saved: [id: number, isEdit: boolean]
 }>()
 
 /** 各平台采集字段多选初始化为空数组，避免 undefined */
@@ -133,6 +135,13 @@ const orderedSelectedPlatforms = computed(() =>
 
 const accountPoints = useAccountPointsStore()
 const pointsEstimate = computed(() => estimateTaskPointsBreakdown(form))
+
+const isEditMode = computed(() => effectiveTaskConfigId() != null)
+
+/** 非 pending 的编辑态：调度字段只读（名称仍可改） */
+const scheduleFieldsLocked = computed(
+  () => isEditMode.value && !canEditAsyncScheduleFields(props.editTaskStatus),
+)
 
 /** 仅定时任务校验开始/结束时间；单次任务不展示时间字段 */
 const rules = computed<FormRules>(() => ({
@@ -440,7 +449,7 @@ async function openSaveConfirm() {
   confirmVisible.value = true
 }
 
-/** 确认弹框内「开始执行」：落库并提交运行，回到任务列表 */
+/** 确认弹框内「开始执行」：仅落库；采集与写表在任务列表页执行 */
 async function persistFromConfirmDialog() {
   if (!formRef.value || saving.value) return
   const globalSettings = useGlobalSettingsStore()
@@ -465,14 +474,19 @@ async function persistFromConfirmDialog() {
       taskAbnormal: false,
     })
 
-    const collectionCtx = await buildCollectionFetchContext()
-    const collection = await submitCollectionFromConfig(payload, collectionCtx)
-    applyCollectionResultToConfig(payload, collection)
-
     const existingId = effectiveTaskConfigId()
     let targetId: number
     if (existingId != null) {
-      await updateFeishuTaskConfig(existingId, payload)
+      const ctx = await buildCollectionFetchContext()
+      const editBody = buildAsyncTaskEditRequest(existingId, payload, {
+        allowScheduleFields: canEditAsyncScheduleFields(props.editTaskStatus),
+      })
+      await editAsyncTask(ctx, editBody)
+      try {
+        await updateFeishuTaskConfig(existingId, payload)
+      } catch {
+        /* 列表来自 YDDM 时可能无本地 feishu_task_configs 记录 */
+      }
       targetId = existingId
     } else {
       const { id } = await createFeishuTaskConfig(payload)
@@ -480,34 +494,12 @@ async function persistFromConfirmDialog() {
       targetId = id
     }
 
-    try {
-      const taskName = String(payload.planName ?? '').trim() || '未命名任务'
-      const bitable = await syncTaskCollectionToBitable({
-        taskId: targetId,
-        taskName,
-        config: payload,
-        syncCtx: collectionCtx,
-      })
-      if (bitable.tableReady && bitable.rowCount > 0 && bitable.written === 0) {
-        showSaveError('采集成功，但写入飞书表格失败，请确认在多维表格插件内打开并重试')
-        confirmVisible.value = false
-        emit('saved', targetId)
-        return
-      }
-    } catch (bitableErr) {
-      const msg = bitableErr instanceof Error ? bitableErr.message : '写入飞书表格失败'
-      showSaveError(`任务已保存，但飞书表格处理失败：${msg}`)
-      confirmVisible.value = false
-      emit('saved', targetId)
-      return
-    }
-
     confirmVisible.value = false
     saveBanner.value = null
     saveErrorText.value = ''
-    emit('saved', targetId)
+    emit('saved', targetId, existingId != null)
   } catch (e) {
-    showSaveError(e instanceof Error ? e.message : '开始执行失败')
+    showSaveError(e instanceof Error ? e.message : '保存任务失败')
   } finally {
     saving.value = false
   }
@@ -530,6 +522,9 @@ async function persistFromConfirmDialog() {
       v-model="confirmVisible"
       :rows="confirmDisplayRows"
       :estimated-points="pointsEstimate.total"
+      :scheduled-execution-rounds="
+        form.taskType === 'scheduled' ? pointsEstimate.scheduledExecutionRounds : undefined
+      "
       :balance-points="accountPoints.currentBalancePoints"
       :confirming="saving"
       @confirm="persistFromConfirmDialog"
@@ -555,7 +550,7 @@ async function persistFromConfirmDialog() {
     >
       <div v-show="currentStep === 0">
         <BasicInfoSection :form="form" />
-        <CrawlScheduleSection :form="form" />
+        <CrawlScheduleSection :form="form" :schedule-locked="scheduleFieldsLocked" />
         <p class="task-form-field-title mb-2 mt-6">采集平台</p>
         <SourceSelectionSection
           mode="platforms"
@@ -573,6 +568,7 @@ async function persistFromConfirmDialog() {
         <FilterSettingsSection
           :form="form"
           :exclude-keyword-draft="excludeKeywordDraft"
+          :schedule-locked="scheduleFieldsLocked"
           @update:exclude-keyword-draft="excludeKeywordDraft = $event"
         />
       </div>

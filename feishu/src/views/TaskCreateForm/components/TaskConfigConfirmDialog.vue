@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 保存前「确认任务配置」：配置摘要、预估积分与当前积分、取消 / 开始执行（落库）。
+ * 保存前「确认任务配置」：配置摘要、预估积分与当前积分、取消 / 开始执行（落库后回列表执行）。
  */
 import { Close } from '@element-plus/icons-vue'
 import type { TaskConfigConfirmRow } from '@/views/TaskCreateForm/build-preview-rows'
@@ -11,6 +11,8 @@ defineProps<{
   rows: TaskConfigConfirmRow[]
   estimatedPoints: number
   balancePoints: number
+  /** 定时任务：监控窗口内预计采集轮次 */
+  scheduledExecutionRounds?: number
   confirming: boolean
 }>()
 
@@ -60,7 +62,7 @@ function handleClose() {
 
     <div class="task-config-confirm-dialog__points">
       <div class="task-config-confirm-dialog__points-row">
-        <span class="task-config-confirm-dialog__points-label">预估消耗</span>
+        <span class="task-config-confirm-dialog__points-label">预估消耗（上限）</span>
         <span class="task-config-confirm-dialog__points-value">
           <span class="task-config-confirm-dialog__points-num">{{
             estimatedPoints.toLocaleString('zh-CN')
@@ -68,6 +70,12 @@ function handleClose() {
           <span class="task-config-confirm-dialog__points-unit">积分</span>
         </span>
       </div>
+      <p class="task-config-confirm-dialog__points-hint">
+        <template v-if="scheduledExecutionRounds != null && scheduledExecutionRounds > 1">
+          定时任务预计在监控期内采集 {{ scheduledExecutionRounds }} 轮（自开始后每隔采集频率执行，结束时刻可能补采一轮）；预估积分已按轮次累加。
+        </template>
+        按各平台、每轮实采条数扣费：未凑满选择条数时会继续翻页；实采不足时按实际返回条数计费。
+      </p>
       <div class="task-config-confirm-dialog__points-row">
         <span class="task-config-confirm-dialog__points-label">当前积分</span>
         <span class="task-config-confirm-dialog__points-value">
@@ -188,6 +196,13 @@ function handleClose() {
   padding: 14px 16px;
   border-radius: 8px;
   background: #f8f9fa;
+}
+
+.task-config-confirm-dialog__points-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #646a73;
 }
 
 .task-config-confirm-dialog__points-row {

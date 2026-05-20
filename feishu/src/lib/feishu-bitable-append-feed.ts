@@ -5,6 +5,7 @@
 
 import { bitable, FieldType, type IAddTableConfig } from '@lark-base-open/js-sdk'
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
+import { defaultNewTableNameForPlatform, readSyncCollectionPlatforms } from '@/lib/sync-collection-platforms'
 import { getOrderedColumnLabelsForPlatform } from '@/lib/test-data-field-map'
 import type { TestFeedRow } from '@/lib/test-data-feed'
 
@@ -84,7 +85,15 @@ function readPlatformNewTableName(cfg: Record<string, unknown>, platform: Platfo
     const v = (raw as Record<string, unknown>)[platform]
     if (typeof v === 'string' && v.trim()) return v.trim()
   }
-  return platform === 'douyin' ? '抖音数据表' : '小红书数据表'
+  if (
+    platform === 'douyin' ||
+    platform === 'xiaohongshu' ||
+    platform === 'shipinhao' ||
+    platform === 'gzh'
+  ) {
+    return defaultNewTableNameForPlatform(platform)
+  }
+  return '数据表'
 }
 
 type BitableTable = Awaited<ReturnType<typeof bitable.base.getTable>>
@@ -196,13 +205,27 @@ async function resolveColumnFieldIds(
 }
 
 function rowFingerprint(row: TestFeedRow): string {
-  const id =
+  const stable = row.itemStableId?.trim()
+  if (stable) return `${row.taskId}:${row.platform}:${stable}`
+
+  const fromColumns =
     row.fieldColumns['视频唯一ID'] ??
+    row.fieldColumns['文章ID'] ??
     row.fieldColumns['笔记ID'] ??
-    row.fieldColumns['视频播放页链接'] ??
-    row.fieldColumns['笔记标题'] ??
-    row.url
-  return `${row.taskId}:${row.platform}:${id}:${row.publishMs}`
+    row.fieldColumns['视频链接'] ??
+    row.fieldColumns['视频播放页链接']
+  const colId = typeof fromColumns === 'string' ? fromColumns.trim() : ''
+  if (colId) return `${row.taskId}:${row.platform}:${colId}`
+
+  const url = row.url?.trim()
+  if (url && url !== '—') return `${row.taskId}:${row.platform}:${url}`
+
+  const title = row.title?.trim()
+  if (title && title !== '—') {
+    return `${row.taskId}:${row.platform}:${title}:${row.publishMs}:${row.author}`
+  }
+
+  return `${row.taskId}:${row.platform}:${row.publishMs}:${row.collectedAtMs}:${row.author}`
 }
 
 const appendedFingerprintsByTask = new Map<number, Set<string>>()
@@ -236,6 +259,11 @@ function filterNotYetAppended(rows: TestFeedRow[]): TestFeedRow[] {
     out.push(row)
   }
   return out
+}
+
+/** 尚未写入飞书表格、且未在本次批次内重复的行数（与 `appendTestFeedRowsToBitable` 去重规则一致） */
+export function countRowsPendingBitableAppend(rows: TestFeedRow[]): number {
+  return filterNotYetAppended(rows).length
 }
 
 function markAppended(rows: TestFeedRow[]): void {
@@ -348,13 +376,7 @@ async function resolveOrCreateTableId(
 }
 
 function readTaskPlatformKeys(config: Record<string, unknown>): PlatformKey[] {
-  const raw = config.selectedSources ?? config.selected_sources
-  if (!Array.isArray(raw)) return []
-  const out: PlatformKey[] = []
-  for (const x of raw) {
-    if (x === 'douyin' || x === 'xiaohongshu') out.push(x)
-  }
-  return out
+  return readSyncCollectionPlatforms(config)
 }
 
 /**
@@ -402,9 +424,14 @@ export async function appendTestFeedRowsToBitable(
   type Group = { tableId: string; rows: TestFeedRow[]; platform: PlatformKey; taskId: number }
   const byTable = new Map<string, Group>()
 
+  const skippedNoTable: Partial<Record<PlatformKey, number>> = {}
+
   for (const row of rows) {
     const tableId = await resolveTableIdForRow(row, deps, configByTaskId)
-    if (!tableId) continue
+    if (!tableId) {
+      skippedNoTable[row.platform] = (skippedNoTable[row.platform] ?? 0) + 1
+      continue
+    }
     let g = byTable.get(tableId)
     if (!g) {
       g = { tableId, rows: [], platform: row.platform, taskId: row.taskId }
@@ -453,9 +480,37 @@ export async function appendTestFeedRowsToBitable(
           writtenByTaskId.set(row.taskId, (writtenByTaskId.get(row.taskId) ?? 0) + 1)
         }
       }
-    } catch {
-      /* */
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.warn('[bitable-append] addRecords failed', { platform, taskId, tableId, err })
+      }
     }
   }
+
+  if (import.meta.env.DEV) {
+    const writtenByPlatform: Partial<Record<PlatformKey, number>> = {}
+    const freshByPlatform: Partial<Record<PlatformKey, number>> = {}
+    for (const { platform, rows: tableRows } of byTable.values()) {
+      writtenByPlatform[platform] = tableRows.length
+    }
+    for (const row of rows) {
+      const fp = rowFingerprint(row)
+      if (!getFpSet(row.taskId).has(fp)) {
+        freshByPlatform[row.platform] = (freshByPlatform[row.platform] ?? 0) + 1
+      }
+    }
+    console.log('[bitable-append]', {
+      inputRows: rows.length,
+      pendingFreshByPlatform: freshByPlatform,
+      skippedNoTable,
+      tables: [...byTable.values()].map((g) => ({
+        platform: g.platform,
+        tableId: g.tableId,
+        rows: g.rows.length,
+        fresh: filterNotYetAppended(g.rows).length,
+      })),
+    })
+  }
+
   return writtenByTaskId
 }

@@ -12,7 +12,11 @@ import {
 
 defineOptions({ name: 'CrawlScheduleSection' })
 
-const props = defineProps<{ form: TaskCreateFormModel }>()
+const props = defineProps<{
+  form: TaskCreateFormModel
+  /** 非 pending 编辑态：采集频率与起止时间不可改 */
+  scheduleLocked?: boolean
+}>()
 
 function onExpireDisabledTime(date: Date) {
   return disabledTimeExpireDateTime(date, props.form.effectiveAt)
@@ -21,6 +25,9 @@ function onExpireDisabledTime(date: Date) {
 
 <template>
   <div v-if="form.taskType === 'scheduled'">
+    <p v-if="scheduleLocked" class="schedule-locked-hint m-0 mb-3 text-xs text-amber-700">
+      任务已非待运行状态，采集频率与起止时间不可修改；仍可修改任务名称。
+    </p>
     <el-form-item prop="crawlFrequency" class="crawl-frequency-form-item">
       <template #label>
         <div class="crawl-frequency-label-row">
@@ -32,6 +39,7 @@ function onExpireDisabledTime(date: Date) {
         v-model="form.crawlFrequency"
         placeholder="请选择采集频率"
         class="w-full crawl-schedule-control"
+        :disabled="scheduleLocked"
       >
         <el-option v-for="opt in frequencyOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
       </el-select>
@@ -45,6 +53,7 @@ function onExpireDisabledTime(date: Date) {
           :value-format="DATETIME_FORMAT"
           placeholder="请输入开始时间"
           class="w-full crawl-schedule-control"
+          :disabled="scheduleLocked"
           :disabled-date="disabledPastDateForPicker"
           :disabled-time="disabledTimeEffectiveDateTime"
         />
@@ -57,6 +66,7 @@ function onExpireDisabledTime(date: Date) {
           :value-format="DATETIME_FORMAT"
           placeholder="请输入结束时间"
           class="w-full crawl-schedule-control"
+          :disabled="scheduleLocked"
           :disabled-date="disabledPastDateForPicker"
           :disabled-time="onExpireDisabledTime"
         />

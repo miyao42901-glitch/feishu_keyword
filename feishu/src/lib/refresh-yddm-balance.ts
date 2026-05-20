@@ -2,6 +2,8 @@
  * 采集等扣费操作后刷新 YDDM 用户信息（含 `balance_cents` / 积分余额）。
  */
 
+import { parseYddmUserBalancePoints } from '@/lib/account-balance'
+import { maybeNotifyLowBalance } from '@/lib/feishu-webhook-notify'
 import { useAccountPointsStore } from '@/stores/accountPoints'
 import { useYddmAuthStore } from '@/stores/yddmAuth'
 
@@ -24,6 +26,7 @@ export function refreshYddmUserBalance(): Promise<void> {
     try {
       const u = await yddmAuth.refreshMe()
       useAccountPointsStore().syncFromYddmUser(u)
+      void maybeNotifyLowBalance(parseYddmUserBalancePoints(u))
       lastSuccessAt = Date.now()
     } catch {
       /* 余额刷新失败不阻断采集主流程 */

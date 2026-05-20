@@ -2,7 +2,13 @@
 import { Clock } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { taskListPlatformIconImgAttrs } from '@/views/tasks/task-list-media'
 import { taskStatusRasterImgAttrs } from '@/views/tasks/task-status-media'
+import {
+  canTaskAction,
+  taskPrimaryActionKind,
+  taskPrimaryActionLabel,
+} from '@/views/tasks/task-action-matrix'
 import type { TaskCardModel } from '@/views/tasks/types'
 import type { TaskRunStatus } from '@/views/TaskCreateForm/types'
 
@@ -11,7 +17,7 @@ defineOptions({ name: 'TaskListCard' })
 const props = withDefaults(
   defineProps<{
     row: TaskCardModel
-    /** 主操作（停止/启动/重启）请求中 */
+    /** 停止 / 重试请求中 */
     primaryLoading?: boolean
   }>(),
   { primaryLoading: false },
@@ -23,11 +29,6 @@ const emit = defineEmits<{
   primaryAction: [row: TaskCardModel]
   delete: [row: TaskCardModel]
 }>()
-
-const platformRowIcon = {
-  src: '/Frame.png',
-  srcset: '/Frame@2x.png 2x',
-} as const
 
 const statusLabels: Record<TaskRunStatus, string> = {
   pending_run: '待运行',
@@ -45,22 +46,13 @@ const statusTextModifier: Record<TaskRunStatus, string> = {
   failed: 'failed',
 }
 
-function primaryActionLabel(status: TaskRunStatus): string {
-  switch (status) {
-    case 'running':
-      return '停止'
-    case 'completed':
-      return '重启'
-    case 'stopped':
-      return '启动'
-    case 'pending_run':
-      return '重试'
-    case 'failed':
-      return '重试'
-  }
-}
+const primaryKind = computed(() => taskPrimaryActionKind(props.row.status))
 
-const showEdit = computed(() => props.row.status !== 'running')
+const showView = computed(() => canTaskAction(props.row.status, 'view'))
+const showEdit = computed(() => canTaskAction(props.row.status, 'edit'))
+const showStop = computed(() => canTaskAction(props.row.status, 'stop'))
+const showDelete = computed(() => canTaskAction(props.row.status, 'delete'))
+const showRetry = computed(() => canTaskAction(props.row.status, 'retry'))
 
 /** 驱动「X 分钟后开始」等相对时间文案定期重算 */
 const scheduleClockTick = ref(Date.now())
@@ -111,8 +103,6 @@ const scheduleSubtitle = computed(() => {
   return `定时任务 · ${dPast} 天前`
 })
 
-const showPrimaryAction = computed(() => true)
-
 function onPrimary() {
   emit('primaryAction', props.row)
 }
@@ -124,7 +114,7 @@ function onPrimary() {
       <div class="task-list-card__title-row flex min-w-0 items-center justify-between gap-2">
         <div class="task-list-card__title-left min-w-0 flex-1">
           <span
-            v-if="row.notificationCount > 0 && row.status !== 'running'"
+            v-if="row.notificationCount > 0 && row.status === 'running'"
             class="mb-1.5 inline-block rounded-md bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-800"
           >
             {{ row.notificationCount > 99 ? '99+' : row.notificationCount }} 条新数据
@@ -163,8 +153,7 @@ function onPrimary() {
           <span class="task-meta-icon-slot" aria-hidden="true">
             <img
               class="task-list-card__platform-icon"
-              :src="platformRowIcon.src"
-              :srcset="platformRowIcon.srcset"
+              v-bind="taskListPlatformIconImgAttrs()"
               width="12"
               height="12"
               alt=""
@@ -187,88 +176,56 @@ function onPrimary() {
     <div
       class="task-list-card__actions flex flex-nowrap items-center gap-2 border-t border-[#DEE0E3] px-3"
     >
-      <template v-if="row.status === 'running' || row.status === 'pending_run'">
-        <span
-          v-if="row.status === 'running' && row.notificationCount > 0"
-          class="task-running-new-count shrink-0"
+      <span
+        v-if="row.status === 'running' && row.notificationCount > 0"
+        class="task-running-new-count shrink-0"
+      >
+        {{ row.notificationCount > 99 ? '99+' : row.notificationCount }}条新数据
+      </span>
+      <div class="task-list-card__actions-trailing ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <button
+          v-if="showDelete"
+          type="button"
+          class="task-action-completed-delete"
+          @click.stop="emit('delete', row)"
         >
-          {{ row.notificationCount > 99 ? '99+' : row.notificationCount }}条新数据
-        </span>
-        <div class="task-list-card__actions-trailing ml-auto flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            class="task-action-btn task-action-btn--stop-neutral"
-            :disabled="primaryLoading"
-            @click.stop="onPrimary"
-          >
-            停止
-          </button>
-          <button
-            type="button"
-            class="task-action-btn task-action-btn--outline-blue"
-            @click.stop="emit('view', row)"
-          >
-            查看
-          </button>
-        </div>
-      </template>
-      <template v-else-if="row.status === 'completed'">
-        <div class="task-list-card__actions-trailing ml-auto flex shrink-0 items-center gap-2">
-          <button type="button" class="task-action-completed-delete" @click.stop="emit('delete', row)">
-            删除
-          </button>
-          <button
-            type="button"
-            class="task-action-btn task-action-btn--outline-blue"
-            @click.stop="emit('view', row)"
-          >
-            查看
-          </button>
-          <button
-            type="button"
-            class="task-action-completed-restart"
-            :disabled="primaryLoading"
-            @click.stop="onPrimary"
-          >
-            重启
-          </button>
-        </div>
-      </template>
-      <template v-else>
-        <div class="task-list-card__actions-trailing ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
-          <button
-            type="button"
-            class="rounded px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50"
-            @click.stop="emit('delete', row)"
-          >
-            删除
-          </button>
-          <button
-            type="button"
-            class="task-action-btn task-action-btn--outline-blue"
-            @click.stop="emit('view', row)"
-          >
-            查看
-          </button>
-          <button
-            v-if="showEdit"
-            type="button"
-            class="task-action-btn task-action-btn--outline-blue"
-            @click.stop="emit('edit', row)"
-          >
-            编辑
-          </button>
-          <button
-            v-if="showPrimaryAction"
-            type="button"
-            class="task-action-completed-restart"
-            :disabled="primaryLoading"
-            @click.stop="onPrimary"
-          >
-            {{ primaryActionLabel(row.status) }}
-          </button>
-        </div>
-      </template>
+          删除
+        </button>
+        <button
+          v-if="showEdit"
+          type="button"
+          class="task-action-btn task-action-btn--outline-blue"
+          @click.stop="emit('edit', row)"
+        >
+          编辑
+        </button>
+        <button
+          v-if="showView"
+          type="button"
+          class="task-action-btn task-action-btn--outline-blue"
+          @click.stop="emit('view', row)"
+        >
+          查看
+        </button>
+        <button
+          v-if="showStop"
+          type="button"
+          class="task-action-btn task-action-btn--stop-neutral"
+          :disabled="primaryLoading"
+          @click.stop="onPrimary"
+        >
+          停止
+        </button>
+        <button
+          v-if="showRetry && primaryKind"
+          type="button"
+          class="task-action-completed-restart"
+          :disabled="primaryLoading"
+          @click.stop="onPrimary"
+        >
+          {{ taskPrimaryActionLabel(primaryKind) }}
+        </button>
+      </div>
     </div>
   </div>
 </template>

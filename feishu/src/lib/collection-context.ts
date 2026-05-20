@@ -20,13 +20,18 @@ export async function buildCollectionFetchContext(): Promise<SyncFetchContext> {
   }
 
   let me = yddmAuth.me
-  if (!me?.phone_num?.trim()) {
+  if (!me?.id || !me?.phone_num?.trim()) {
     me = await yddmAuth.refreshMe()
+  }
+
+  const userId = me?.id ?? yddmAuth.me?.id
+  if (userId == null || !String(userId).trim()) {
+    throw new Error('缺少 X-User-Id：请先登录 YDDM 账户')
   }
 
   return {
     apiKey,
-    userId: me?.id ?? yddmAuth.me?.id,
+    userId,
     phoneNum: me?.phone_num ?? yddmAuth.me?.phone_num,
   }
 }

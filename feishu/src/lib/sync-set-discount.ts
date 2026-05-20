@@ -1,5 +1,9 @@
 /**
  * 采集前设置用户折扣：`POST /admin/set_discount`（YDDM 域，与登录注册同源）
+ *
+ * 计费目标：每条数据 **100 积分**。
+ * `discount_rate` = 积分档位 ÷ 100（表示单次 search-page 典型返回条数，传给 YDDM；
+ * 与 `sync-platform-page-size` 翻页逻辑一致）。
  */
 
 import type { SyncFetchContext } from '@/lib/sync-api-common'
@@ -9,24 +13,61 @@ import { useYddmAuthStore } from '@/stores/yddmAuth'
 
 const SET_DISCOUNT_PATH = '/admin/set_discount'
 
+/** 每条采集数据目标扣费（积分） */
+export const TARGET_POINTS_PER_ROW = 100
+
 /** YDDM `set_discount` 的 endpoint（与采集 search-page 路径不同） */
 export const DOUYIN_DISCOUNT_ENDPOINT = '/douyin/general_search'
 export const XHS_DISCOUNT_ENDPOINT = '/xhs/search_note_app'
+/** 视频号 / 公众号（微信搜一搜） */
+export const WX_SOUSOU_DISCOUNT_ENDPOINT = '/wx/sousou'
 
 /** @deprecated 使用 `DOUYIN_DISCOUNT_ENDPOINT` */
 export const DOUYIN_SYNC_ENDPOINT = DOUYIN_DISCOUNT_ENDPOINT
 /** @deprecated 使用 `XHS_DISCOUNT_ENDPOINT` */
 export const XHS_SYNC_ENDPOINT = XHS_DISCOUNT_ENDPOINT
 
-/** 抖音：1000 / 150 */
-export const DOUYIN_DISCOUNT_RATE = 1000 / 150
-/** 小红书：2000 / 100 */
-export const XHS_DISCOUNT_RATE = 2000 / 100
+/** 抖音积分档位（与后台套餐一致） */
+export const DOUYIN_POINTS_PACKAGE = 1000
+/** 小红书积分档位 */
+export const XHS_POINTS_PACKAGE = 2000
+/** 视频号 / 公众号积分档位 */
+export const WX_SOUSOU_POINTS_PACKAGE = 1500
 
 /** 折扣最多保留两位小数（接口要求） */
 export function formatDiscountRate(rate: number): number {
   if (!Number.isFinite(rate)) return 0
   return Math.round(rate * 100) / 100
+}
+
+/**
+ * 按「每条 {@link TARGET_POINTS_PER_ROW} 积分」从积分档位推导 `discount_rate`。
+ * 例：1000 分档 → rate=10（1000÷100，约 10 条/档）；1500 分档 → rate=15。
+ */
+export function discountRateForPackage(
+  pointsPackage: number,
+  pointsPerRow: number = TARGET_POINTS_PER_ROW,
+): number {
+  if (!Number.isFinite(pointsPackage) || pointsPerRow <= 0) return 0
+  return formatDiscountRate(pointsPackage / pointsPerRow)
+}
+
+/** 抖音：1000 积分档 → discount_rate 10（每条 100 积分） */
+export const DOUYIN_DISCOUNT_RATE = discountRateForPackage(DOUYIN_POINTS_PACKAGE)
+/** 小红书：2000 积分档 → discount_rate 20 */
+export const XHS_DISCOUNT_RATE = discountRateForPackage(XHS_POINTS_PACKAGE)
+/** 视频号 / 公众号：1500 积分档 → discount_rate 15 */
+export const WX_SOUSOU_DISCOUNT_RATE = discountRateForPackage(WX_SOUSOU_POINTS_PACKAGE)
+
+/** 按积分档位与 discount_rate，折算每条积分（应等于 {@link TARGET_POINTS_PER_ROW}） */
+export function pointsPerRowFromDiscountPackage(
+  pointsPackage: number,
+  rowsPerPackage: number,
+): number {
+  if (!Number.isFinite(pointsPackage) || !Number.isFinite(rowsPerPackage) || rowsPerPackage <= 0) {
+    return 0
+  }
+  return pointsPackage / rowsPerPackage
 }
 
 export type SetDiscountRequest = {
@@ -71,13 +112,19 @@ export function resolveDiscountForSyncPath(
   if (p.includes('/douyin/')) {
     return {
       endpoint: DOUYIN_DISCOUNT_ENDPOINT,
-      discount_rate: formatDiscountRate(DOUYIN_DISCOUNT_RATE),
+      discount_rate: DOUYIN_DISCOUNT_RATE,
     }
   }
   if (p.includes('/xhs/')) {
     return {
       endpoint: XHS_DISCOUNT_ENDPOINT,
-      discount_rate: formatDiscountRate(XHS_DISCOUNT_RATE),
+      discount_rate: XHS_DISCOUNT_RATE,
+    }
+  }
+  if (p.includes('/wxvideo/') || p.includes('/wx/')) {
+    return {
+      endpoint: WX_SOUSOU_DISCOUNT_ENDPOINT,
+      discount_rate: WX_SOUSOU_DISCOUNT_RATE,
     }
   }
   return null
@@ -127,7 +174,7 @@ export async function ensureSyncEndpointDiscountForPath(
 }
 
 export async function ensureSyncEndpointDiscountForPlatform(
-  platform: 'douyin' | 'xiaohongshu',
+  platform: 'douyin' | 'xiaohongshu' | 'shipinhao' | 'gzh',
   ctx: SyncFetchContext,
 ): Promise<void> {
   if (platform === 'douyin') {
@@ -138,9 +185,19 @@ export async function ensureSyncEndpointDiscountForPlatform(
     })
     return
   }
-  await ensureSyncEndpointDiscount({
-    endpoint: XHS_DISCOUNT_ENDPOINT,
-    discountRate: XHS_DISCOUNT_RATE,
-    ctx,
-  })
+  if (platform === 'xiaohongshu') {
+    await ensureSyncEndpointDiscount({
+      endpoint: XHS_DISCOUNT_ENDPOINT,
+      discountRate: XHS_DISCOUNT_RATE,
+      ctx,
+    })
+    return
+  }
+  if (platform === 'shipinhao' || platform === 'gzh') {
+    await ensureSyncEndpointDiscount({
+      endpoint: WX_SOUSOU_DISCOUNT_ENDPOINT,
+      discountRate: WX_SOUSOU_DISCOUNT_RATE,
+      ctx,
+    })
+  }
 }

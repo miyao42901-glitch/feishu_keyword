@@ -265,11 +265,7 @@ export function feishuDetailToListItem(d: FeishuTaskConfigDetail): FeishuTaskCon
   }
 }
 
-/**
- * 分页拉取任务配置列表。
- * @param skip - 偏移量，默认 0
- * @param limit - 条数上限，默认 100（服务端仍会裁剪）
- */
+/** 分页拉取本地任务配置列表（`GET /api/feishu-task-configs`）。任务列表页主数据源。 */
 export function listFeishuTaskConfigs(skip = 0, limit = 100) {
   return apiFetch<FeishuTaskConfigListItem[]>(`/feishu-task-configs?skip=${skip}&limit=${limit}`)
 }

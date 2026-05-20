@@ -5,7 +5,11 @@ import type { FeishuTaskConfigDetail } from '@/lib/api'
 import { platformDisplayNames, sourcePlatforms, DATETIME_FORMAT } from '@/views/TaskCreateForm/constants'
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
 import type { TaskCardModel } from '@/views/tasks/types'
-import type { TaskRunStatus } from '@/views/TaskCreateForm/types'
+import {
+  canTaskAction,
+  taskPrimaryActionKind,
+  taskPrimaryActionLabel,
+} from '@/views/tasks/task-action-matrix'
 
 defineOptions({ name: 'TaskDetailDialog' })
 
@@ -110,22 +114,15 @@ const excludeTags = computed(() => {
 
 const showFooterActions = computed(() => !props.loading && props.row != null)
 
-const showEdit = computed(() => props.row != null && props.row.status !== 'running')
+const rowStatus = computed(() => props.row?.status)
 
-function primaryActionLabel(status: TaskRunStatus): string {
-  switch (status) {
-    case 'running':
-      return '停止'
-    case 'completed':
-      return '重启'
-    case 'stopped':
-      return '启动'
-    case 'pending_run':
-      return '重试'
-    case 'failed':
-      return '重试'
-  }
-}
+const showEdit = computed(() => rowStatus.value != null && canTaskAction(rowStatus.value, 'edit'))
+const showDelete = computed(() => rowStatus.value != null && canTaskAction(rowStatus.value, 'delete'))
+const showStop = computed(() => rowStatus.value != null && canTaskAction(rowStatus.value, 'stop'))
+const showRetry = computed(() => rowStatus.value != null && canTaskAction(rowStatus.value, 'retry'))
+const primaryKind = computed(() =>
+  rowStatus.value != null ? taskPrimaryActionKind(rowStatus.value) : null,
+)
 
 function emitPrimary() {
   const r = props.row
@@ -196,58 +193,38 @@ function emitEdit() {
 
     <template v-if="showFooterActions && row" #footer>
       <div class="task-detail-footer">
-        <template v-if="row.status === 'running' || row.status === 'pending_run'">
-          <span
-            v-if="row.status === 'running' && row.notificationCount > 0"
-            class="task-detail-footer__new-count shrink-0"
+        <span
+          v-if="row.status === 'running' && row.notificationCount > 0"
+          class="task-detail-footer__new-count shrink-0"
+        >
+          {{ row.notificationCount > 99 ? '99+' : row.notificationCount }}条新数据
+        </span>
+        <div class="task-detail-footer__trailing ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <button v-if="showDelete" type="button" class="tdf-completed-delete" @click="emitDelete">
+            删除
+          </button>
+          <button v-if="showEdit" type="button" class="tdf-btn tdf-btn--outline-blue" @click="emitEdit">
+            编辑
+          </button>
+          <button
+            v-if="showStop"
+            type="button"
+            class="tdf-btn tdf-btn--stop-neutral"
+            :disabled="primaryLoading"
+            @click="emitPrimary"
           >
-            {{ row.notificationCount > 99 ? '99+' : row.notificationCount }}条新数据
-          </span>
-          <div class="task-detail-footer__trailing ml-auto flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              class="tdf-btn tdf-btn--stop-neutral"
-              :disabled="primaryLoading"
-              @click="emitPrimary"
-            >
-              停止
-            </button>
-          </div>
-        </template>
-        <template v-else-if="row.status === 'completed'">
-          <div class="task-detail-footer__trailing ml-auto flex shrink-0 items-center gap-2">
-            <button type="button" class="tdf-completed-delete" @click="emitDelete">删除</button>
-            <button
-              type="button"
-              class="tdf-btn tdf-btn--restart"
-              :disabled="primaryLoading"
-              @click="emitPrimary"
-            >
-              重启
-            </button>
-          </div>
-        </template>
-        <template v-else>
-          <div class="task-detail-footer__trailing ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
-            <button type="button" class="tdf-else-delete" @click="emitDelete">删除</button>
-            <button
-              v-if="showEdit"
-              type="button"
-              class="tdf-btn tdf-btn--outline-blue"
-              @click="emitEdit"
-            >
-              编辑
-            </button>
-            <button
-              type="button"
-              class="tdf-btn tdf-btn--restart"
-              :disabled="primaryLoading"
-              @click="emitPrimary"
-            >
-              {{ primaryActionLabel(row.status) }}
-            </button>
-          </div>
-        </template>
+            停止
+          </button>
+          <button
+            v-if="showRetry && primaryKind"
+            type="button"
+            class="tdf-btn tdf-btn--restart"
+            :disabled="primaryLoading"
+            @click="emitPrimary"
+          >
+            {{ taskPrimaryActionLabel(primaryKind) }}
+          </button>
+        </div>
       </div>
     </template>
   </el-dialog>

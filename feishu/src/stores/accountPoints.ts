@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { parseYddmUserBalancePoints } from '@/lib/account-balance'
+import { maybeNotifyLowBalance } from '@/lib/feishu-webhook-notify'
 import type { YddmLoginUser, YddmMeUser } from '@/lib/yddm-api'
 
 const BALANCE_STORAGE_KEY = 'feishu_keyword_account_balance_points'
@@ -39,7 +40,10 @@ export const useAccountPointsStore = defineStore('accountPoints', () => {
   /** 用登录/个人信息中的积分余额覆盖本地缓存 */
   function syncFromYddmUser(user: YddmMeUser | YddmLoginUser | null | undefined) {
     const pts = parseYddmUserBalancePoints(user)
-    if (pts != null) setCurrentBalancePoints(pts)
+    if (pts != null) {
+      setCurrentBalancePoints(pts)
+      void maybeNotifyLowBalance(pts)
+    }
   }
 
   /** 退出登录后清空展示用余额 */

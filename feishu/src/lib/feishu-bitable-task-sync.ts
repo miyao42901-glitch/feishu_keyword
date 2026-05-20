@@ -10,7 +10,10 @@ import {
   ensureBitableTablesForTask,
   type TestFeedBitableDeps,
 } from '@/lib/feishu-bitable-append-feed'
+import { readSyncCollectionPlatforms } from '@/lib/sync-collection-platforms'
 import { buildTestDataFeedFromConfig, taskUsesOnlyTestDataPlatforms } from '@/lib/test-data-feed'
+import type { SyncItemsByPlatform } from '@/lib/sync-collection-cache'
+import { takeSyncCollectionCache } from '@/lib/sync-collection-cache'
 
 export function createTestFeedBitableDeps(): TestFeedBitableDeps {
   return {
@@ -38,13 +41,7 @@ export function createTestFeedBitableDeps(): TestFeedBitableDeps {
 }
 
 function readPlatformKeys(config: Record<string, unknown>): PlatformKey[] {
-  const raw = config.selectedSources ?? config.selected_sources
-  if (!Array.isArray(raw)) return []
-  const out: PlatformKey[] = []
-  for (const x of raw) {
-    if (x === 'douyin' || x === 'xiaohongshu') out.push(x)
-  }
-  return out
+  return readSyncCollectionPlatforms(config)
 }
 
 /**
@@ -56,6 +53,8 @@ export async function syncTaskCollectionToBitable(input: {
   taskName: string
   config: Record<string, unknown>
   syncCtx: SyncFetchContext
+  /** 与本次提交采集同批数据，避免二次 search-page */
+  preloadedItems?: SyncItemsByPlatform
 }): Promise<{ tableReady: boolean; rowCount: number; written: number }> {
   const platforms = readPlatformKeys(input.config)
   if (!platforms.length || !taskUsesOnlyTestDataPlatforms(platforms)) {
@@ -75,16 +74,42 @@ export async function syncTaskCollectionToBitable(input: {
     /* 使用入参配置 */
   }
 
-  const rows = await buildTestDataFeedFromConfig({
+  const preloadedItems =
+    input.preloadedItems ?? takeSyncCollectionCache(input.taskId)
+
+  const { rows } = await buildTestDataFeedFromConfig({
     taskId: input.taskId,
     taskName: input.taskName,
     config: cfg,
     sync: input.syncCtx,
+    preloadedItems,
   })
 
   const configByTaskId = new Map<number, Record<string, unknown>>([[input.taskId, cfg]])
   const writtenByTask = await appendTestFeedRowsToBitable(rows, configByTaskId, deps)
   const written = writtenByTask.get(input.taskId) ?? 0
+
+  takeSyncCollectionCache(input.taskId)
+
+  if (import.meta.env.DEV) {
+    const byPlatform = (p: PlatformKey) => rows.filter((r) => r.platform === p)
+    console.log('[bitable-sync]', {
+      taskId: input.taskId,
+      rowCount: rows.length,
+      written,
+      usedPreload: Boolean(preloadedItems),
+      rowsByPlatform: {
+        douyin: byPlatform('douyin').length,
+        xiaohongshu: byPlatform('xiaohongshu').length,
+        shipinhao: byPlatform('shipinhao').length,
+        gzh: byPlatform('gzh').length,
+      },
+      sampleFieldColumns: {
+        douyin: byPlatform('douyin')[0]?.fieldColumns,
+        xiaohongshu: byPlatform('xiaohongshu')[0]?.fieldColumns,
+      },
+    })
+  }
 
   return { tableReady: true, rowCount: rows.length, written }
 }

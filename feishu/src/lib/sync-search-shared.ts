@@ -5,10 +5,12 @@
 import {
   assertSyncEnvelopeOk,
   buildSyncApiHeaders,
+  extractSyncResultDiagnostics,
   extractSyncResultPageMeta,
   getSyncApiBase,
   type SyncFetchContext,
 } from '@/lib/sync-api-common'
+import { refreshYddmUserBalance } from '@/lib/refresh-yddm-balance'
 import { ensureSyncEndpointDiscountForPath } from '@/lib/sync-set-discount'
 
 export type SyncSortType = '0' | '1' | '2'
@@ -83,8 +85,14 @@ export async function getSyncApiJson(input: {
   path: string
   platformLabel: string
   ctx: SyncFetchContext
+  /** 可选 Query，如 Apifox `X-API-KEY`（与 Header `x-api-key` 二选一或并存） */
+  query?: Record<string, string>
 }): Promise<unknown> {
-  const url = `${getSyncApiBase()}${input.path}`
+  let url = `${getSyncApiBase()}${input.path}`
+  if (input.query && Object.keys(input.query).length > 0) {
+    const qs = new URLSearchParams(input.query).toString()
+    url += url.includes('?') ? `&${qs}` : `?${qs}`
+  }
   const headers = buildSyncApiHeaders(input.ctx)
   const res = await fetch(url, {
     method: 'GET',
@@ -111,6 +119,31 @@ export async function getSyncApiJson(input: {
   return parsed
 }
 
+function logSyncApiRequest(
+  method: string,
+  url: string,
+  meta: { status: number; platformLabel: string; body?: Record<string, unknown>; detail?: string },
+): void {
+  if (!import.meta.env.DEV) return
+  const itemCount =
+    meta.body == null
+      ? undefined
+      : (() => {
+          try {
+            const preview = JSON.stringify(meta.body)
+            return preview.length > 800 ? `${preview.slice(0, 800)}…` : preview
+          } catch {
+            return undefined
+          }
+        })()
+  console.log(`[sync-api] ${method} ${url}`, {
+    platform: meta.platformLabel,
+    status: meta.status,
+    ...(itemCount != null ? { body: itemCount } : {}),
+    ...(meta.detail ? { detail: meta.detail } : {}),
+  })
+}
+
 export async function postSyncApiJson(input: {
   path: string
   platformLabel: string
@@ -130,7 +163,15 @@ export async function postSyncApiJson(input: {
     try {
       parsed = JSON.parse(text) as unknown
     } catch {
-      if (!res.ok) throw new Error(`${input.platformLabel} HTTP ${res.status}`)
+      if (!res.ok) {
+        logSyncApiRequest('POST', url, {
+          status: res.status,
+          platformLabel: input.platformLabel,
+          body: input.body,
+          detail: text.slice(0, 300),
+        })
+        throw new Error(`${input.platformLabel} HTTP ${res.status}`)
+      }
       throw new Error(`${input.platformLabel}响应不是合法 JSON`)
     }
   }
@@ -139,9 +180,42 @@ export async function postSyncApiJson(input: {
       parsed && typeof parsed === 'object' && parsed !== null
         ? String((parsed as Record<string, unknown>).msg ?? (parsed as Record<string, unknown>).message ?? '')
         : text
+    logSyncApiRequest('POST', url, {
+      status: res.status,
+      platformLabel: input.platformLabel,
+      body: input.body,
+      detail: detail.trim() ? detail.trim().slice(0, 300) : text.slice(0, 300),
+    })
     throw new Error(detail.trim() ? detail.trim() : `${input.platformLabel} HTTP ${res.status}`)
   }
   assertSyncEnvelopeOk(parsed)
+  const diag = extractSyncResultDiagnostics(parsed)
+  logSyncApiRequest('POST', url, {
+    status: res.status,
+    platformLabel: input.platformLabel,
+    body: input.body,
+    detail: `items=${diag.itemCount}`,
+  })
+  if (import.meta.env.DEV && diag.itemCount === 0) {
+    console.warn(`[sync-api] ${input.platformLabel} 返回 0 条`, {
+      path: input.path,
+      balance: diag.balance,
+      insufficientBalance: diag.insufficientBalance,
+      error: diag.error,
+      rawDataLength: diag.rawDataLength,
+      resultKeys: diag.resultKeys,
+      nextCursor: diag.nextCursor,
+      nextLogid: diag.nextLogid,
+      payloadPreview: (() => {
+        try {
+          const s = JSON.stringify(parsed)
+          return s.length > 1200 ? `${s.slice(0, 1200)}…` : s
+        } catch {
+          return parsed
+        }
+      })(),
+    })
+  }
   return parsed
 }
 
@@ -157,6 +231,7 @@ export async function postSyncSearchPage(input: {
   if (pageMeta.insufficientBalance) {
     throw new Error('账户积分不足，无法继续采集')
   }
+  void refreshYddmUserBalance()
   return parsed
 }
 

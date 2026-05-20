@@ -1,25 +1,26 @@
 /**
- * 独立计费站（api.yddm.com）HTTP 封装，与 `lib/api.ts`（飞书插件后端）完全分离。
+ * YDDM 计费 / 登录 HTTP 封装，与 `lib/api.ts`（飞书插件后端）分离。
  * 响应体兼容 `message` 或 `msg` 字段。
  *
- * - **本地 `npm run dev`**：默认请求同源 `/yddm-api`（见 `vite.config.ts` 代理），避免浏览器 CORS。
- * - **生产**：默认直连 `https://api.yddm.com`；若仍有 CORS，请在对方网关配置允许飞书页面 Origin，或设置 `VITE_YDDM_API_BASE` 为你方可控的反代地址。
+ * - **本地 `npm run dev`**：默认 `/yddm-api` → Vite 代理到 `http://192.168.1.11:8001`
+ * - **生产**：默认直连 `http://192.168.1.11:8001`；可用 `VITE_YDDM_API_BASE` 覆盖
  */
 
-const YDDM_UPSTREAM = 'https://api.yddm.com'
+/** YDDM 服务根地址（无末尾 `/`） */
+export const DEFAULT_YDDM_API_BASE = 'http://192.168.1.11:8001'
 
-/** 上游计费域（展示用） */
-export const YDDM_UPSTREAM_ORIGIN = YDDM_UPSTREAM
+/** @deprecated 使用 `DEFAULT_YDDM_API_BASE` */
+export const YDDM_UPSTREAM_ORIGIN = DEFAULT_YDDM_API_BASE
 
 /**
  * 实际发起 fetch 使用的根地址（无末尾 `/`）。
- * 优先级：`VITE_YDDM_API_BASE` → 开发模式为 `/yddm-api` → 否则为上游域名。
+ * 优先级：`VITE_YDDM_API_BASE` → 开发模式 `/yddm-api` → `DEFAULT_YDDM_API_BASE`
  */
 export function getYddmApiBase(): string {
   const raw = (import.meta.env.VITE_YDDM_API_BASE as string | undefined)?.trim()
   if (raw) return raw.replace(/\/$/, '')
   if (import.meta.env.DEV) return '/yddm-api'
-  return YDDM_UPSTREAM
+  return DEFAULT_YDDM_API_BASE
 }
 
 /** 与 `/auth/register` 入参一致 */

@@ -18,7 +18,6 @@ export const DATETIME_FORMAT = 'YYYY-MM-DD HH:mm:ss'
 
 /** 定时任务采集间隔（value 为分钟数字符串） */
 export const frequencyOptions = [
-  { label: '每1分钟', value: '1' },
   { label: '每5分钟', value: '5' },
   { label: '每10分钟', value: '10' },
   { label: '每30分钟', value: '30' },
@@ -51,8 +50,10 @@ export const videoDurationOptions = [
 /** 单次拉取/展示条数候选 */
 export const dataRangeOptions = [10, 20, 30, 50, 70, 100] as const
 
-/** 信源勾选区固定顺序与展示文案（当前仅开放抖音、小红书） */
+/** 信源勾选区固定顺序与展示文案（已接入 search-page 的平台） */
 export const sourcePlatforms: { id: PlatformKey; label: string }[] = [
   { id: 'douyin', label: '抖音' },
   { id: 'xiaohongshu', label: '小红书' },
+  { id: 'shipinhao', label: '视频号' },
+  { id: 'gzh', label: '公众号' },
 ]

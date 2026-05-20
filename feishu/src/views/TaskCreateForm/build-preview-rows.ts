@@ -6,6 +6,7 @@ import customParseFormat from 'dayjs/plugin/customParseFormat'
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
 
 dayjs.extend(customParseFormat)
+import { countScheduledExecutionRounds } from '@/lib/datetime-task-window'
 import {
   DATETIME_FORMAT,
   frequencyOptions,
@@ -51,6 +52,11 @@ export function buildTaskConfigPreviewRows(cfg: Record<string, unknown>): { labe
     const exp = typeof cfg.expireAt === 'string' ? cfg.expireAt.trim() : ''
     rows.push({ label: '开始时间', value: eff || '—' })
     rows.push({ label: '结束时间', value: exp || '—' })
+    const rounds = countScheduledExecutionRounds(eff, exp, cfg.crawlFrequency)
+    rows.push({
+      label: '预计采集轮次',
+      value: rounds > 0 ? `${rounds} 轮（按开始+频率至结束，结束时刻可能补采）` : '—',
+    })
   }
 
   rows.push({ label: '监控关键词', value: joinArr(cfg.keywords) })
@@ -204,6 +210,17 @@ export function buildTaskConfigConfirmRows(cfg: Record<string, unknown>): TaskCo
     label: '任务时长',
     value: !isRealtime && eff && exp ? formatTaskWindowDuration(eff, exp) : '—',
   })
+  if (!isRealtime && eff && exp) {
+    const rounds = countScheduledExecutionRounds(eff, exp, cfg.crawlFrequency)
+    rows.push({
+      label: '预计采集轮次',
+      value: rounds > 0 ? `${rounds} 轮` : '—',
+    })
+    rows.push({
+      label: '采集频率',
+      value: optLabel(frequencyOptions, cfg.crawlFrequency),
+    })
+  }
 
   rows.push({ label: '监控关键词', value: joinArr(cfg.keywords) })
   rows.push({ label: '排除词', value: joinArr(cfg.excludeKeywords) })

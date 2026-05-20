@@ -13,7 +13,12 @@ import {
 
 defineOptions({ name: 'FilterSettingsSection' })
 
-const props = defineProps<{ form: TaskCreateFormModel; excludeKeywordDraft: string }>()
+const props = defineProps<{
+  form: TaskCreateFormModel
+  excludeKeywordDraft: string
+  /** 非 pending 编辑态：选择条数不可改 */
+  scheduleLocked?: boolean
+}>()
 const emit = defineEmits<{ 'update:excludeKeywordDraft': [value: string] }>()
 
 function onAddExclude(word: string) {
@@ -57,7 +62,12 @@ function onRemoveExclude(i: number) {
       </el-select>
     </el-form-item>
     <el-form-item label="选择条数">
-      <el-select v-model="form.dataRange" placeholder="请选择单次拉取条数" class="w-full">
+      <el-select
+        v-model="form.dataRange"
+        placeholder="请选择单次拉取条数"
+        class="w-full"
+        :disabled="scheduleLocked"
+      >
         <el-option v-for="n in dataRangeOptions" :key="n" :label="`${n}条`" :value="n" />
       </el-select>
     </el-form-item>

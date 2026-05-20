@@ -2,11 +2,11 @@
  * 采集同步服务（如 192.168.1.11:8765）通用：基址、请求头、响应解析。
  */
 
-/** 与 Apifox `ApifoxModel` 一致的 Header 形态 */
+/** 采集服务请求头（YDDM 要求 `X-User-Id` 必填） */
 export type SyncApiHeaders = {
   'Content-Type': string
   'x-api-key': string
-  'x-user-id'?: string
+  'X-User-Id': string
   [property: string]: unknown
 }
 
@@ -35,15 +35,16 @@ export function getSyncApiBase(): string {
 export function buildSyncApiHeaders(ctx: SyncFetchContext): SyncApiHeaders {
   const key = ctx.apiKey?.trim()
   if (!key) throw new Error('缺少 x-api-key：请先登录并配置 API Key')
-  const headers: SyncApiHeaders = {
+  const uid = ctx.userId
+  const userId = uid != null ? String(uid).trim() : ''
+  if (!userId) {
+    throw new Error('缺少 X-User-Id：请先登录 YDDM 账户')
+  }
+  return {
     'Content-Type': 'application/json',
     'x-api-key': key,
+    'X-User-Id': userId,
   }
-  const uid = ctx.userId
-  if (uid != null && String(uid).trim()) {
-    headers['x-user-id'] = String(uid).trim()
-  }
-  return headers
 }
 
 export function assertSyncEnvelopeOk(payload: unknown): void {
@@ -59,20 +60,131 @@ export function assertSyncEnvelopeOk(payload: unknown): void {
   throw new Error(msg)
 }
 
+/** 部分接口把 `data` / `result` 以 JSON 字符串返回 */
+function unwrapMaybeJson(value: unknown): unknown {
+  if (typeof value !== 'string') return value
+  const s = value.trim()
+  if (!s.startsWith('{') && !s.startsWith('[')) return value
+  try {
+    return JSON.parse(s) as unknown
+  } catch {
+    return value
+  }
+}
+
+function trySyncResultObjectArray(v: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(v)) return []
+  return v
+    .filter((x): x is Record<string, unknown> => x != null && typeof x === 'object')
+    .map(normalizeSyncResultItem)
+}
+
+/** 部分接口条目包在 aweme_info / note 等子对象里 */
+function normalizeSyncResultItem(item: Record<string, unknown>): Record<string, unknown> {
+  const nested =
+    item.aweme_info ??
+    item.awemeInfo ??
+    item.note ??
+    item.note_info ??
+    item.noteInfo ??
+    item.feed ??
+    item.video
+  if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+    return { ...(nested as Record<string, unknown>), ...item }
+  }
+  return item
+}
+
+function pickSyncResultArrayFromRecord(obj: Record<string, unknown>): Record<string, unknown>[] {
+  for (const key of [
+    'data',
+    'list',
+    'items',
+    'results',
+    'records',
+    'rows',
+    'aweme_list',
+    'awemeList',
+    'notes',
+    'note_list',
+    'noteList',
+    'feeds',
+    'videos',
+  ]) {
+    const hit = trySyncResultObjectArray(obj[key])
+    if (hit.length) return hit
+  }
+  return []
+}
+
 /**
- * 解析 search-page / async results 列表：`data.result.data[]`。
- * 抖音项含 `aweme_id`、`publish_time`(ms)、`video_list` 等；小红书项含 `note_id`、`userid`、`images_list` 等。
+ * 解析 search-page / async results 列表。
+ * 优先 `data.result.data[]`（视频号/公众号），并兼容抖音/小红书 `list`、`items`、`aweme_list` 等。
  */
+function readDataEnvelope(payload: Record<string, unknown>): Record<string, unknown> | null {
+  const data = unwrapMaybeJson(payload.data)
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null
+  return data as Record<string, unknown>
+}
+
+function readResultEnvelope(data: Record<string, unknown>): Record<string, unknown> | null {
+  const result = unwrapMaybeJson(data.result)
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return null
+  return result as Record<string, unknown>
+}
+
+export type SyncResultDiagnostics = {
+  itemCount: number
+  balance?: number | null
+  error?: unknown
+  insufficientBalance?: boolean
+  nextCursor?: unknown
+  nextLogid?: unknown
+  resultKeys?: string[]
+  rawDataLength?: number | null
+}
+
+export function extractSyncResultDiagnostics(payload: unknown): SyncResultDiagnostics {
+  const itemCount = extractSyncResultItems(payload).length
+  if (!payload || typeof payload !== 'object') return { itemCount }
+  const data = readDataEnvelope(payload as Record<string, unknown>)
+  if (!data) return { itemCount }
+  const result = readResultEnvelope(data)
+  if (!result) return { itemCount, resultKeys: Object.keys(data) }
+  const raw = result.data
+  return {
+    itemCount,
+    balance: typeof result.balance === 'number' ? result.balance : null,
+    error: result.error ?? data.error,
+    insufficientBalance:
+      result.insufficient_balance === true || result.insufficientBalance === true,
+    nextCursor: result.next_cursor ?? result.nextCursor,
+    nextLogid: result.next_logid ?? result.next_log_id ?? result.nextLogid,
+    resultKeys: Object.keys(result),
+    rawDataLength: Array.isArray(raw) ? raw.length : null,
+  }
+}
+
 export function extractSyncResultItems(payload: unknown): Record<string, unknown>[] {
   if (!payload || typeof payload !== 'object') return []
   const root = payload as Record<string, unknown>
-  const data = root.data
-  if (!data || typeof data !== 'object') return []
-  const result = (data as Record<string, unknown>).result
-  if (!result || typeof result !== 'object') return []
-  const inner = (result as Record<string, unknown>).data
-  if (!Array.isArray(inner)) return []
-  return inner.filter((x): x is Record<string, unknown> => x != null && typeof x === 'object')
+  const data = unwrapMaybeJson(root.data)
+
+  if (Array.isArray(data)) return trySyncResultObjectArray(data)
+
+  if (data && typeof data === 'object') {
+    const d = data as Record<string, unknown>
+    const fromData = pickSyncResultArrayFromRecord(d)
+    if (fromData.length) return fromData
+
+    const result = unwrapMaybeJson(d.result)
+    if (result && typeof result === 'object' && !Array.isArray(result)) {
+      const fromResult = pickSyncResultArrayFromRecord(result as Record<string, unknown>)
+      if (fromResult.length) return fromResult
+    }
+  }
+
+  return trySyncResultObjectArray(root.items ?? root.results ?? root.list)
 }
 
 /** 解析 `data.result` 上的账户余额（若接口返回） */
@@ -113,10 +225,18 @@ export function extractSyncResultPageMeta(payload: unknown): SyncResultPageMeta 
           : undefined
   const insufficient =
     r.insufficient_balance === true || r.insufficientBalance === true
-  const hasMore =
+  const hasMoreFlag = r.has_more ?? r.hasMore
+  const hasCursor =
     nextCursor != null &&
     nextCursor !== '' &&
     !(typeof nextCursor === 'number' && !Number.isFinite(nextCursor))
+  const hasLogId = Boolean(nextLogid?.trim())
+  const hasMore =
+    hasMoreFlag === true ||
+    hasMoreFlag === 1 ||
+    hasMoreFlag === '1' ||
+    hasCursor ||
+    hasLogId
   return {
     nextCursor: nextCursor as number | string | undefined,
     nextLogid,
@@ -124,3 +244,48 @@ export function extractSyncResultPageMeta(payload: unknown): SyncResultPageMeta 
     hasMore,
   }
 }
+
+/** 微信 search-page（视频号/公众号）翻页：`data.result.next_offset` / `cookies_buffer` */
+export type WxSearchPageMeta = {
+  offset: string
+  cookies_buffer: string
+  insufficientBalance?: boolean
+  hasMore: boolean
+}
+
+/** @deprecated 使用 `WxSearchPageMeta` */
+export type GzhResultPageMeta = WxSearchPageMeta
+
+export function extractWxSearchPageMeta(payload: unknown): WxSearchPageMeta {
+  const empty: WxSearchPageMeta = { offset: '', cookies_buffer: '', hasMore: false }
+  if (!payload || typeof payload !== 'object') return empty
+
+  const data = (payload as Record<string, unknown>).data
+  if (!data || typeof data !== 'object') return empty
+  const result = (data as Record<string, unknown>).result
+  if (!result || typeof result !== 'object') return empty
+
+  const r = result as Record<string, unknown>
+  const offsetRaw = r.next_offset ?? r.nextOffset ?? r.offset
+  const cookiesRaw = r.cookies_buffer ?? r.cookiesBuffer ?? r.next_cookies_buffer
+  const offset = offsetRaw != null && String(offsetRaw).trim() ? String(offsetRaw).trim() : ''
+  const cookies_buffer = cookiesRaw != null ? String(cookiesRaw).trim() : ''
+  const insufficient =
+    r.insufficient_balance === true || r.insufficientBalance === true
+  const hasMoreFlag = r.has_more ?? r.hasMore
+  const hasMore =
+    hasMoreFlag === true ||
+    hasMoreFlag === 1 ||
+    hasMoreFlag === '1' ||
+    (hasMoreFlag !== false && Boolean(offset || cookies_buffer))
+
+  return {
+    offset,
+    cookies_buffer,
+    insufficientBalance: insufficient,
+    hasMore,
+  }
+}
+
+/** @deprecated 使用 `extractWxSearchPageMeta` */
+export const extractGzhResultPageMeta = extractWxSearchPageMeta

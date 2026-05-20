@@ -1,7 +1,7 @@
 import type { YddmMeUser } from '@/lib/yddm-api'
 
-/** 每条采集数据消耗的积分（与产品计费口径一致） */
-export const POINTS_PER_DATA_ROW = 100
+/** @deprecated 使用 `sync-set-discount` 的 `TARGET_POINTS_PER_ROW` */
+export { TARGET_POINTS_PER_ROW as POINTS_PER_DATA_ROW } from '@/lib/sync-set-discount'
 
 type YddmUserLike = Pick<YddmMeUser, 'balance_cents'> & {
   balance_points?: number
@@ -29,4 +29,10 @@ export function parseYddmUserBalancePoints(user: YddmUserLike | null | undefined
 export function formatPointsBalance(points: number | null | undefined): string {
   if (points == null || !Number.isFinite(points)) return '—'
   return `${Math.floor(points).toLocaleString('zh-CN')} 积分`
+}
+
+/** 首页横幅积分角标：如 `1,500点` */
+export function formatPointsBadge(points: number | null | undefined): string {
+  if (points == null || !Number.isFinite(points)) return '—'
+  return `${Math.floor(points).toLocaleString('zh-CN')}点`
 }

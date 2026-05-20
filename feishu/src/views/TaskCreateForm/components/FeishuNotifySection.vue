@@ -22,7 +22,7 @@ function openWebhookHelp() {
     <div class="feishu-notify-toggle-row">
       <span class="task-form-field-title feishu-notify-toggle-row__label">飞书通知</span>
       <el-switch v-model="form.feishuNotifyEnabled" class="feishu-notify-switch" />
-      <span class="feishu-notify-hint">*开启后任务执行完毕将推送飞书消息</span>
+      <span class="feishu-notify-hint">*开启后按采集频率推送每轮结果；采集失败、积分低于1000时也会推送（单次任务不推送）</span>
     </div>
 
     <template v-if="form.feishuNotifyEnabled">

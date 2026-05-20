@@ -152,7 +152,10 @@ const registerRules = computed<FormRules>(() => {
   return rules
 })
 
-const supportQrUrl = (import.meta.env.VITE_CUSTOMER_SERVICE_QR_URL as string | undefined)?.trim() ?? ''
+/** 登录弹框底部客服二维码：默认 `public/custom.png`，可由环境变量覆盖 */
+const supportQrUrl =
+  (import.meta.env.VITE_CUSTOMER_SERVICE_QR_URL as string | undefined)?.trim() ||
+  `${import.meta.env.BASE_URL}custom.png`
 
 /** 验证码 `<img src>`：优先 blob URL（fetch 拉图，避免直连被拦）；失败时回退为接口 URL */
 const captchaImage = ref('')
@@ -562,14 +565,12 @@ watch(
       <div class="yddm-login-dialog__support-inner">
         <div class="yddm-login-dialog__qr-wrap">
           <img
-            v-if="supportQrUrl"
             :src="supportQrUrl"
             alt="客服二维码"
             class="yddm-login-dialog__qr-img"
             loading="lazy"
             decoding="async"
           />
-          <div v-else class="yddm-login-dialog__qr-placeholder">客服二维码</div>
         </div>
         <p class="yddm-login-dialog__support-text">扫码添加客服，获取专属支持</p>
       </div>

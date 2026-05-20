@@ -1,8 +1,13 @@
 /**
  * 抖音搜索同步：`POST /api/v1/sync/douyin/search-page`
+ *
+ * 翻页：单次约 {@link expectedApiPageRows}('douyin') 条；未凑满 `dataRange` 时用
+ * `next_cursor` / `next_logid` 继续请求，直至达到上限或无更多数据。
  */
 
 import type { SyncFetchContext } from '@/lib/sync-api-common'
+import { extractSyncResultItems, extractSyncResultPageMeta } from '@/lib/sync-api-common'
+import { expectedApiPageRows } from '@/lib/sync-platform-page-size'
 import {
   assertKeywordLength,
   buildExcludeWords,
@@ -14,7 +19,6 @@ import {
   readSearchKeywords,
   type SyncSortType,
 } from '@/lib/sync-search-shared'
-import { extractSyncResultItems, extractSyncResultPageMeta } from '@/lib/sync-api-common'
 
 /** 内容形式：0 不限，1 视频，2 图文 */
 export type DouyinContentType = '0' | '1' | '2'
@@ -81,13 +85,16 @@ export const buildSyncSearchPageBody = buildDouyinSearchPageBody
 /** @deprecated 使用 `DouyinSearchPageRequestBody` */
 export type SyncSearchPageRequestBody = DouyinSearchPageRequestBody
 
+/** 防止翻页异常时死循环 */
+const DOUYIN_MAX_PAGES = 50
+
 export async function fetchDouyinSearchItems(
   config: Record<string, unknown>,
   ctx: SyncFetchContext,
 ): Promise<Record<string, unknown>[]> {
   const keywords = readSearchKeywords(config)
-
   const limit = readDataRange(config)
+  const rowsPerPage = expectedApiPageRows('douyin')
   const collected: Record<string, unknown>[] = []
   const seenIds = new Set<string>()
   const path = '/api/v1/sync/douyin/search-page'
@@ -95,8 +102,10 @@ export async function fetchDouyinSearchItems(
   for (const keyword of keywords) {
     let cursor: string | undefined
     let logId: string | undefined
+    let pageCount = 0
 
-    while (collected.length < limit) {
+    while (collected.length < limit && pageCount < DOUYIN_MAX_PAGES) {
+      pageCount += 1
       const payload = await postSyncSearchPage({
         path,
         platformLabel: '抖音',
@@ -108,6 +117,7 @@ export async function fetchDouyinSearchItems(
         ),
       })
       const batch = extractSyncResultItems(payload)
+      const before = collected.length
       if (
         mergeResultItems({
           batch,
@@ -122,13 +132,28 @@ export async function fetchDouyinSearchItems(
       if (!batch.length) break
 
       const pageMeta = extractSyncResultPageMeta(payload)
-      if (!pageMeta.hasMore) break
       const nextCursor =
         pageMeta.nextCursor != null && String(pageMeta.nextCursor).trim()
           ? String(pageMeta.nextCursor).trim()
           : undefined
       const nextLogId = pageMeta.nextLogid?.trim() || undefined
-      if (!nextCursor && !nextLogId) break
+      const canContinue = pageMeta.hasMore || Boolean(nextCursor || nextLogId)
+
+      if (collected.length >= limit) break
+      if (!canContinue) break
+
+      if (import.meta.env.DEV) {
+        console.log('[douyin-search-page]', {
+          keyword,
+          page: pageCount,
+          batch: batch.length,
+          added: collected.length - before,
+          total: collected.length,
+          limit,
+          canContinue,
+        })
+      }
+
       cursor = nextCursor
       logId = nextLogId
     }

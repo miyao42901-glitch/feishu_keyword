@@ -19,7 +19,6 @@ export const douyinFlatSourceFields: SourceFieldFlatOption[] = [
   { value: 'playPageUrl', label: '视频播放页链接' },
   { value: 'externalDownloadUrl', label: '外链视频下载链接' },
   { value: 'coverUrl', label: '封面图链接' },
-  { value: 'videoTypeTag', label: '视频类型标签' },
   { value: 'durationSeconds', label: '视频时长（秒）' },
   { value: 'publishedAt', label: '发布时间' },
   { value: 'like', label: '点赞数' },
@@ -30,9 +29,10 @@ export const douyinFlatSourceFields: SourceFieldFlatOption[] = [
   { value: 'authorId', label: '作者唯一ID' },
   { value: 'authorFollowers', label: '粉丝数' },
   { value: 'authorAvatar', label: '头像链接' },
+  { value: 'authorSignature', label: '个人简介' },
+  { value: 'verifyName', label: '星标认证' },
   { value: 'hashtagList', label: '话题标签' },
-  { value: 'city', label: '城市' },
-  { value: 'ipLocation', label: 'IP 属地' },
+  { value: 'collectedAt', label: '采集时间' },
 ]
 
 /** 小红书：下拉多选扁平项 */
@@ -47,25 +47,91 @@ export const xiaohongshuFlatSourceFields: SourceFieldFlatOption[] = [
   { value: 'like', label: '点赞数' },
   { value: 'comment', label: '评论数' },
   { value: 'favorite', label: '收藏数' },
-  { value: 'share', label: '分享数' },
   { value: 'authorId', label: '作者用户ID' },
   { value: 'authorNickname', label: '用户昵称' },
   { value: 'authorAvatar', label: '头像链接' },
-  { value: 'authorFollowers', label: '粉丝数' },
-  { value: 'location', label: '地点名称' },
-  { value: 'city', label: '城市' },
   { value: 'noteType', label: '笔记类型（图文/视频）' },
-  { value: 'ipLocation', label: 'IP 属地' },
-  { value: 'mentionedUsers', label: '@用户列表' },
+  { value: 'collectedAt', label: '采集时间' },
 ]
+
+/** 视频号：列名与飞书表头一致 */
+export const shipinhaoFlatSourceFields: SourceFieldFlatOption[] = [
+  { value: 'wxvVideoUniqueId', label: '视频唯一ID', required: true },
+  { value: 'wxvVideoUrl', label: '视频链接' },
+  { value: 'wxvVideoTitle', label: '视频标题' },
+  { value: 'wxvAuthorNickname', label: '作者昵称' },
+  { value: 'wxvAuthorAvatar', label: '作者头像' },
+  { value: 'publishedAt', label: '发布时间' },
+  { value: 'wxvLikeCount', label: '点赞数' },
+  { value: 'wxvCommentCount', label: '评论数' },
+  { value: 'wxvRepostCount', label: '转发数' },
+  { value: 'wxvHeartCount', label: '小心心数' },
+  { value: 'wxvCoverUrl', label: '封面图' },
+  { value: 'wxvDuration', label: '视频时长' },
+  { value: 'collectedAt', label: '采集时间' },
+]
+
+/** 旧版视频号字段 value → 新 value */
+const shipinhaoLegacyFieldMap: Partial<Record<SourceFieldKey, SourceFieldKey>> = {
+  videoUniqueId: 'wxvVideoUniqueId',
+  playPageUrl: 'wxvVideoUrl',
+  title: 'wxvVideoTitle',
+  videoDescription: 'wxvVideoDescription',
+  authorNickname: 'wxvAuthorNickname',
+  authorAvatar: 'wxvAuthorAvatar',
+  authorId: 'wxvAuthorId',
+  like: 'wxvLikeCount',
+  comment: 'wxvCommentCount',
+  share: 'wxvRepostCount',
+  favorite: 'wxvHeartCount',
+  coverUrl: 'wxvCoverUrl',
+  durationSeconds: 'wxvDuration',
+}
+
+/** 公众号：图文文章字段（列名与飞书表头一致） */
+export const gzhFlatSourceFields: SourceFieldFlatOption[] = [
+  { value: 'gzhArticleId', label: '文章ID', required: true },
+  { value: 'gzhArticleTitle', label: '文章标题' },
+  { value: 'gzhArticleUrl', label: '文章原始URL' },
+  { value: 'publishedAt', label: '发布时间' },
+  { value: 'gzhAccountNickname', label: '公众号昵称' },
+  { value: 'gzhAccountAvatar', label: '公众号头像链接' },
+  { value: 'gzhLikeCount', label: '点赞数' },
+  { value: 'gzhRepostCount', label: '转发数' },
+  { value: 'gzhFeaturedCommentCount', label: '精选留言数' },
+  { value: 'collectedAt', label: '采集时间' },
+]
+
+/** 旧版公众号字段 value → 新 value（加载历史任务配置时迁移） */
+const gzhLegacyFieldMap: Partial<Record<SourceFieldKey, SourceFieldKey>> = {
+  noteId: 'gzhArticleId',
+  title: 'gzhArticleTitle',
+  noteBody: 'gzhArticleBody',
+  playPageUrl: 'gzhArticleUrl',
+  coverUrl: 'gzhAccountAvatar',
+  like: 'gzhLikeCount',
+  comment: 'gzhFeaturedCommentCount',
+  share: 'gzhRepostCount',
+  favorite: 'gzhCollectCount',
+  authorNickname: 'gzhAccountNickname',
+  authorId: 'gzhAccountId',
+  authorAvatar: 'gzhAccountAvatar',
+}
 
 export const sourceFieldFlatOptionsByPlatform: Partial<Record<PlatformKey, SourceFieldFlatOption[]>> = {
   douyin: douyinFlatSourceFields,
   xiaohongshu: xiaohongshuFlatSourceFields,
+  shipinhao: shipinhaoFlatSourceFields,
+  gzh: gzhFlatSourceFields,
 }
 
 /** 当前信源仅开放的平台（与 `sourcePlatforms` 一致） */
-export const supportedSourcePlatformIds = ['douyin', 'xiaohongshu'] as const satisfies readonly PlatformKey[]
+export const supportedSourcePlatformIds = [
+  'douyin',
+  'xiaohongshu',
+  'shipinhao',
+  'gzh',
+] as const satisfies readonly PlatformKey[]
 
 export function isSupportedSourcePlatform(id: PlatformKey): boolean {
   return (supportedSourcePlatformIds as readonly string[]).includes(id)
@@ -82,6 +148,7 @@ export const allSourceFieldKeys: readonly SourceFieldKey[] = [
   'videoTypeTag',
   'durationSeconds',
   'publishedAt',
+  'collectedAt',
   'like',
   'comment',
   'share',
@@ -90,6 +157,8 @@ export const allSourceFieldKeys: readonly SourceFieldKey[] = [
   'authorId',
   'authorFollowers',
   'authorAvatar',
+  'authorSignature',
+  'verifyName',
   'hashtagList',
   'city',
   'ipLocation',
@@ -101,6 +170,36 @@ export const allSourceFieldKeys: readonly SourceFieldKey[] = [
   'location',
   'noteType',
   'mentionedUsers',
+  'gzhArticleId',
+  'gzhArticleTitle',
+  'gzhArticleBody',
+  'gzhArticleSummary',
+  'gzhArticleUrl',
+  'gzhArticleType',
+  'gzhAccountId',
+  'gzhAccountNickname',
+  'gzhAccountAvatar',
+  'gzhAccountBio',
+  'gzhReadCount',
+  'gzhLikeCount',
+  'gzhRepostCount',
+  'gzhCollectCount',
+  'gzhWowCount',
+  'gzhFeaturedCommentCount',
+  'wxvVideoUniqueId',
+  'wxvVideoUrl',
+  'wxvVideoTitle',
+  'wxvVideoDescription',
+  'wxvAuthorNickname',
+  'wxvAuthorAvatar',
+  'wxvAuthorBio',
+  'wxvAuthorId',
+  'wxvLikeCount',
+  'wxvCommentCount',
+  'wxvRepostCount',
+  'wxvHeartCount',
+  'wxvCoverUrl',
+  'wxvDuration',
 ] as const
 
 export function isSourceFieldKey(x: unknown): x is SourceFieldKey {
@@ -119,9 +218,16 @@ export function ensureSourceFieldSelectionForPlatform(form: TaskCreateFormModel,
   if (!opts?.length) return
   const allowed = new Set(opts.map((o) => o.value))
   const required = opts.filter((o) => o.required).map((o) => o.value)
-  const prev = form.sourceFieldSelection[platform] ?? []
+  let prev = form.sourceFieldSelection[platform] ?? []
+  if (platform === 'gzh') {
+    prev = prev.map((k) => (isSourceFieldKey(k) ? (gzhLegacyFieldMap[k] ?? k) : k))
+  }
+  if (platform === 'shipinhao') {
+    prev = prev.map((k) => (isSourceFieldKey(k) ? (shipinhaoLegacyFieldMap[k] ?? k) : k))
+  }
   const kept = prev.filter((k): k is SourceFieldKey => isSourceFieldKey(k) && allowed.has(k))
   const merged = new Set<SourceFieldKey>([...required, ...kept])
+  if (allowed.has('collectedAt')) merged.add('collectedAt')
   form.sourceFieldSelection[platform] = opts.map((o) => o.value).filter((v) => merged.has(v))
 }
 
