@@ -208,10 +208,10 @@
             const res_sec_id = res.data.data.user.sec_uid
             const [record, fieldMap] = await getFirstRecordByField(paneData.value.userTableId, tmpUserFields.sec_uid.label, res_sec_id)
             if (record) {
-              const last_get_time = record.fields[fieldMap[tmpUserFields.current_get_time.label].id]
-              const last_follower_count = record.fields[fieldMap[tmpUserFields.follower_count.label].id] || 0
-              const last_aweme_count = record.fields[fieldMap[tmpUserFields.aweme_count.label].id] || 0
-              const last_total_favorited = record.fields[fieldMap[tmpUserFields.total_favorited.label].id] || 0
+              const last_get_time = record.fields[fieldMap[tmpUserFields.current_get_time.label]?.id] || null
+              const last_follower_count = record.fields[fieldMap[tmpUserFields.follower_count.label]?.id] || 0
+              const last_aweme_count = record.fields[fieldMap[tmpUserFields.aweme_count.label]?.id] || 0
+              const last_total_favorited = record.fields[fieldMap[tmpUserFields.total_favorited.label]?.id] || 0
               const result = await updateTable(
                 paneData.value.userTableId,
                 [{
@@ -317,10 +317,10 @@
 
             if (res && res.data && res.data.code === 0) {
               totalCost += res.data.price
-              const last_get_time = userRecord.fields[fieldMap[tmpUserFields.current_get_time.label].id]
-              const last_follower_count = userRecord.fields[fieldMap[tmpUserFields.follower_count.label].id] || 0
-              const last_aweme_count = userRecord.fields[fieldMap[tmpUserFields.aweme_count.label].id] || 0
-              const last_total_favorited = userRecord.fields[fieldMap[tmpUserFields.total_favorited.label].id] || 0
+              const last_get_time = userRecord.fields[fieldMap[tmpUserFields.current_get_time.label]?.id] || null
+              const last_follower_count = userRecord.fields[fieldMap[tmpUserFields.follower_count.label]?.id] || 0
+              const last_aweme_count = userRecord.fields[fieldMap[tmpUserFields.aweme_count.label]?.id] || 0
+              const last_total_favorited = userRecord.fields[fieldMap[tmpUserFields.total_favorited.label]?.id] || 0
               const result = await updateTable(
                 paneData.value.userTableId,
                 [{

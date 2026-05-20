@@ -525,12 +525,12 @@
 
             if (res && res.data && res.data.code === 0) {
               totalCost += res.data.cost_money
-              const last_get_time = workRecord.fields[fieldMap[tmpWorkFields.current_get_time.label].id]
-              const last_read = workRecord.fields[fieldMap[tmpWorkFields.read.label].id] || 0
-              const last_zan = workRecord.fields[fieldMap[tmpWorkFields.zan.label].id] || 0
-              const last_share_num = workRecord.fields[fieldMap[tmpWorkFields.share_num.label].id] || 0
-              const last_collect_num = workRecord.fields[fieldMap[tmpWorkFields.collect_num.label].id] || 0
-              const last_comment_count = workRecord.fields[fieldMap[tmpWorkFields.comment_count.label].id] || 0
+              const last_get_time = workRecord.fields[fieldMap[tmpWorkFields.current_get_time.label]?.id] || null
+              const last_read = workRecord.fields[fieldMap[tmpWorkFields.read.label]?.id] || 0
+              const last_zan = workRecord.fields[fieldMap[tmpWorkFields.zan.label]?.id] || 0
+              const last_share_num = workRecord.fields[fieldMap[tmpWorkFields.share_num.label]?.id] || 0
+              const last_collect_num = workRecord.fields[fieldMap[tmpWorkFields.collect_num.label]?.id] || 0
+              const last_comment_count = workRecord.fields[fieldMap[tmpWorkFields.comment_count.label]?.id] || 0
               const result = await updateTable(
                 paneData.value.workTableId,
                 [{

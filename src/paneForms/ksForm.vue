@@ -207,9 +207,9 @@
             const user_id = res.data.data.profile.user_id
             const [record, fieldMap] = await getFirstRecordByField(paneData.value.userTableId, tmpUserFields.user_id.label, user_id)
             if (record) {
-              const last_get_time = record.fields[fieldMap[tmpUserFields.current_get_time.label].id]
-              const last_fan = record.fields[fieldMap[tmpUserFields.fan.label].id] || 0
-              const last_photo = record.fields[fieldMap[tmpUserFields.photo.label].id] || 0
+              const last_get_time = record.fields[fieldMap[tmpUserFields.current_get_time.label]?.id] || null
+              const last_fan = record.fields[fieldMap[tmpUserFields.fan.label]?.id] || 0
+              const last_photo = record.fields[fieldMap[tmpUserFields.photo.label]?.id] || 0
               const result = await updateTable(
                 paneData.value.userTableId,
                 [{
@@ -313,9 +313,9 @@
 
             if (res && res.data && res.data.code === 0) {
               totalCost += res.data.price
-              const last_get_time = userRecord.fields[fieldMap[tmpUserFields.current_get_time.label].id]
-              const last_fan = userRecord.fields[fieldMap[tmpUserFields.fan.label].id] || 0
-              const last_photo = userRecord.fields[fieldMap[tmpUserFields.photo.label].id] || 0
+              const last_get_time = userRecord.fields[fieldMap[tmpUserFields.current_get_time.label]?.id] || null
+              const last_fan = userRecord.fields[fieldMap[tmpUserFields.fan.label]?.id] || 0
+              const last_photo = userRecord.fields[fieldMap[tmpUserFields.photo.label]?.id] || 0
               const result = await updateTable(
                 paneData.value.userTableId,
                 [{
@@ -374,11 +374,11 @@
           console.log(record)
           let result = {}
           if (record) {
-            const last_get_time = record.fields[fieldMap[tmpWorkFields.current_get_time.label].id]
-            const last_like_count = record.fields[fieldMap[tmpWorkFields.like_count.label].id] || 0
-            const last_view_count = record.fields[fieldMap[tmpWorkFields.view_count.label].id] || 0
-            const last_forward_count = record.fields[fieldMap[tmpWorkFields.forward_count.label].id] || 0
-            const last_comment_count = record.fields[fieldMap[tmpWorkFields.comment_count.label].id] || 0
+            const last_get_time = record.fields[fieldMap[tmpWorkFields.current_get_time.label]?.id] || null
+            const last_like_count = record.fields[fieldMap[tmpWorkFields.like_count.label]?.id] || 0
+            const last_view_count = record.fields[fieldMap[tmpWorkFields.view_count.label]?.id] || 0
+            const last_forward_count = record.fields[fieldMap[tmpWorkFields.forward_count.label]?.id] || 0
+            const last_comment_count = record.fields[fieldMap[tmpWorkFields.comment_count.label]?.id] || 0
             updateData.push({
               recordId: record.recordId,
               data: {

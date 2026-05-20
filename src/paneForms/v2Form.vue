@@ -81,6 +81,7 @@
           fav_count_diff: { label: '新增收藏数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           forward_count_diff: { label: '新增转发数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
           comment_count_diff: { label: '新增评论数', fieldType: FieldType.Number, property: {formatter: NumberFormatter.INTEGER}, },
+          download_url: { label: '下载链接', fieldType: FieldType.Url, },
           current_get_time: { label: '当前获取时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
           last_get_time: { label: '上次获取时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME }},
         }
@@ -263,11 +264,11 @@
           const [record, fieldMap] = await getFirstRecordByField(paneData.value.workTableId, tmpWorkFields.object_id.label, object_id)
           let result = {}
           if (record) {
-            const last_get_time = record.fields[fieldMap[tmpWorkFields.current_get_time.label].id]
-            const last_like_count = record.fields[fieldMap[tmpWorkFields.like_count.label].id] || 0
-            const last_fav_count = record.fields[fieldMap[tmpWorkFields.fav_count.label].id] || 0
-            const last_forward_count = record.fields[fieldMap[tmpWorkFields.forward_count.label].id] || 0
-            const last_comment_count = record.fields[fieldMap[tmpWorkFields.comment_count.label].id] || 0
+            const last_get_time = record.fields[fieldMap[tmpWorkFields.current_get_time.label]?.id] || null
+            const last_like_count = record.fields[fieldMap[tmpWorkFields.like_count.label]?.id] || 0
+            const last_fav_count = record.fields[fieldMap[tmpWorkFields.fav_count.label]?.id] || 0
+            const last_forward_count = record.fields[fieldMap[tmpWorkFields.forward_count.label]?.id] || 0
+            const last_comment_count = record.fields[fieldMap[tmpWorkFields.comment_count.label]?.id] || 0
             updateData.push({
               recordId: record.recordId,
               data: {
@@ -497,7 +498,7 @@
         }
       }
 
-      const updateWorks = async() => {
+      const updateWorks = async(type = 9) => {
         if (props.isLocked) return;
         emit('update:isLocked', true);
 
@@ -531,35 +532,57 @@
               body: {
                 object_id: object_id,
                 key: props.formData.key,
-                type: 9,
+                type: type,
               }
             })
 
             if (res && res.data && res.data.code === 0) {
               totalCost += res.data.cost
-              const last_get_time = workRecord.fields[fieldMap[tmpWorkFields.current_get_time.label].id]
-              const last_like_count = workRecord.fields[fieldMap[tmpWorkFields.like_count.label].id] || 0
-              const last_fav_count = workRecord.fields[fieldMap[tmpWorkFields.fav_count.label].id] || 0
-              const last_forward_count = workRecord.fields[fieldMap[tmpWorkFields.forward_count.label].id] || 0
-              const last_comment_count = workRecord.fields[fieldMap[tmpWorkFields.comment_count.label].id] || 0
+              const last_get_time = workRecord.fields[fieldMap[tmpWorkFields.current_get_time.label]?.id] || null
+              const last_like_count = workRecord.fields[fieldMap[tmpWorkFields.like_count.label]?.id] || 0
+              const last_fav_count = workRecord.fields[fieldMap[tmpWorkFields.fav_count.label]?.id] || 0
+              const last_forward_count = workRecord.fields[fieldMap[tmpWorkFields.forward_count.label]?.id] || 0
+              const last_comment_count = workRecord.fields[fieldMap[tmpWorkFields.comment_count.label]?.id] || 0
+              let data = {}
+              if (type === 9){
+                data = {
+                  fav_count: res.data.count_info.fav_count,
+                  like_count: res.data.count_info.like_count,
+                  forward_count: res.data.count_info.forward_count,
+                  comment_count: res.data.count_info.comment_count,
+
+                  fav_count_diff: res.data.count_info.fav_count - last_fav_count,
+                  like_count_diff: res.data.count_info.like_count - last_like_count,
+                  forward_count_diff: res.data.count_info.forward_count - last_forward_count,
+                  comment_count_diff: res.data.count_info.comment_count - last_comment_count,
+
+                  current_get_time: get_time,
+                  last_get_time: last_get_time
+                }
+              }
+              else{
+                data = {
+                  fav_count: res.data.fav_count,
+                  like_count: res.data.like_count,
+                  forward_count: res.data.forward_count,
+                  comment_count: res.data.comment_count,
+
+                  fav_count_diff: res.data.fav_count - last_fav_count,
+                  like_count_diff: res.data.like_count - last_like_count,
+                  forward_count_diff: res.data.forward_count - last_forward_count,
+                  comment_count_diff: res.data.comment_count - last_comment_count,
+
+                  download_url: res.data.download_url,
+
+                  current_get_time: get_time,
+                  last_get_time: last_get_time
+                }
+              }
               const result = await updateTable(
                 paneData.value.workTableId,
                 [{
                   recordId: workRecordId,
-                  data: {
-                    fav_count: res.data.count_info.fav_count,
-                    like_count: res.data.count_info.like_count,
-                    forward_count: res.data.count_info.forward_count,
-                    comment_count: res.data.count_info.comment_count,
-
-                    fav_count_diff: res.data.count_info.fav_count - last_fav_count,
-                    like_count_diff: res.data.count_info.like_count - last_like_count,
-                    forward_count_diff: res.data.count_info.forward_count - last_forward_count,
-                    comment_count_diff: res.data.count_info.comment_count - last_comment_count,
-
-                    current_get_time: get_time,
-                    last_get_time: last_get_time,
-                  }
+                  data: data
                 }],
                 tmpWorkFields,
               );
@@ -735,11 +758,30 @@
         <el-button 
           type="primary" 
           :disabled="isLocked || !formData.key || !paneData.workTableId"
-          @click="updateWorks"
+          @click="updateWorks(9)"
           plain
           style="flex: 1;"
         >
           批量更新视频号视频数据
+        </el-button>
+      </el-tooltip>
+    </el-form-item>
+
+    <el-form-item label-width="null"  v-show="paneData.getDataType !== 0">
+      <el-tooltip 
+        :content="isLocked || !formData.key || !paneData.workTableId
+          ? '需要登录、选择视频号视频表' : '批量更新视频号视频数据' " 
+        effect="dark"
+        placement="top"
+      >
+        <el-button 
+          type="primary" 
+          :disabled="isLocked || !formData.key || !paneData.workTableId"
+          @click="updateWorks(3)"
+          plain
+          style="flex: 1;"
+        >
+          批量更新视频号视频数据(包含下载链接)
         </el-button>
       </el-tooltip>
     </el-form-item>

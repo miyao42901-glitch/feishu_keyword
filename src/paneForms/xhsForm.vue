@@ -166,9 +166,9 @@
             }
             const [record, fieldMap] = await getFirstRecordByField(paneData.value.userTableId, tmpUserFields.user_id.label, res_user_id)
             if (record) {
-              const last_get_time = record.fields[fieldMap[tmpUserFields.current_get_time.label].id]
-              const last_fans = record.fields[fieldMap[tmpUserFields.fans.label].id] || 0
-              const last_like_collect = record.fields[fieldMap[tmpUserFields.like_collect.label].id] || 0
+              const last_get_time = record.fields[fieldMap[tmpUserFields.current_get_time.label]?.id] || null
+              const last_fans = record.fields[fieldMap[tmpUserFields.fans.label]?.id] || 0
+              const last_like_collect = record.fields[fieldMap[tmpUserFields.like_collect.label]?.id] || 0
               const result = await updateTable(
                 paneData.value.userTableId,
                 [{
@@ -284,9 +284,9 @@
                   current_follows = item.count
                 }
               }
-              const last_get_time = userRecord.fields[fieldMap[tmpUserFields.current_get_time.label].id]
-              const last_fans = userRecord.fields[fieldMap[tmpUserFields.fans.label].id] || 0
-              const last_like_collect = userRecord.fields[fieldMap[tmpUserFields.like_collect.label].id] || 0
+              const last_get_time = userRecord.fields[fieldMap[tmpUserFields.current_get_time.label]?.id] || null
+              const last_fans = userRecord.fields[fieldMap[tmpUserFields.fans.label]?.id] || 0
+              const last_like_collect = userRecord.fields[fieldMap[tmpUserFields.like_collect.label]?.id] || 0
               const result = await updateTable(
                 paneData.value.userTableId,
                 [{
@@ -338,11 +338,11 @@
           const [record, fieldMap] = await getFirstRecordByField(paneData.value.workTableId, tmpWorkFields.note_id.label, note_id)
           let result = {}
           if (record) {
-            const last_get_time = record.fields[fieldMap[tmpWorkFields.current_get_time.label].id]
-            const last_likes = record.fields[fieldMap[tmpWorkFields.likes.label].id] || 0
-            const last_comments_count = record.fields[fieldMap[tmpWorkFields.comments_count.label].id] || 0
-            const last_share_count = record.fields[fieldMap[tmpWorkFields.share_count.label].id] || 0
-            const last_collected_count = record.fields[fieldMap[tmpWorkFields.collected_count.label].id] || 0
+            const last_get_time = record.fields[fieldMap[tmpWorkFields.current_get_time.label]?.id] || null
+            const last_likes = record.fields[fieldMap[tmpWorkFields.likes.label]?.id] || 0
+            const last_comments_count = record.fields[fieldMap[tmpWorkFields.comments_count.label]?.id] || 0
+            const last_share_count = record.fields[fieldMap[tmpWorkFields.share_count.label]?.id] || 0
+            const last_collected_count = record.fields[fieldMap[tmpWorkFields.collected_count.label]?.id] || 0
             updateData.push({
               recordId: record.recordId,
               data: {
@@ -618,11 +618,11 @@
 
             if (res && res.data && res.data.code === 0) {
               totalCost += res.data.cost
-              const last_get_time = workRecord.fields[fieldMap[tmpWorkFields.current_get_time.label].id]
-              const last_likes = workRecord.fields[fieldMap[tmpWorkFields.likes.label].id] || 0
-              const last_comments_count = workRecord.fields[fieldMap[tmpWorkFields.comments_count.label].id] || 0
-              const last_share_count = workRecord.fields[fieldMap[tmpWorkFields.share_count.label].id] || 0
-              const last_collected_count = workRecord.fields[fieldMap[tmpWorkFields.collected_count.label].id] || 0
+              const last_get_time = workRecord.fields[fieldMap[tmpWorkFields.current_get_time.label]?.id] || null
+              const last_likes = workRecord.fields[fieldMap[tmpWorkFields.likes.label]?.id] || 0
+              const last_comments_count = workRecord.fields[fieldMap[tmpWorkFields.comments_count.label]?.id] || 0
+              const last_share_count = workRecord.fields[fieldMap[tmpWorkFields.share_count.label]?.id] || 0
+              const last_collected_count = workRecord.fields[fieldMap[tmpWorkFields.collected_count.label]?.id] || 0
               const result = await updateTable(
                 paneData.value.workTableId,
                 [{
