@@ -1,0 +1,64 @@
+/**
+ * 管理后台主题（参考 likeadmin 主色 #4073fa）
+ */
+:root {
+  --admin-brand: #4073fa;
+  --admin-sidebar-bg: linear-gradient(180deg, #1a2332 0%, #121a24 100%);
+  --admin-sidebar-border: rgba(255, 255, 255, 0.06);
+  --el-color-primary: #4073fa;
+}
+
+/** 宽表格：小屏横向滑动，避免整页被撑开 */
+.admin-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-table-scroll .el-table {
+  min-width: 640px;
+}
+
+@media (max-width: 899px) {
+  /** 筛选条：纵向堆叠、控件拉满行宽 */
+  .admin-toolbar.el-form--inline .el-form-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    margin-right: 0;
+    width: 100%;
+  }
+
+  .admin-toolbar.el-form--inline .el-form-item__label {
+    padding-bottom: 4px;
+  }
+
+  .admin-toolbar.el-form--inline .el-form-item__content {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .admin-toolbar .el-input,
+  .admin-toolbar .el-select,
+  .admin-toolbar .el-tree-select {
+    width: 100% !important;
+    max-width: 100%;
+  }
+
+  /** 分页：窄屏居中、允许换行 */
+  .admin-pagination.el-pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+    row-gap: 8px;
+  }
+
+  /** 对话框：避免超出视口 */
+  .el-dialog {
+    width: min(520px, 92vw) !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+}

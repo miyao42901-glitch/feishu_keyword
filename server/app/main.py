@@ -6,6 +6,8 @@
 - 挂载统一前缀 `/api` 下的业务路由（见 `app.api.router`）。
 """
 
+import os
+
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +19,8 @@ from app.api.exception_handlers import (
     validation_exception_handler,
 )
 from app.api.router import api_router
+from app.ci_build_info import read_build_info
+from app.health_probes import mysql_ok, redis_ok
 
 app = FastAPI(title="feishu_keyword", version="0.1.0")
 
@@ -36,3 +40,19 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/api")
+
+
+@app.get("/ci-test")
+def ci_test():
+    info = read_build_info()
+    env_name = os.getenv("ENVIRONMENT", "local")
+    return {
+        "source": f"fskw-{env_name}",
+        "ci": bool(info),
+        "build": info.get("build", "local-dev"),
+        "commit": info.get("commit", "unknown"),
+        "branch": info.get("branch", "unknown"),
+        "deployed_at": info.get("deployed_at", "unknown"),
+        "mysql_ok": mysql_ok(),
+        "redis_ok": redis_ok(),
+    }

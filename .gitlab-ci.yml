@@ -1,16 +1,16 @@
-# feishu_keyword：GitLab Shell Runner → rsync → SSH docker compose
-#
-# 在 GitLab「CI/CD 变量」中配置：SSH_PRIVATE_KEY、HOST_IP、SSH_USER、SSH_PORT（可选，默认 22）、
-# PROD_ROOT（默认 /docker/feishu_keyword）、PROD_DIR（默认 $PROD_ROOT/server）。
-# 远端栈根需存在 server/.env.master（或由你方同步），流水线会 cp 为 server/.env 与栈根 .env。
-#
-# 首次：在部署机 docker network create proxy；栈目录下准备 server/.env.master。
+# fskw：GitLab Shell Runner → rsync → SSH docker compose
+# test 分支自动部署测试栈；master 手动部署正式栈。
+# 变量：SSH_PRIVATE_KEY、HOST_IP（默认 121.43.231.225）
 
 variables:
+  HOST_IP: "121.43.231.225"
   SSH_PORT: "22"
   SSH_USER: "root"
-  PROD_ROOT: "/docker/feishu_keyword"
-  PROD_DIR: "/docker/feishu_keyword/server"
+  PROD_ROOT: "/docker/fskw"
+  TEST_ROOT: "/docker/fskw-test"
+  PROD_DIR: "/docker/fskw/server"
+  TEST_DIR: "/docker/fskw-test/server"
+  COMPOSE_FILES: "-f docker-compose.yml"
 
 stages:
   - deploy
@@ -20,18 +20,9 @@ stages:
   before_script:
     - |
       if ! command -v rsync >/dev/null 2>&1; then
-        echo "→ rsync 未安装, 尝试自动安装 ..."
-        ( command -v apt-get >/dev/null 2>&1 && apt-get update -qq >/dev/null 2>&1 && apt-get install -y -qq rsync >/dev/null 2>&1 ) \
-          || ( command -v apk >/dev/null 2>&1 && apk add --no-cache rsync >/dev/null 2>&1 ) \
-          || ( command -v yum >/dev/null 2>&1 && yum install -y -q rsync >/dev/null 2>&1 ) \
-          || ( command -v dnf >/dev/null 2>&1 && dnf install -y -q rsync >/dev/null 2>&1 ) \
+        ( command -v apt-get >/dev/null 2>&1 && apt-get update -qq && apt-get install -y -qq rsync ) \
+          || ( command -v apk >/dev/null 2>&1 && apk add --no-cache rsync ) \
           || true
-      fi
-    - |
-      if command -v rsync >/dev/null 2>&1; then
-        rsync --version | head -1 || true
-      else
-        echo "⚠ rsync 不可用, 将使用 tar+ssh 兜底"
       fi
     - eval $(ssh-agent -s)
     - |
@@ -46,21 +37,116 @@ stages:
         rm -f "$SSH_KEY_FILE"
       fi
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
-    - ssh-keyscan -p $SSH_PORT $HOST_IP >> ~/.ssh/known_hosts 2>/dev/null
-    - chmod 644 ~/.ssh/known_hosts
+    - touch ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
+    - |
+      if [ -n "${HOST_IP:-}" ]; then
+        ssh-keyscan -p "$SSH_PORT" "$HOST_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+      fi
   after_script:
     - eval $(ssh-agent -k) 2>/dev/null || true
+
+.write-build-info:
+  script:
+    - |
+      DEPLOY_TS=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+      DEPLOY_TAG=$(date -u +'%Y-%m-%d_%H-%M-%S')
+      {
+        echo "build=${DEPLOY_TAG}_${CI_COMMIT_SHORT_SHA}"
+        echo "commit=${CI_COMMIT_SHORT_SHA}"
+        echo "branch=${CI_COMMIT_BRANCH}"
+        echo "deployed_at=${DEPLOY_TS}"
+        echo "environment=${CI_ENVIRONMENT_NAME:-unknown}"
+        echo "pipeline=${CI_PIPELINE_ID}"
+      } > server/BUILD_INFO
+      cat server/BUILD_INFO
+
+deploy-test:
+  extends: .ssh-setup
+  stage: deploy
+  variables:
+    CI_ENVIRONMENT_NAME: test
+  script:
+    - |
+      if [ -z "${HOST_IP:-}" ]; then
+        echo "ERROR: 请配置 CI 变量 HOST_IP"
+        exit 1
+      fi
+    - echo "测试环境部署开始..."
+    - |
+      if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+        echo "→ 构建 admin …"
+        (cd admin && npm ci && npm run build:public:test) || exit 1
+        echo "→ 构建 feishu …"
+        (cd feishu && npm ci && npm run build:public:test) || exit 1
+      else
+        echo "WARN: Runner 无 Node，跳过前端构建"
+      fi
+    - |
+      DEPLOY_TS=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+      DEPLOY_TAG=$(date -u +'%Y-%m-%d_%H-%M-%S')
+      {
+        echo "build=${DEPLOY_TAG}_${CI_COMMIT_SHORT_SHA}"
+        echo "commit=${CI_COMMIT_SHORT_SHA}"
+        echo "branch=${CI_COMMIT_BRANCH}"
+        echo "deployed_at=${DEPLOY_TS}"
+        echo "environment=test"
+        echo "pipeline=${CI_PIPELINE_ID}"
+      } > server/BUILD_INFO
+    - ssh -p $SSH_PORT $SSH_USER@$HOST_IP "mkdir -p '$TEST_DIR' '$TEST_ROOT/public/admin' '$TEST_ROOT/public/feishu' '$TEST_ROOT/deploy/admin-static' '$TEST_ROOT/deploy/feishu-static'"
+    - |
+      RSYNC_EXCLUDES="--exclude=.venv/ --exclude=venv/ --exclude=__pycache__/ --exclude=/.env --exclude=.env.test --exclude=.env.master --exclude=*.pyc --exclude=uploads/"
+      rsync -azP --delete -e "ssh -p $SSH_PORT" $RSYNC_EXCLUDES server/ "$SSH_USER@$HOST_IP:$TEST_DIR/"
+      rsync -azP -e "ssh -p $SSH_PORT" docker-compose.yml docker-compose.test.yml "$SSH_USER@$HOST_IP:$TEST_ROOT/"
+      rsync -azP --delete -e "ssh -p $SSH_PORT" public/admin/ "$SSH_USER@$HOST_IP:$TEST_ROOT/public/admin/"
+      rsync -azP --delete -e "ssh -p $SSH_PORT" public/feishu/ "$SSH_USER@$HOST_IP:$TEST_ROOT/public/feishu/"
+      rsync -azP -e "ssh -p $SSH_PORT" deploy/admin-static/ "$SSH_USER@$HOST_IP:$TEST_ROOT/deploy/admin-static/"
+      rsync -azP -e "ssh -p $SSH_PORT" deploy/feishu-static/ "$SSH_USER@$HOST_IP:$TEST_ROOT/deploy/feishu-static/"
+    - |
+      ssh -p $SSH_PORT $SSH_USER@$HOST_IP "
+        if [ -f /docker/gaoqingsong/server/.env ]; then
+          cd /docker/gaoqingsong && docker compose --profile db up -d mysql redis 2>/dev/null || true
+        fi
+        set -e
+        cd $TEST_DIR
+        if [ ! -f .env.test ]; then
+          echo 'ERROR: 远端缺少 .env.test，请先 SSH 配置（见 docs/DEPLOY.md）'
+          exit 1
+        fi
+        cp -f .env.test .env && chmod 600 .env
+        cd $TEST_ROOT
+        cp -f server/.env .env && chmod 600 .env
+        docker compose -f docker-compose.yml -f docker-compose.test.yml --profile admin --profile feishu up -d --build
+        echo '测试环境部署完成'
+      "
+  rules:
+    - if: $CI_COMMIT_BRANCH == "test"
+      changes:
+        - docker-compose.yml
+        - docker-compose.test.yml
+        - server/**/*
+        - admin/**/*
+        - feishu/**/*
+        - deploy/**/*
+        - .gitlab-ci.yml
 
 deploy-prod:
   extends: .ssh-setup
   stage: deploy
+  resource_group: fkw-docker-prod-121
+  variables:
+    CI_ENVIRONMENT_NAME: production
   script:
     - |
       if [ -z "${HOST_IP:-}" ]; then
-        echo "ERROR: 请在 GitLab CI/CD 变量中设置 HOST_IP"
+        echo "ERROR: 请配置 CI 变量 HOST_IP"
         exit 1
       fi
     - echo "正式环境部署开始..."
+    - |
+      if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+        (cd admin && npm ci && npm run build:public:prod) || exit 1
+        (cd feishu && npm ci && npm run build:public:prod) || exit 1
+      fi
     - |
       DEPLOY_TS=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
       DEPLOY_TAG=$(date -u +'%Y-%m-%d_%H-%M-%S')
@@ -72,56 +158,38 @@ deploy-prod:
         echo "environment=production"
         echo "pipeline=${CI_PIPELINE_ID}"
       } > server/BUILD_INFO
-      cat server/BUILD_INFO
-    - ssh -p $SSH_PORT $SSH_USER@$HOST_IP "mkdir -p '$PROD_DIR' '$PROD_ROOT/public/admin' '$PROD_ROOT/deploy/admin-static'"
+    - ssh -p $SSH_PORT $SSH_USER@$HOST_IP "mkdir -p '$PROD_DIR' '$PROD_ROOT/public/admin' '$PROD_ROOT/public/feishu' '$PROD_ROOT/deploy/admin-static' '$PROD_ROOT/deploy/feishu-static'"
     - |
-      if command -v rsync >/dev/null 2>&1; then
-        rsync -azP --delete \
-          -e "ssh -p $SSH_PORT" \
-          --exclude='.venv/' --exclude='venv/' --exclude='__pycache__/' --exclude='/.env' --exclude='*.pyc' \
-          --exclude='log_file/' --exclude='logs/' --exclude='*.log' \
-          --exclude='uploads/' \
-          server/ "$SSH_USER@$HOST_IP:$PROD_DIR/"
-        rsync -azP -e "ssh -p $SSH_PORT" docker-compose.yml "$SSH_USER@$HOST_IP:$PROD_ROOT/docker-compose.yml"
-        rsync -azP --delete -e "ssh -p $SSH_PORT" public/admin/ "$SSH_USER@$HOST_IP:$PROD_ROOT/public/admin/"
-        rsync -azP -e "ssh -p $SSH_PORT" deploy/admin-static/ "$SSH_USER@$HOST_IP:$PROD_ROOT/deploy/admin-static/"
-      else
-        tar --exclude='./.venv' --exclude='./venv' --exclude='./__pycache__' --exclude='./.env' --exclude='*.pyc' \
-            --exclude='./log_file' --exclude='./logs' --exclude='*.log' \
-            --exclude='./uploads' \
-            -czf - -C server . \
-          | ssh -p "$SSH_PORT" "$SSH_USER@$HOST_IP" "mkdir -p '$PROD_DIR' && tar xzf - -C '$PROD_DIR'"
-        scp -P "$SSH_PORT" docker-compose.yml "$SSH_USER@$HOST_IP:$PROD_ROOT/docker-compose.yml"
-      fi
+      RSYNC_EXCLUDES="--exclude=.venv/ --exclude=venv/ --exclude=__pycache__/ --exclude=/.env --exclude=.env.test --exclude=.env.master --exclude=*.pyc --exclude=uploads/"
+      rsync -azP --delete -e "ssh -p $SSH_PORT" $RSYNC_EXCLUDES server/ "$SSH_USER@$HOST_IP:$PROD_DIR/"
+      rsync -azP -e "ssh -p $SSH_PORT" docker-compose.yml docker-compose.prod.yml "$SSH_USER@$HOST_IP:$PROD_ROOT/"
+      rsync -azP --delete -e "ssh -p $SSH_PORT" public/admin/ "$SSH_USER@$HOST_IP:$PROD_ROOT/public/admin/"
+      rsync -azP --delete -e "ssh -p $SSH_PORT" public/feishu/ "$SSH_USER@$HOST_IP:$PROD_ROOT/public/feishu/"
+      rsync -azP -e "ssh -p $SSH_PORT" deploy/admin-static/ "$SSH_USER@$HOST_IP:$PROD_ROOT/deploy/admin-static/"
+      rsync -azP -e "ssh -p $SSH_PORT" deploy/feishu-static/ "$SSH_USER@$HOST_IP:$PROD_ROOT/deploy/feishu-static/"
     - |
-      _FKW_MYSQL_FORCE_RECREATE="${FKW_MYSQL_FORCE_RECREATE:-}"
       ssh -p $SSH_PORT $SSH_USER@$HOST_IP "
         set -e
         cd $PROD_DIR
         if [ ! -f .env.master ]; then
-          echo 'ERROR: 远端缺少 .env.master，请在 $PROD_DIR 放置 server/.env.master（可由首次手动上传）。'
+          echo 'ERROR: 远端缺少 .env.master'
           exit 1
         fi
-        cp -f .env.master .env
-        chmod 600 .env
+        cp -f .env.master .env && chmod 600 .env
         cd $PROD_ROOT
-        cp -f server/.env .env
-        chmod 600 .env
-        docker compose --profile db --profile admin up -d --build
-        case \"${_FKW_MYSQL_FORCE_RECREATE}\" in 1|true|TRUE|yes|YES)
-          docker compose --profile db up -d --no-deps --force-recreate mysql && echo '(CI) FKW_MYSQL_FORCE_RECREATE → fkw-mysql 已重建'
-        ;;
-        esac
+        cp -f server/.env .env && chmod 600 .env
+        docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile admin --profile feishu up -d --build
         echo '正式环境部署完成'
       "
   rules:
     - if: $CI_COMMIT_BRANCH == "master"
       changes:
         - docker-compose.yml
+        - docker-compose.prod.yml
         - server/**/*
-        - server/.env.master
-        - public/admin/**/*
-        - deploy/admin-static/**/*
+        - admin/**/*
+        - feishu/**/*
+        - deploy/**/*
         - .gitlab-ci.yml
       when: on_success
     - if: $CI_COMMIT_BRANCH == "master"
@@ -130,9 +198,7 @@ deploy-prod:
 cleanup:
   stage: cleanup
   script:
-    - ps -ef | grep ssh-agent | grep -v grep | awk '{print $1}' | xargs kill -9 2>/dev/null || true
-    - rm -rf /tmp/ssh-* 2>/dev/null || true
     - echo "清理完成"
   rules:
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "test"
   allow_failure: true
