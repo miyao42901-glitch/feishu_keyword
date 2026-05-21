@@ -6,19 +6,30 @@ import { computed, nextTick, onScopeDispose, reactive, ref, watch } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
 import {
-  createFeishuTaskConfig,
-  updateFeishuTaskConfig,
-} from '@/lib/api'
+  persistCollectionRefsToLocal,
+  saveTaskConfigSnapshot,
+} from '@/lib/feishu-async-task-config'
+import { clearGlobalBitableAppendDedup } from '@/lib/feishu-bitable-append-feed'
+import { syncSinglePlatformCollectionToBitable } from '@/lib/feishu-bitable-task-sync'
+import { isLocalDraftTaskId } from '@/lib/feishu-task-config-local'
 import { buildCollectionFetchContext } from '@/lib/collection-context'
 import {
+  applyCollectionResultToConfig,
   buildAsyncTaskEditRequest,
   canEditAsyncScheduleFields,
   editAsyncTask,
+  isRealtimeTaskConfig,
+  runRealtimeSyncSearchFromConfig,
+  submitCollectionFromConfig,
 } from '@/lib/async-task-api'
 import type { FeishuTaskConfigDetail } from '@/lib/api'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
 import { useAccountPointsStore } from '@/stores/accountPoints'
-import { estimateTaskPointsBreakdown } from '@/lib/task-estimate-points'
+import {
+  estimatePointsFromItemsByPlatform,
+  estimateTaskPointsBreakdown,
+} from '@/lib/task-estimate-points'
+import { isSyncCollectionPlatform } from '@/lib/sync-collection-platforms'
 
 import BasicInfoSection from '@/views/TaskCreateForm/components/BasicInfoSection.vue'
 import FeishuNotifySection from '@/views/TaskCreateForm/components/FeishuNotifySection.vue'
@@ -37,9 +48,14 @@ import {
   effectiveAtFormItemRules,
   expireAtFormItemRules,
 } from '@/lib/datetime-task-window'
-import { dataRangeOptions, sourcePlatforms } from '@/views/TaskCreateForm/constants'
+import {
+  dataRangeOptions,
+  platformDisplayNames,
+  sourcePlatforms,
+} from '@/views/TaskCreateForm/constants'
 import {
   ensureSourceFieldSelectionForAllSelected,
+  ensureSourceFieldSelectionInConfig,
   isSourceFieldKey,
   isSupportedSourcePlatform,
 } from '@/views/TaskCreateForm/source-field-catalog'
@@ -61,7 +77,8 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   back: []
-  saved: [id: number, isEdit: boolean]
+  /** 第三参 `isRealtime`：单次任务已在弹框内 search-page 执行，列表页勿再调任务列表接口 */
+  saved: [id: number, isEdit: boolean, isRealtime?: boolean]
 }>()
 
 /** 各平台采集字段多选初始化为空数组，避免 undefined */
@@ -170,7 +187,7 @@ const rules = computed<FormRules>(() => ({
     : {}),
 }))
 
-/** 分步向导：① 基础/平台/关键词/飞书 → ② 排除词、排序方式、发布时间、视频时长、选择条数 → ③ 采集字段与沉淀（共 3 步） */
+/** 分步向导：① 基础/平台/关键词 → ② 排除词、排序、时间、条数 → ③ 采集字段、沉淀与飞书通知（定时，共 3 步） */
 const LAST_STEP = 2
 const totalWizardSteps = LAST_STEP + 1
 const currentStep = ref(0)
@@ -202,6 +219,25 @@ function showSaveError(msg: string) {
   clearSaveSuccessTimer()
   saveBanner.value = 'error'
   saveErrorText.value = msg
+}
+
+/** 关键词必填：合并草稿后检查，与表格名称等业务校验一致 */
+function ensureKeywordsFilled(): boolean {
+  flushKeywordDraftsToForm()
+  if (form.keywords.length > 0) return true
+  ElMessage.warning('请至少添加一个关键词')
+  return false
+}
+
+/** 保存前校验：单次任务不校验开始/结束时间与飞书通知 */
+async function validateFormForSave(): Promise<void> {
+  if (!formRef.value) return
+  if (form.taskType === 'realtime') {
+    formRef.value.clearValidate(['effectiveAt', 'expireAt', 'crawlFrequency', 'feishuWebhookUrl'])
+    await formRef.value.validateField('planName')
+    return
+  }
+  await formRef.value.validate()
 }
 
 /** 表单校验未通过时：弹提示（优先展示首个字段的校验文案） */
@@ -244,8 +280,24 @@ function goPrevStep() {
   if (currentStep.value > 0) currentStep.value -= 1
 }
 
-function goNextStep() {
-  if (currentStep.value < LAST_STEP) currentStep.value += 1
+async function goNextStep() {
+  if (currentStep.value >= LAST_STEP) return
+  if (currentStep.value === 0) {
+    if (!ensureKeywordsFilled()) return
+    if (formRef.value) {
+      const fields: string[] = ['planName']
+      if (form.taskType === 'scheduled') {
+        fields.push('crawlFrequency', 'effectiveAt', 'expireAt')
+      }
+      try {
+        await formRef.value.validateField(fields)
+      } catch (invalidFields) {
+        notifyFormValidationFailed(invalidFields)
+        return
+      }
+    }
+  }
+  currentStep.value += 1
 }
 
 /**
@@ -366,8 +418,10 @@ watch(
     if (t === 'realtime') {
       form.effectiveAt = ''
       form.expireAt = ''
+      form.feishuNotifyEnabled = false
+      form.feishuWebhookUrl = ''
       void nextTick(() => {
-        formRef.value?.clearValidate(['effectiveAt', 'expireAt'])
+        formRef.value?.clearValidate(['effectiveAt', 'expireAt', 'feishuWebhookUrl'])
       })
     }
   },
@@ -439,17 +493,107 @@ async function openSaveConfirm() {
     showSaveError('请先在顶部填写 API-Key（授权码）')
     return
   }
+  if (!ensureKeywordsFilled()) return
   try {
-    await formRef.value.validate()
+    await validateFormForSave()
   } catch (invalidFields) {
     notifyFormValidationFailed(invalidFields)
     return
   }
-  flushKeywordDraftsToForm()
+  if (form.tableMode === 'new') {
+    for (const p of orderedSelectedPlatforms.value) {
+      if (!form.platformNewTableNames[p.id]?.trim()) {
+        showSaveError(`请填写${p.label}的目标表格名称（高级配置）`)
+        return
+      }
+    }
+  }
   confirmVisible.value = true
 }
 
-/** 确认弹框内「开始执行」：仅落库；采集与写表在任务列表页执行 */
+/** 确认弹框：定时任务落库并提交 YDDM；单次任务立即 search-page 采集并写表（不调任务列表接口） */
+async function executeRealtimeFromConfirm(
+  taskId: number,
+  payload: Record<string, unknown>,
+  ctx: Awaited<ReturnType<typeof buildCollectionFetchContext>>,
+): Promise<void> {
+  const taskName =
+    String(payload.planName ?? payload.plan_name ?? '').trim() || '未命名任务'
+  clearGlobalBitableAppendDedup()
+
+  const createdTableNames = new Set<string>()
+  let totalWritten = 0
+  let totalRowCount = 0
+  const platformWriteErrors: string[] = []
+
+  const collection = await runRealtimeSyncSearchFromConfig(payload, ctx, {
+    taskId,
+    async onPlatformCollected(platform, items) {
+      if (!isSyncCollectionPlatform(platform)) return
+      const label = platformDisplayNames[platform] ?? platform
+      try {
+        const bitable = await syncSinglePlatformCollectionToBitable({
+          taskId,
+          taskName,
+          config: payload,
+          syncCtx: ctx,
+          platform,
+          items,
+        })
+        totalWritten += bitable.written
+        totalRowCount += bitable.rowCount
+        for (const name of bitable.createdTables) createdTableNames.add(name)
+        if (bitable.written > 0) {
+          ElMessage.success(`${label}：已写入 ${bitable.written} 条 → ${bitable.createdTables.join('、')}`)
+        } else if (items.length > 0) {
+          ElMessage.warning(
+            `${label}：采集 ${items.length} 条，写入 0 条（请在飞书多维表格内打开插件，并检查采集字段配置）`,
+          )
+        } else if (bitable.createdTables.length) {
+          ElMessage.info(`${label}：已新建「${bitable.createdTables.join('、')}」，本次无数据`)
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : '写入失败'
+        platformWriteErrors.push(`${label}：${msg}`)
+        ElMessage.error(`${label} 写入飞书表格失败：${msg}`)
+      }
+    },
+  })
+
+  applyCollectionResultToConfig(payload, {
+    mode: 'sync',
+    itemCount: collection.itemCount,
+    itemsByPlatform: collection.itemsByPlatform,
+    pointsConsumed: estimatePointsFromItemsByPlatform(collection.itemsByPlatform),
+    emptyPlatformHints: collection.emptyPlatformHints,
+  })
+  saveTaskConfigSnapshot(taskId, payload)
+
+  if (collection.emptyPlatformHints?.length && collection.itemCount === 0) {
+    ElMessage.warning(collection.emptyPlatformHints.join('；'))
+    return
+  }
+  if (collection.emptyPlatformHints?.length) {
+    ElMessage.warning(`部分平台无数据：${collection.emptyPlatformHints.join('；')}`)
+  }
+
+  const tableHint = createdTableNames.size
+    ? `左侧数据表：${[...createdTableNames].join('、')}`
+    : ''
+  if (platformWriteErrors.length && totalWritten === 0) {
+    return
+  }
+  if (createdTableNames.size && totalWritten > 0) {
+    ElMessage.success(`全部完成，共写入 ${totalWritten} 条。${tableHint}`)
+  } else if (createdTableNames.size) {
+    ElMessage.warning(
+      `已新建 ${[...createdTableNames].join('、')}，但共写入 0 条（解析 ${totalRowCount} 条）。请在左侧点击表名查看。`,
+    )
+  } else if (collection.itemCount === 0) {
+    ElMessage.warning('采集结果为空，未写入多维表格')
+  }
+}
+
 async function persistFromConfirmDialog() {
   if (!formRef.value || saving.value) return
   const globalSettings = useGlobalSettingsStore()
@@ -458,8 +602,12 @@ async function persistFromConfirmDialog() {
     confirmVisible.value = false
     return
   }
+  if (!ensureKeywordsFilled()) {
+    confirmVisible.value = false
+    return
+  }
   try {
-    await formRef.value.validate()
+    await validateFormForSave()
   } catch (invalidFields) {
     notifyFormValidationFailed(invalidFields)
     confirmVisible.value = false
@@ -467,37 +615,68 @@ async function persistFromConfirmDialog() {
   }
   saving.value = true
   try {
-    flushKeywordDraftsToForm()
     const payload = snapshotForm()
+    if (form.taskType === 'realtime') {
+      payload.taskType = 'realtime'
+      payload.task_type = 'realtime'
+      payload.effectiveAt = ''
+      payload.expireAt = ''
+      payload.feishuNotifyEnabled = false
+      payload.feishuWebhookUrl = ''
+      delete payload.task_start_time
+      delete payload.task_end_time
+    }
     Object.assign(payload, {
       taskPaused: false,
       taskAbnormal: false,
     })
+    payload.selectedSources = [...form.selectedSources]
+    payload.platformNewTableNames = { ...form.platformNewTableNames }
+    ensureSourceFieldSelectionInConfig(payload)
 
     const existingId = effectiveTaskConfigId()
+    const ctx = await buildCollectionFetchContext()
     let targetId: number
-    if (existingId != null) {
-      const ctx = await buildCollectionFetchContext()
+    let savedAsRealtime = false
+    if (isRealtimeTaskConfig(payload)) {
+      const draftId =
+        existingId != null && (isLocalDraftTaskId(existingId) || form.taskType === 'realtime')
+          ? existingId
+          : Date.now()
+      saveTaskConfigSnapshot(draftId, payload)
+      internalConfigId.value = draftId
+      targetId = draftId
+      await executeRealtimeFromConfirm(draftId, payload, ctx)
+      savedAsRealtime = true
+    } else if (existingId != null && !isLocalDraftTaskId(existingId)) {
       const editBody = buildAsyncTaskEditRequest(existingId, payload, {
-        allowScheduleFields: canEditAsyncScheduleFields(props.editTaskStatus),
+        allowScheduleFields:
+          form.taskType === 'scheduled' && canEditAsyncScheduleFields(props.editTaskStatus),
       })
       await editAsyncTask(ctx, editBody)
-      try {
-        await updateFeishuTaskConfig(existingId, payload)
-      } catch {
-        /* 列表来自 YDDM 时可能无本地 feishu_task_configs 记录 */
-      }
+      saveTaskConfigSnapshot(existingId, payload)
       targetId = existingId
     } else {
-      const { id } = await createFeishuTaskConfig(payload)
-      internalConfigId.value = id
-      targetId = id
+      const collection = await submitCollectionFromConfig(payload, ctx)
+      if (collection.mode !== 'async' || !collection.refs.length) {
+        throw new Error('提交定时任务失败：未返回 YDDM 任务 ID')
+      }
+      applyCollectionResultToConfig(payload, collection)
+      const primaryId = Number(collection.refs[0]!.taskId)
+      if (!Number.isFinite(primaryId) || primaryId <= 0 || isLocalDraftTaskId(primaryId)) {
+        throw new Error('提交定时任务失败：任务 ID 无效')
+      }
+      persistCollectionRefsToLocal(primaryId, payload, {
+        draftId: existingId != null && isLocalDraftTaskId(existingId) ? existingId : undefined,
+      })
+      internalConfigId.value = primaryId
+      targetId = primaryId
     }
 
     confirmVisible.value = false
     saveBanner.value = null
     saveErrorText.value = ''
-    emit('saved', targetId, existingId != null)
+    emit('saved', targetId, existingId != null, savedAsRealtime)
   } catch (e) {
     showSaveError(e instanceof Error ? e.message : '保存任务失败')
   } finally {
@@ -527,6 +706,7 @@ async function persistFromConfirmDialog() {
       "
       :balance-points="accountPoints.currentBalancePoints"
       :confirming="saving"
+      :is-realtime-task="form.taskType === 'realtime'"
       @confirm="persistFromConfirmDialog"
     />
 
@@ -557,7 +737,7 @@ async function persistFromConfirmDialog() {
           :form="form"
           :ordered-platforms="orderedSelectedPlatforms"
         />
-        <p class="task-form-field-title mb-2 mt-6">关键词<span class="task-form-field-optional">（选填）</span></p>
+        <p class="task-form-field-title mb-2 mt-6">关键词</p>
         <KeywordsSection
           :form="form"
           :keyword-draft="keywordDraft"
@@ -584,7 +764,7 @@ async function persistFromConfirmDialog() {
           <p class="task-form-field-title mb-3">采集数据写入表格</p>
           <DataRetentionSection :form="form" :ordered-platforms="orderedSelectedPlatforms" />
         </div>
-        <FeishuNotifySection :form="form" class="mt-8" />
+        <FeishuNotifySection v-if="form.taskType === 'scheduled'" :form="form" class="mt-8" />
       </div>
     </el-form>
 
@@ -613,7 +793,7 @@ async function persistFromConfirmDialog() {
             type="primary"
             class="task-footer-primary task-footer-step-btn flex-1"
             @click="openSaveConfirm"
-            >开始执行</el-button
+            >{{ form.taskType === 'realtime' ? '立即执行' : '开始执行' }}</el-button
           >
         </template>
       </div>

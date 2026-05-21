@@ -1,9 +1,9 @@
 /**
  * 异步采集任务：
  * - `POST /api/v1/async/tasks` 提交
- * - `GET /api/v1/async/tasks` 列表（仅任务列表页加载，勿轮询）
+ * - `GET /api/v1/async/tasks` 列表（任务列表页定时轮询，见 `TasksView`：仅 running/pending 轮询，默认 5–8 分钟/次）
  * - `GET /api/v1/async/tasks/{task_id}` 查看单条任务（Header：`x-api-key`、`X-User-Id`；Query 可选 `X-API-KEY`）
- * - `GET /api/v1/async/tasks/{task_id}/results` 查询采集结果（先 `GET` 状态，仅 `running` 时拉结果）
+ * - `GET /api/v1/async/tasks/{task_id}/results` 查询采集结果（先 `GET` 状态，`running`/`completed` 时拉结果）
  * - `POST /api/v1/async/tasks/{task_id}/delete` 删除任务
  * - `POST /api/v1/async/tasks/edit` 编辑任务（调度字段仅 pending 可改）
  * - `POST /api/v1/results/acceptance` 结果验收（`douyin` / `xhs` 异步任务 id 列表）
@@ -12,8 +12,10 @@
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
 import type { TaskRunStatus } from '@/views/TaskCreateForm/types'
 import {
+  extractAsyncTaskResultsMeta,
   extractSyncResultItems,
   extractSyncResultPageMeta,
+  type AsyncTaskResultsMeta,
   type SyncFetchContext,
 } from '@/lib/sync-api-common'
 import { buildDouyinSearchPageBody } from '@/lib/sync-search-page'
@@ -28,10 +30,18 @@ import { refreshYddmUserBalance } from '@/lib/refresh-yddm-balance'
 import { estimatePointsFromItemsByPlatform } from '@/lib/task-estimate-points'
 import {
   isSyncCollectionPlatform,
+  mapYddmPlatformToSyncId,
   readSyncCollectionPlatforms,
+  SYNC_SEARCH_PAGE_BY_PLATFORM,
   type SyncCollectionPlatformId,
 } from '@/lib/sync-collection-platforms'
-import { ensureSyncEndpointDiscountForPlatform } from '@/lib/sync-set-discount'
+import {
+  ensureSyncEndpointDiscountForPlatform,
+  resetPlatformSyncBillingSession,
+  syncPointsPackageForPlatform,
+} from '@/lib/sync-set-discount'
+import { isSyncHttpError } from '@/lib/sync-api-common'
+import { SYNC_SEARCH_PAGE_MAX_ATTEMPTS } from '@/lib/sync-search-shared'
 import { buildGzhSearchPageBody, fetchGzhSearchItems } from '@/lib/gzh-sync-api'
 import { fetchWxvideoSearchItems } from '@/lib/wxvideo-sync-api'
 import { buildWxvideoSearchPageBody } from '@/lib/wxvideo-sync-api'
@@ -42,6 +52,8 @@ import { setSyncCollectionCache } from '@/lib/sync-collection-cache'
 import { platformDisplayNames } from '@/views/TaskCreateForm/constants'
 
 const ASYNC_TASK_PATH = '/api/v1/async/tasks'
+/** `GET /api/v1/async/tasks` 每页条数（列表页轮询默认只拉第 1 页，见 `listTaskCardsFromAsync`） */
+const ASYNC_TASK_LIST_PAGE_LIMIT = 100
 const RESULTS_ACCEPTANCE_PATH = '/api/v1/results/acceptance'
 
 /** 定时任务 `POST /api/v1/async/tasks` 的 action（可用环境变量覆盖） */
@@ -107,6 +119,24 @@ export type AsyncTaskStatusPath = {
 /** 查询状态解析后的业务态 */
 export type AsyncTaskLifecycle = 'pending' | 'running' | 'completed' | 'failed' | 'unknown'
 
+const lastAsyncLifecycleByTaskId = new Map<string, AsyncTaskLifecycle>()
+
+/** 清除生命周期缓存（切换授权码等场景，避免 task_id 复用误判） */
+export function resetAsyncTaskLifecycleCache(): void {
+  lastAsyncLifecycleByTaskId.clear()
+}
+
+/** 记录状态变化；由 `pending` 等变为 `running` 时在控制台打印（非首次见到该 id） */
+export function notifyAsyncTaskLifecycleChange(taskId: string, lifecycle: AsyncTaskLifecycle): void {
+  const id = taskId.trim()
+  if (!id) return
+  const prev = lastAsyncLifecycleByTaskId.get(id)
+  lastAsyncLifecycleByTaskId.set(id, lifecycle)
+  if (lifecycle === 'running' && prev !== undefined && prev !== 'running') {
+    console.log('[async-task] 状态变为 running', { taskId: id, prevLifecycle: prev })
+  }
+}
+
 export type AsyncTaskStatusResult = {
   taskId: string
   lifecycle: AsyncTaskLifecycle
@@ -133,6 +163,16 @@ function isReuseableAsyncTaskLifecycle(lifecycle: AsyncTaskLifecycle): boolean {
 export type AsyncTaskResultsPayload = {
   taskId: string
   items: Record<string, unknown>[]
+  meta?: AsyncTaskResultsMeta
+  /** 由 `meta.platform` 解析的表单平台 id（如 `mp` → `gzh`） */
+  platform?: SyncCollectionPlatformId | null
+}
+
+/** 单条子任务 `GET .../results` 聚合结果（含 `data.meta.platform`） */
+export type AsyncTaskResultsBatch = {
+  items: Record<string, unknown>[]
+  meta: AsyncTaskResultsMeta
+  platform: SyncCollectionPlatformId | null
 }
 
 /** `GET /api/v1/async/tasks/{task_id}/results` 查询参数（Apifox：`page` 可选） */
@@ -162,15 +202,32 @@ const PAGINATION_BODY_KEYS = [
   'data_range',
 ] as const
 
-/** 定时任务 body：去掉翻页字段，`sort_type` 转为数字 */
+/** 定时任务 body：去掉翻页字段；`sort_type` / `time_range` / `fetch_count` 与 8765 文档对齐 */
 function normalizeScheduledAsyncBody(raw: Record<string, unknown>): AsyncTaskBody {
   const body = { ...raw } as AsyncTaskBody
   for (const key of PAGINATION_BODY_KEYS) {
     delete body[key]
   }
+  if (body.time_range == null) {
+    const tr = body.publish_time ?? body.note_time ?? body.time_range
+    if (tr != null && String(tr).trim() !== '') {
+      const n = Number(tr)
+      body.time_range = Number.isFinite(n) && n >= 1 ? Math.floor(n) : 7
+    }
+  }
+  delete body.publish_time
+  delete body.note_time
   if (body.sort_type != null && body.sort_type !== '') {
     const n = Number(body.sort_type)
     if (Number.isFinite(n)) body.sort_type = n
+  }
+  if (body.fetch_count == null && body.data_range != null) {
+    const n = Number(body.data_range)
+    if (Number.isFinite(n) && n >= 1) body.fetch_count = Math.min(500, Math.floor(n))
+  }
+  if (body.fetch_count != null) {
+    const fc = Number(body.fetch_count)
+    if (Number.isFinite(fc)) body.fetch_count = Math.min(500, Math.max(1, Math.floor(fc)))
   }
   return body
 }
@@ -202,13 +259,16 @@ function buildGzhAsyncTaskBody(config: Record<string, unknown>, keyword: string)
   return normalizeScheduledAsyncBody(rest as Record<string, unknown>)
 }
 
-/** 从任务配置读取定时监控窗口与频率 */
+/** 从任务配置读取定时监控窗口与频率（仅定时任务；单次任务勿调用） */
 export function readAsyncTaskSchedule(config: Record<string, unknown>): {
   task_start_time: string
   task_end_time: string
   interval_minutes: number
   fetch_count: number
 } {
+  if (isRealtimeTaskConfig(config)) {
+    throw new Error('单次任务无需填写监控开始/结束时间')
+  }
   const task_start_time = String(config.effectiveAt ?? config.effective_at ?? '').trim()
   const task_end_time = String(config.expireAt ?? config.expire_at ?? '').trim()
   const freqRaw = config.crawlFrequency ?? config.crawl_frequency ?? '10'
@@ -458,14 +518,25 @@ export async function listAsyncTasks(
   })
 }
 
-/** 拉取全部分页条目（合并 `items`，保留首页 `summary`） */
-export async function listAllAsyncTaskPages(ctx: SyncFetchContext): Promise<AsyncTaskListPage> {
-  const limit = 100
+export type ListAllAsyncTaskPagesOptions = {
+  /** 每页条数，默认 `ASYNC_TASK_LIST_PAGE_LIMIT` */
+  limit?: number
+  /** 最多请求页数；列表轮询传 `1` 避免连续 `page=1,2,3…` */
+  maxPages?: number
+}
+
+/** 拉取分页条目（合并 `items`，保留首页 `summary`） */
+export async function listAllAsyncTaskPages(
+  ctx: SyncFetchContext,
+  options?: ListAllAsyncTaskPagesOptions,
+): Promise<AsyncTaskListPage> {
+  const limit = options?.limit ?? ASYNC_TASK_LIST_PAGE_LIMIT
+  const maxPages = Math.max(1, Math.min(options?.maxPages ?? 50, 50))
   let page = 1
   const items: Record<string, unknown>[] = []
   let summary: AsyncTaskListSummary | null = null
 
-  while (page <= 50) {
+  while (page <= maxPages) {
     const parsed = await listAsyncTasks(ctx, { page, limit })
     const batch = parseAsyncTaskListEnvelope(parsed)
     if (!summary && batch.summary) summary = batch.summary
@@ -561,6 +632,7 @@ export function parseAsyncTaskStatusResponse(
   const data = extractAsyncTaskStatusRecord(payload)
   const id = extractAsyncTaskId(data) ?? extractAsyncTaskId(payload) ?? taskId.trim()
   const lifecycle = normalizeLifecycle(pickStatusField(data))
+  notifyAsyncTaskLifecycleChange(id, lifecycle)
   return { taskId: id, lifecycle, data }
 }
 
@@ -581,6 +653,40 @@ export function readAsyncTaskIds(config: Record<string, unknown>): string[] {
     if (s) out.push(s)
   }
   return [...new Set(out)]
+}
+
+/** 单次任务不应保留的 YDDM 子任务引用（避免误调 `GET .../results`） */
+export function clearRealtimeAsyncBindings(config: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...config }
+  delete next.asyncTaskRefs
+  delete next.async_task_refs
+  delete next.asyncTaskIds
+  delete next.async_task_ids
+  return next
+}
+
+/**
+ * 用于拉取 `GET .../async/tasks/{id}/results` 的子任务 id。
+ * 排除与列表主任务 id 相同且无任何 `asyncTaskRefs` 的脏数据（单次任务误写入的 `asyncTaskIds: [主任务id]`）。
+ */
+export function readAsyncSubTaskIdsForResults(
+  config: Record<string, unknown>,
+  parentTaskId?: number,
+): string[] {
+  const refs = readAsyncTaskRefs(config)
+  if (refs.length) return [...new Set(refs.map((r) => r.taskId.trim()).filter(Boolean))]
+  const parent = parentTaskId != null ? String(parentTaskId).trim() : ''
+  return readAsyncTaskIds(config).filter((id) => id.trim() && id.trim() !== parent)
+}
+
+/** 是否走异步 results（单次任务 / 已有 search-page 预加载数据时返回 false） */
+export function shouldUseAsyncTaskResultsFeed(
+  config: Record<string, unknown>,
+  options?: { parentTaskId?: number; hasPreloadedSyncItems?: boolean },
+): boolean {
+  if (options?.hasPreloadedSyncItems) return false
+  if (isRealtimeTaskConfig(config)) return false
+  return readAsyncSubTaskIdsForResults(config, options?.parentTaskId).length > 0
 }
 
 export function readAsyncTaskRefs(config: Record<string, unknown>): AsyncTaskRef[] {
@@ -757,8 +863,16 @@ export function configPatchFromAsyncTaskRecord(rec: Record<string, unknown>): Re
     keyword = String((bodyRaw as Record<string, unknown>).keyword ?? '').trim()
   }
 
+  const explicitType = rec.task_type ?? rec.taskType
+  const taskType =
+    explicitType === 'realtime' || explicitType === 'scheduled'
+      ? explicitType
+      : start || end
+        ? 'scheduled'
+        : 'realtime'
+
   const patch: Record<string, unknown> = {
-    taskType: start || end || interval != null ? 'scheduled' : 'realtime',
+    taskType,
     runStatus: 'pending_run',
   }
   if (name) patch.planName = name
@@ -824,9 +938,9 @@ export async function getAsyncTaskStatus(
   return parseAsyncTaskStatusResponse(parsed, id)
 }
 
-/** 仅 YDDM `status === running` 时拉取 results（`pending` / `completed` 等跳过） */
+/** 拉取 results：`running` 取增量；`completed` 取终态与 `meta.platform` 建表 */
 export function shouldFetchAsyncResultsAfterStatus(lifecycle: AsyncTaskLifecycle): boolean {
-  return lifecycle === 'running'
+  return lifecycle === 'running' || lifecycle === 'completed'
 }
 
 /** `GET /api/v1/async/tasks/{task_id}/results` 单页原始响应（Header：`x-api-key`、`X-User-Id`） */
@@ -842,6 +956,9 @@ export async function fetchAsyncTaskResultsPage(
   if (page != null && String(page).trim()) {
     path += `?${new URLSearchParams({ page: String(page).trim() }).toString()}`
   }
+  if (import.meta.env.DEV) {
+    console.log('[async-task] GET', path)
+  }
   return getSyncApiJson({
     path,
     platformLabel: '异步任务结果',
@@ -852,35 +969,53 @@ export async function fetchAsyncTaskResultsPage(
 /** @deprecated 使用 `fetchAsyncTaskResultsPage` */
 export const postAsyncTaskResults = fetchAsyncTaskResultsPage
 
-/** 拉取单任务全部结果页（`GET .../results`，按需翻 `page`） */
-export async function fetchAllAsyncTaskResultItems(
+function resolvePlatformFromResultsMeta(meta: AsyncTaskResultsMeta): SyncCollectionPlatformId | null {
+  return mapYddmPlatformToSyncId(meta.platform ?? meta.source)
+}
+
+/** 拉取单任务全部结果页（`GET .../results`，按需翻 `page`；保留 `data.meta`） */
+export async function fetchAllAsyncTaskResults(
   ctx: SyncFetchContext,
   taskId: string,
-): Promise<Record<string, unknown>[]> {
+): Promise<AsyncTaskResultsBatch> {
   const collected: Record<string, unknown>[] = []
+  let meta: AsyncTaskResultsMeta = {}
   let page: string | undefined
   const maxPages = 50
 
   for (let i = 0; i < maxPages; i++) {
     const parsed = await fetchAsyncTaskResultsPage(ctx, taskId, page ? { page } : {})
+    if (!meta.platform && !meta.resultTable) {
+      meta = extractAsyncTaskResultsMeta(parsed)
+    }
     const batch = extractAsyncTaskResultItems(parsed)
     if (batch.length) collected.push(...batch)
 
-    const meta = extractSyncResultPageMeta(parsed)
-    if (meta.insufficientBalance) {
+    const pageMeta = extractSyncResultPageMeta(parsed)
+    if (pageMeta.insufficientBalance) {
       throw new Error('账户积分不足，无法继续采集')
     }
-    if (!meta.hasMore) break
+    if (!pageMeta.hasMore) break
 
     const next =
-      meta.nextCursor != null && String(meta.nextCursor).trim()
-        ? String(meta.nextCursor).trim()
+      pageMeta.nextCursor != null && String(pageMeta.nextCursor).trim()
+        ? String(pageMeta.nextCursor).trim()
         : String(i + 2)
     page = next
     if (!batch.length) break
   }
 
-  return collected
+  const platform = resolvePlatformFromResultsMeta(meta)
+  return { items: collected, meta, platform }
+}
+
+/** @deprecated 使用 `fetchAllAsyncTaskResults` */
+export async function fetchAllAsyncTaskResultItems(
+  ctx: SyncFetchContext,
+  taskId: string,
+): Promise<Record<string, unknown>[]> {
+  const batch = await fetchAllAsyncTaskResults(ctx, taskId)
+  return batch.items
 }
 
 /** 批量拉取任务结果（每条先依赖状态接口，再 `GET .../results`） */
@@ -888,23 +1023,28 @@ export async function fetchAsyncTaskResultsMap(
   ctx: SyncFetchContext,
   taskIds: string[],
   statusMap?: Map<string, AsyncTaskStatusResult>,
-): Promise<Map<string, Record<string, unknown>[]>> {
+): Promise<Map<string, AsyncTaskResultsBatch>> {
   const wanted = [...new Set(taskIds.map((x) => x.trim()).filter(Boolean))]
-  const map = new Map<string, Record<string, unknown>[]>()
+  const map = new Map<string, AsyncTaskResultsBatch>()
   if (!wanted.length) return map
+
+  const emptyBatch = (): AsyncTaskResultsBatch => ({
+    items: [],
+    meta: {},
+    platform: null,
+  })
 
   await Promise.all(
     wanted.map(async (id) => {
       const lifecycle = statusMap?.get(id)?.lifecycle ?? 'unknown'
       if (!shouldFetchAsyncResultsAfterStatus(lifecycle)) {
-        map.set(id, [])
+        map.set(id, emptyBatch())
         return
       }
       try {
-        const items = await fetchAllAsyncTaskResultItems(ctx, id)
-        map.set(id, items)
+        map.set(id, await fetchAllAsyncTaskResults(ctx, id))
       } catch {
-        map.set(id, [])
+        map.set(id, emptyBatch())
       }
     }),
   )
@@ -921,7 +1061,7 @@ function parseAsyncTaskIdAsInt(taskId: string): number | null {
  */
 export function buildResultsAcceptanceBody(
   refs: AsyncTaskRef[],
-  resultsMap: Map<string, Record<string, unknown>[]>,
+  resultsMap: Map<string, AsyncTaskResultsBatch>,
 ): ResultsAcceptanceRequest {
   const douyin: number[] = []
   const xhs: number[] = []
@@ -931,7 +1071,7 @@ export function buildResultsAcceptanceBody(
   for (const ref of refs) {
     const id = parseAsyncTaskIdAsInt(ref.taskId)
     if (id == null) continue
-    const items = resultsMap.get(ref.taskId) ?? []
+    const items = resultsMap.get(ref.taskId)?.items ?? []
     if (!items.length) continue
 
     if (ref.platform === 'douyin') {
@@ -972,7 +1112,7 @@ export async function postResultsAcceptance(
 export async function postResultsAcceptanceAfterAsyncFetch(
   ctx: SyncFetchContext,
   refs: AsyncTaskRef[],
-  resultsMap: Map<string, Record<string, unknown>[]>,
+  resultsMap: Map<string, AsyncTaskResultsBatch>,
 ): Promise<void> {
   const body = buildResultsAcceptanceBody(refs, resultsMap)
   if (!body.douyin.length && !body.xhs.length) return
@@ -991,12 +1131,33 @@ export async function postResultsAcceptanceAfterAsyncFetch(
 export async function fetchAsyncTaskStatusAndResultsMaps(
   ctx: SyncFetchContext,
   taskIds: string[],
-  options?: { refs?: AsyncTaskRef[]; skipAcceptance?: boolean },
+  options?: {
+    refs?: AsyncTaskRef[]
+    skipAcceptance?: boolean
+    /** 列表已确认为 running 的子任务 id，跳过 `GET .../tasks/{id}` */
+    skipStatusFetchForIds?: Iterable<string>
+  },
 ): Promise<{
   statusMap: Map<string, AsyncTaskStatusResult>
-  resultsMap: Map<string, Record<string, unknown>[]>
+  resultsMap: Map<string, AsyncTaskResultsBatch>
 }> {
-  const statusMap = await fetchAsyncTaskStatusMap(ctx, taskIds)
+  const skipStatus = new Set(
+    [...(options?.skipStatusFetchForIds ?? [])].map((x) => x.trim()).filter(Boolean),
+  )
+  const wanted = [...new Set(taskIds.map((x) => x.trim()).filter(Boolean))]
+  const statusMap = new Map<string, AsyncTaskStatusResult>()
+  const needFetch: string[] = []
+  for (const id of wanted) {
+    if (skipStatus.has(id)) {
+      statusMap.set(id, { taskId: id, lifecycle: 'running', data: {} })
+    } else {
+      needFetch.push(id)
+    }
+  }
+  if (needFetch.length) {
+    const fetched = await fetchAsyncTaskStatusMap(ctx, needFetch)
+    for (const [id, st] of fetched) statusMap.set(id, st)
+  }
   const resultsMap = await fetchAsyncTaskResultsMap(ctx, taskIds, statusMap)
   if (!options?.skipAcceptance && options?.refs?.length) {
     await postResultsAcceptanceAfterAsyncFetch(ctx, options.refs, resultsMap)
@@ -1011,10 +1172,12 @@ export async function getAsyncTaskResults(
 ): Promise<AsyncTaskResultsPayload> {
   const id = taskId.trim()
   if (!id) throw new Error('缺少 task_id')
-  const items = await fetchAllAsyncTaskResultItems(ctx, id)
+  const batch = await fetchAllAsyncTaskResults(ctx, id)
   return {
     taskId: id,
-    items,
+    items: batch.items,
+    meta: batch.meta,
+    platform: batch.platform,
   }
 }
 
@@ -1050,8 +1213,7 @@ export function applyCollectionResultToConfig(
   }
   if (collection.mode === 'sync') {
     config.runStatus = 'completed'
-    config.asyncTaskIds = []
-    config.asyncTaskRefs = []
+    clearRealtimeAsyncBindings(config)
     return
   }
   if (collection.mode === 'async') {
@@ -1085,11 +1247,30 @@ export async function submitCollectionFromConfig(
   return { mode: 'async', refs }
 }
 
-/** 单次任务：按平台调用各平台 `search-page` 同步接口 */
+/** 单次任务：拉取单个平台的 search-page 结果 */
+export async function fetchRealtimePlatformSearchItems(
+  platform: PlatformKey,
+  config: Record<string, unknown>,
+  ctx: SyncFetchContext,
+): Promise<Record<string, unknown>[]> {
+  if (platform === 'douyin') return fetchDouyinSearchItems(config, ctx)
+  if (platform === 'xiaohongshu') return fetchXhsSearchItems(config, ctx)
+  if (platform === 'shipinhao') return fetchWxvideoSearchItems(config, ctx)
+  if (platform === 'gzh') return fetchGzhSearchItems(config, ctx)
+  return []
+}
+
+export type RealtimePlatformCollectedHandler = (
+  platform: PlatformKey,
+  items: Record<string, unknown>[],
+  itemsByPlatform: SyncItemsByPlatform,
+) => void | Promise<void>
+
+/** 单次任务：按勾选平台顺序依次调用对应 `search-page`（抖音 → 小红书 → 视频号 → 公众号） */
 export async function runRealtimeSyncSearchFromConfig(
   config: Record<string, unknown>,
   ctx: SyncFetchContext,
-  options?: { taskId?: number },
+  options?: { taskId?: number; onPlatformCollected?: RealtimePlatformCollectedHandler },
 ): Promise<{
   itemCount: number
   itemsByPlatform: SyncItemsByPlatform
@@ -1111,29 +1292,61 @@ export async function runRealtimeSyncSearchFromConfig(
       `${label}：接口返回 0 条（请检查关键词/排除词是否过严，或账户余额是否充足）`,
     )
   }
-  if (sources.includes('douyin')) {
-    const items = await fetchDouyinSearchItems(config, ctx)
-    itemsByPlatform.douyin = items
-    itemCount += items.length
-    trackPlatform('douyin', items)
+
+  if (import.meta.env.DEV) {
+    console.log(
+      '[sync-collect] 单次任务 search-page',
+      sources.map((p) => ({ platform: p, path: SYNC_SEARCH_PAGE_BY_PLATFORM[p].path })),
+    )
   }
-  if (sources.includes('xiaohongshu')) {
-    const items = await fetchXhsSearchItems(config, ctx)
-    itemsByPlatform.xiaohongshu = items
+
+  for (const platform of sources) {
+    const pathInfo = SYNC_SEARCH_PAGE_BY_PLATFORM[platform]
+    if (import.meta.env.DEV) {
+      console.log('[sync-collect] search-page 开始', { platform, path: pathInfo.path })
+    }
+
+    let items: Record<string, unknown>[] = []
+    const platformCtx = resetPlatformSyncBillingSession(ctx)
+    try {
+      items = await fetchRealtimePlatformSearchItems(platform, config, platformCtx)
+    } catch (e) {
+      const label = platformDisplayNames[platform] ?? platform
+      let msg = e instanceof Error ? e.message : String(e)
+      if (isSyncHttpError(e) && e.status >= 500 && e.status < 600) {
+        const pkg = syncPointsPackageForPlatform(platform)
+        const pkgHint = pkg > 0 ? `，本平台约 ${pkg.toLocaleString('zh-CN')} 积分档位不扣费` : ''
+        msg = `${msg}（已重试 ${SYNC_SEARCH_PAGE_MAX_ATTEMPTS} 次仍失败${pkgHint}）`
+      }
+      emptyPlatformHints.push(`${label}：${msg}`)
+      if (import.meta.env.DEV) {
+        console.warn('[sync-collect] search-page 失败', { platform, path: pathInfo.path, msg })
+      }
+    }
+    itemsByPlatform[platform] = items
+    trackPlatform(platform, items)
     itemCount += items.length
-    trackPlatform('xiaohongshu', items)
-  }
-  if (sources.includes('shipinhao')) {
-    const items = await fetchWxvideoSearchItems(config, ctx)
-    itemsByPlatform.shipinhao = items
-    itemCount += items.length
-    trackPlatform('shipinhao', items)
-  }
-  if (sources.includes('gzh')) {
-    const items = await fetchGzhSearchItems(config, ctx)
-    itemsByPlatform.gzh = items
-    itemCount += items.length
-    trackPlatform('gzh', items)
+
+    if (import.meta.env.DEV) {
+      console.log('[sync-collect] search-page 完成', {
+        platform,
+        path: pathInfo.path,
+        count: items.length,
+      })
+    }
+
+    if (options?.onPlatformCollected) {
+      try {
+        await options.onPlatformCollected(platform, items, itemsByPlatform)
+      } catch (e) {
+        const label = platformDisplayNames[platform] ?? platform
+        const msg = e instanceof Error ? e.message : String(e)
+        emptyPlatformHints.push(`${label} 写表：${msg}`)
+        if (import.meta.env.DEV) {
+          console.warn('[sync-collect] 写表失败', { platform, msg })
+        }
+      }
+    }
   }
   if (import.meta.env.DEV) {
     console.log('[sync-collect]', {
@@ -1181,22 +1394,26 @@ export async function submitAsyncTasksFromConfig(
       const existing = existingBySlot.get(slot)
 
       if (existing?.taskId.trim()) {
-        try {
-          const status = await getAsyncTaskStatus(ctx, existing.taskId)
-          if (isReuseableAsyncTaskLifecycle(status.lifecycle)) {
-            bySlot.set(slot, existing)
-            if (import.meta.env.DEV) {
-              console.log('[async-task] 复用已有子任务', {
-                platform,
-                keyword: keyword || '(空)',
-                taskId: existing.taskId,
-                lifecycle: status.lifecycle,
-              })
+        const existingNum = Math.floor(Number(existing.taskId))
+        const isDraftRef = !Number.isFinite(existingNum) || existingNum >= 1_000_000_000_000
+        if (!isDraftRef) {
+          try {
+            const status = await getAsyncTaskStatus(ctx, existing.taskId)
+            if (isReuseableAsyncTaskLifecycle(status.lifecycle)) {
+              bySlot.set(slot, existing)
+              if (import.meta.env.DEV) {
+                console.log('[async-task] 复用已有子任务', {
+                  platform,
+                  keyword: keyword || '(空)',
+                  taskId: existing.taskId,
+                  lifecycle: status.lifecycle,
+                })
+              }
+              continue
             }
-            continue
+          } catch {
+            /* 查询失败则重新提交 */
           }
-        } catch {
-          /* 查询失败则重新提交 */
         }
       }
 

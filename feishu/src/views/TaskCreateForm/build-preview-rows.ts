@@ -89,19 +89,21 @@ export function buildTaskConfigPreviewRows(cfg: Record<string, unknown>): { labe
   const hasAuth = typeof cfg.authCode === 'string' && cfg.authCode.trim().length > 0
   rows.push({ label: 'API-Key', value: hasAuth ? '已填写' : '未填写' })
 
-  const notifyOn =
-    cfg.feishuNotifyEnabled === true ||
-    cfg.feishuNotifyEnabled === 1 ||
-    String(cfg.feishuNotifyEnabled ?? '')
-      .trim()
-      .toLowerCase() === 'true'
-  rows.push({
-    label: '飞书通知',
-    value: notifyOn ? '开启' : '关闭',
-  })
-  if (notifyOn) {
-    const wh = typeof cfg.feishuWebhookUrl === 'string' ? cfg.feishuWebhookUrl.trim() : ''
-    rows.push({ label: 'Webhook', value: wh ? '已填写' : '未填写' })
+  if (cfg.taskType !== 'realtime') {
+    const notifyOn =
+      cfg.feishuNotifyEnabled === true ||
+      cfg.feishuNotifyEnabled === 1 ||
+      String(cfg.feishuNotifyEnabled ?? '')
+        .trim()
+        .toLowerCase() === 'true'
+    rows.push({
+      label: '飞书通知',
+      value: notifyOn ? '开启' : '关闭',
+    })
+    if (notifyOn) {
+      const wh = typeof cfg.feishuWebhookUrl === 'string' ? cfg.feishuWebhookUrl.trim() : ''
+      rows.push({ label: 'Webhook', value: wh ? '已填写' : '未填写' })
+    }
   }
 
   return rows
@@ -241,19 +243,21 @@ export function buildTaskConfigConfirmRows(cfg: Record<string, unknown>): TaskCo
 
   rows.push({ label: '目标表格', value: formatTargetTable(cfg) })
 
-  const notifyOn =
-    cfg.feishuNotifyEnabled === true ||
-    cfg.feishuNotifyEnabled === 1 ||
-    String(cfg.feishuNotifyEnabled ?? '')
-      .trim()
-      .toLowerCase() === 'true'
-  rows.push({ label: '飞书通知', value: notifyOn ? '开启' : '关闭' })
+  if (!isRealtime) {
+    const notifyOn =
+      cfg.feishuNotifyEnabled === true ||
+      cfg.feishuNotifyEnabled === 1 ||
+      String(cfg.feishuNotifyEnabled ?? '')
+        .trim()
+        .toLowerCase() === 'true'
+    rows.push({ label: '飞书通知', value: notifyOn ? '开启' : '关闭' })
 
-  const wh = typeof cfg.feishuWebhookUrl === 'string' ? cfg.feishuWebhookUrl.trim() : ''
-  rows.push({
-    label: 'Webhook地址',
-    value: notifyOn && wh ? wh : '—',
-  })
+    const wh = typeof cfg.feishuWebhookUrl === 'string' ? cfg.feishuWebhookUrl.trim() : ''
+    rows.push({
+      label: 'Webhook地址',
+      value: notifyOn && wh ? wh : '—',
+    })
+  }
 
   return rows
 }

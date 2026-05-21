@@ -46,13 +46,18 @@ const statusTextModifier: Record<TaskRunStatus, string> = {
   failed: 'failed',
 }
 
-const primaryKind = computed(() => taskPrimaryActionKind(props.row.status))
+const primaryKind = computed(() =>
+  taskPrimaryActionKind(props.row.status, { taskTypeLabel: props.row.taskTypeLabel }),
+)
 
 const showView = computed(() => canTaskAction(props.row.status, 'view'))
 const showEdit = computed(() => canTaskAction(props.row.status, 'edit'))
-const showStop = computed(() => canTaskAction(props.row.status, 'stop'))
+/** 运行中仅展示主操作「停止」；避免与 primaryKind===stop 重复 */
+const showStop = computed(
+  () => canTaskAction(props.row.status, 'stop') && primaryKind.value !== 'stop',
+)
 const showDelete = computed(() => canTaskAction(props.row.status, 'delete'))
-const showRetry = computed(() => canTaskAction(props.row.status, 'retry'))
+const showPrimary = computed(() => primaryKind.value != null)
 
 /** 驱动「X 分钟后开始」等相对时间文案定期重算 */
 const scheduleClockTick = ref(Date.now())
@@ -217,7 +222,7 @@ function onPrimary() {
           停止
         </button>
         <button
-          v-if="showRetry && primaryKind"
+          v-if="showPrimary && primaryKind"
           type="button"
           class="task-action-completed-restart"
           :disabled="primaryLoading"

@@ -118,11 +118,19 @@ const rowStatus = computed(() => props.row?.status)
 
 const showEdit = computed(() => rowStatus.value != null && canTaskAction(rowStatus.value, 'edit'))
 const showDelete = computed(() => rowStatus.value != null && canTaskAction(rowStatus.value, 'delete'))
-const showStop = computed(() => rowStatus.value != null && canTaskAction(rowStatus.value, 'stop'))
-const showRetry = computed(() => rowStatus.value != null && canTaskAction(rowStatus.value, 'retry'))
 const primaryKind = computed(() =>
-  rowStatus.value != null ? taskPrimaryActionKind(rowStatus.value) : null,
+  rowStatus.value != null && props.row
+    ? taskPrimaryActionKind(rowStatus.value, { taskTypeLabel: props.row.taskTypeLabel })
+    : null,
 )
+/** 运行中仅展示主操作「停止」；避免与 primaryKind===stop 重复 */
+const showStop = computed(
+  () =>
+    rowStatus.value != null &&
+    canTaskAction(rowStatus.value, 'stop') &&
+    primaryKind.value !== 'stop',
+)
+const showPrimary = computed(() => primaryKind.value != null)
 
 function emitPrimary() {
   const r = props.row
@@ -216,7 +224,7 @@ function emitEdit() {
             停止
           </button>
           <button
-            v-if="showRetry && primaryKind"
+            v-if="showPrimary && primaryKind"
             type="button"
             class="tdf-btn tdf-btn--restart"
             :disabled="primaryLoading"

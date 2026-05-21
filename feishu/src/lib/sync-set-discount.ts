@@ -6,6 +6,7 @@
  * 与 `sync-platform-page-size` 翻页逻辑一致）。
  */
 
+import type { PlatformKey } from '@/components/PlatformIcon.vue'
 import type { SyncFetchContext } from '@/lib/sync-api-common'
 import { yddmPostJson } from '@/lib/yddm-api'
 import { normalizeCnMobileInput } from '@/lib/yddm-auth-validators'
@@ -171,6 +172,36 @@ export async function ensureSyncEndpointDiscountForPath(
     discountRate: spec.discount_rate,
     ctx,
   })
+}
+
+/** 该平台一次采集对应的积分档位（展示/预估用，与 `set_discount` 套餐一致） */
+export function syncPointsPackageForPlatform(platform: PlatformKey): number {
+  switch (platform) {
+    case 'douyin':
+      return DOUYIN_POINTS_PACKAGE
+    case 'xiaohongshu':
+      return XHS_POINTS_PACKAGE
+    case 'shipinhao':
+    case 'gzh':
+      return WX_SOUSOU_POINTS_PACKAGE
+    default:
+      return 0
+  }
+}
+
+/** 切换平台前重置折扣会话，避免上一平台「已计费」标记影响下一平台 */
+export function resetPlatformSyncBillingSession(ctx: SyncFetchContext): SyncFetchContext {
+  return { ...ctx, platformDiscountPrimed: false }
+}
+
+/** search-page 成功响应后，按路径触发一次 `set_discount`（同平台翻页不重复请求） */
+export async function primeSyncEndpointDiscountAfterSuccess(
+  path: string,
+  ctx: SyncFetchContext,
+): Promise<void> {
+  if (ctx.skipSetDiscount || ctx.platformDiscountPrimed) return
+  await ensureSyncEndpointDiscountForPath(path, ctx)
+  ctx.platformDiscountPrimed = true
 }
 
 export async function ensureSyncEndpointDiscountForPlatform(

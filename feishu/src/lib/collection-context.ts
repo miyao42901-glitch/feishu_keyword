@@ -11,10 +11,6 @@ export async function buildCollectionFetchContext(): Promise<SyncFetchContext> {
   const globalSettings = useGlobalSettingsStore()
   const yddmAuth = useYddmAuthStore()
 
-  const apiKey = String(globalSettings.authCode ?? '').trim()
-  if (!apiKey) {
-    throw new Error('请先在顶部填写 API-Key（授权码）')
-  }
   if (!yddmAuth.isLoggedIn) {
     throw new Error('请先登录账户')
   }
@@ -22,6 +18,19 @@ export async function buildCollectionFetchContext(): Promise<SyncFetchContext> {
   let me = yddmAuth.me
   if (!me?.id || !me?.phone_num?.trim()) {
     me = await yddmAuth.refreshMe()
+  }
+
+  /** 顶部授权码与登录账户 `api_key` 不一致时，以 YDDM 登录态为准（避免旧 localStorage 导致 401） */
+  const loginApiKey = String(me?.api_key ?? yddmAuth.me?.api_key ?? '').trim()
+  let apiKey = String(globalSettings.authCode ?? '').trim()
+  if (loginApiKey) {
+    if (!apiKey || apiKey !== loginApiKey) {
+      globalSettings.authCode = loginApiKey
+      apiKey = loginApiKey
+    }
+  }
+  if (!apiKey) {
+    throw new Error('请先在顶部填写 API-Key（授权码），或重新登录同步')
   }
 
   const userId = me?.id ?? yddmAuth.me?.id

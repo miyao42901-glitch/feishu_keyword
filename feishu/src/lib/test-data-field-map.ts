@@ -3,6 +3,7 @@
  */
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
 import {
+  getEffectiveSourceFieldKeysForPlatform,
   sourceFieldFlatOptionsByPlatform,
   type SourceFieldFlatOption,
 } from '@/views/TaskCreateForm/source-field-catalog'
@@ -49,23 +50,37 @@ function readDouyinRaw(item: Record<string, unknown>, key: SourceFieldKey): stri
 
   switch (key) {
     case 'videoUniqueId':
-      return str(item.aweme_id)
+      return (
+        str(item.aweme_id) ||
+        str(item.awemeId) ||
+        str(item.post_id) ||
+        str(item.postId) ||
+        str(item.id)
+      )
     case 'title':
-      return str(item.title) || str(item.desc)
+      return str(item.title) || str(item.desc) || str(item.summary)
     case 'videoDescription':
-      return str(item.desc)
+      return str(item.desc) || str(item.summary)
     case 'playPageUrl':
-      return str(item.url)
+      return str(item.page_url) || str(item.pageUrl) || str(item.url)
     case 'externalDownloadUrl': {
-      const list = item.video_list
-      if (Array.isArray(list) && list.length) return str(list[0])
-      return ''
+      const list = item.video_list ?? item.videoList
+      if (Array.isArray(list) && list.length) return joinUrlList(list)
+      return (
+        str(item.primary_video_url) ||
+        str(item.primaryVideoUrl) ||
+        str(item.download_url) ||
+        str(item.downloadUrl)
+      )
     }
     case 'coverUrl':
-      return str(item.cover)
+      return str(item.cover_url) || str(item.coverUrl) || str(item.cover) || str(item.primary_image_url)
     case 'durationSeconds':
-      return str(item.duration)
+      return str(item.duration_seconds) || str(item.durationSeconds) || str(item.duration)
     case 'publishedAt': {
+      const ptMs = item.publish_time_ms ?? item.publishTimeMs
+      const msFromPtMs = typeof ptMs === 'number' ? ptMs : Number(ptMs)
+      if (Number.isFinite(msFromPtMs) && msFromPtMs > 0) return formatPublish(msFromPtMs)
       const pt = item.publish_time
       const ms = typeof pt === 'number' ? pt : Number(pt)
       return formatPublish(ms)
@@ -81,9 +96,14 @@ function readDouyinRaw(item: Record<string, unknown>, key: SourceFieldKey): stri
     case 'authorNickname':
       return str(item.nickname)
     case 'authorId':
-      return str(item.user_id)
+      return str(item.sec_uid) || str(item.user_id) || str(item.userId)
     case 'authorAvatar':
-      return str(item.avatar) || pickNestedStr(author ?? {}, 'avatar', 'avatar_url')
+      return (
+        str(item.avatar_url) ||
+        str(item.avatarUrl) ||
+        str(item.avatar) ||
+        pickNestedStr(author ?? {}, 'avatar', 'avatar_url')
+      )
     case 'authorSignature':
       return (
         str(item.author_signature) ||
@@ -437,16 +457,6 @@ function readXhsRaw(item: Record<string, unknown>, key: SourceFieldKey): string 
   }
 }
 
-function readSelectedSourceFields(config: Record<string, unknown>, platform: PlatformKey): SourceFieldKey[] {
-  const raw = config.sourceFieldSelection ?? config.source_field_selection
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return []
-  const plat = (raw as Record<string, unknown>)[platform]
-  if (!Array.isArray(plat)) return []
-  const opts = sourceFieldFlatOptionsByPlatform[platform] ?? []
-  const allowed = new Set(opts.map((o) => o.value))
-  return plat.filter((x): x is SourceFieldKey => typeof x === 'string' && allowed.has(x as SourceFieldKey))
-}
-
 /** 按任务勾选字段生成「列名 → 单元格文本」 */
 export function mapItemToColumnValues(
   item: Record<string, unknown>,
@@ -454,7 +464,7 @@ export function mapItemToColumnValues(
   config: Record<string, unknown>,
   options?: { collectedAtMs?: number },
 ): Record<string, string> {
-  const keys = readSelectedSourceFields(config, platform)
+  const keys = getEffectiveSourceFieldKeysForPlatform(config, platform)
   const opts = sourceFieldFlatOptionsByPlatform[platform] ?? []
   const optByKey = new Map<SourceFieldKey, SourceFieldFlatOption>(opts.map((o) => [o.value, o]))
   const out: Record<string, string> = {}
@@ -486,13 +496,14 @@ export function getOrderedColumnLabelsForPlatform(
   config: Record<string, unknown>,
   platform: PlatformKey,
 ): string[] {
-  const keys = readSelectedSourceFields(config, platform)
+  const keys = getEffectiveSourceFieldKeysForPlatform(config, platform)
   const opts = sourceFieldFlatOptionsByPlatform[platform] ?? []
   const labels: string[] = []
   for (const opt of opts) {
     if (keys.includes(opt.value)) labels.push(opt.label)
   }
-  return labels
+  if (labels.length) return labels
+  return opts.map((o) => o.label)
 }
 
 /** 主字段（带锁列）取该平台勾选字段中的第一项 */

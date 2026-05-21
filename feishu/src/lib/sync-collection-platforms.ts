@@ -10,16 +10,48 @@ export function isSyncCollectionPlatform(id: string): id is SyncCollectionPlatfo
   return (SYNC_COLLECTION_PLATFORM_IDS as readonly string[]).includes(id)
 }
 
+/** YDDM `meta.platform` / 列表 `platform`（如 `mp`、`xhs`、`wxvideo`）→ 表单平台 id */
+const YDDM_PLATFORM_TO_SYNC_ID: Record<string, SyncCollectionPlatformId> = {
+  douyin: 'douyin',
+  xhs: 'xiaohongshu',
+  xiaohongshu: 'xiaohongshu',
+  mp: 'gzh',
+  gzh: 'gzh',
+  wxvideo: 'shipinhao',
+  shipinhao: 'shipinhao',
+}
+
+export function mapYddmPlatformToSyncId(
+  raw: string | undefined | null,
+): SyncCollectionPlatformId | null {
+  const s = String(raw ?? '').trim().toLowerCase()
+  if (!s) return null
+  const hit = YDDM_PLATFORM_TO_SYNC_ID[s]
+  if (hit) return hit
+  return isSyncCollectionPlatform(s) ? s : null
+}
+
 export function readSyncCollectionPlatforms(config: Record<string, unknown>): SyncCollectionPlatformId[] {
   const raw = config.selectedSources ?? config.selected_sources
   if (!Array.isArray(raw)) return []
-  const out: SyncCollectionPlatformId[] = []
+  const picked = new Set<SyncCollectionPlatformId>()
   for (const x of raw) {
     if (typeof x !== 'string') continue
     const s = x.trim()
-    if (isSyncCollectionPlatform(s)) out.push(s)
+    if (isSyncCollectionPlatform(s)) picked.add(s)
   }
-  return out
+  return SYNC_COLLECTION_PLATFORM_IDS.filter((id) => picked.has(id))
+}
+
+/** 各平台 search-page 路径（仅对已勾选平台发起请求） */
+export const SYNC_SEARCH_PAGE_BY_PLATFORM: Record<
+  SyncCollectionPlatformId,
+  { path: string; label: string }
+> = {
+  douyin: { path: '/api/v1/sync/douyin/search-page', label: '抖音' },
+  xiaohongshu: { path: '/api/v1/sync/xhs/search-page', label: '小红书' },
+  shipinhao: { path: '/api/v1/sync/wxvideo/search-page', label: '视频号' },
+  gzh: { path: '/api/v1/sync/wxvideo/search-page', label: '公众号' },
 }
 
 export const syncCollectionPlatformLabels: Record<SyncCollectionPlatformId, string> = {

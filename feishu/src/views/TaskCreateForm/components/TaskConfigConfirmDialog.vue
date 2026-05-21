@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 保存前「确认任务配置」：配置摘要、预估积分与当前积分、取消 / 开始执行（落库后回列表执行）。
+ * 保存前「确认任务配置」：配置摘要、预估积分与当前积分；单次为「立即执行」，定时为「开始执行」。
  */
 import { Close } from '@element-plus/icons-vue'
 import type { TaskConfigConfirmRow } from '@/views/TaskCreateForm/build-preview-rows'
@@ -14,6 +14,8 @@ defineProps<{
   /** 定时任务：监控窗口内预计采集轮次 */
   scheduledExecutionRounds?: number
   confirming: boolean
+  /** 单次任务：主按钮文案为「立即执行」 */
+  isRealtimeTask?: boolean
 }>()
 
 const visible = defineModel<boolean>({ required: true })
@@ -103,7 +105,9 @@ function handleClose() {
           :disabled="confirming"
           @click="emit('confirm')"
         >
-          {{ confirming ? '提交中…' : '开始执行' }}
+          {{
+            confirming ? '提交中…' : isRealtimeTask ? '立即执行' : '开始执行'
+          }}
         </button>
       </div>
     </template>

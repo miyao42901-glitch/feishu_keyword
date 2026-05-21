@@ -25,7 +25,7 @@ function onRemoveKeyword(i: number) {
       class="w-full"
       :tags="form.keywords"
       :draft="keywordDraft"
-      placeholder="选填，输入后按回车添加关键词"
+      placeholder="输入后按回车添加关键词"
       @update:draft="emit('update:keywordDraft', $event)"
       @add="onAddKeyword"
       @close="onRemoveKeyword"

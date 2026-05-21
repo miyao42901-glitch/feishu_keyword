@@ -12,7 +12,9 @@ import {
 
   extractAsyncTaskId,
 
-  listAllAsyncTaskPages,
+  listAsyncTasks,
+
+  parseAsyncTaskListEnvelope,
 
   parseAsyncTaskStatusResponse,
 
@@ -227,20 +229,10 @@ export type TaskListStatCounts = {
  */
 
 export function taskStatsFromAsyncSummary(
-
   summary: AsyncTaskListSummary | null,
-
   cards: TaskCardModel[],
-
 ): TaskListStatCounts {
-  if (cards.length > 0) {
-    return {
-      total: cards.length,
-      running: cards.filter((t) => t.status === 'running').length,
-      completed: cards.filter((t) => t.status === 'completed').length,
-    }
-  }
-
+  /** 顶部统计固定用接口 `summary`，勿用当前页/筛选后的 `cards` 计数 */
   if (summary) {
     return {
       total: summary.total,
@@ -249,7 +241,30 @@ export function taskStatsFromAsyncSummary(
     }
   }
 
+  if (cards.length > 0) {
+    return {
+      total: cards.length,
+      running: cards.filter((t) => isAsyncCardRunningStatus(t.status)).length,
+      completed: cards.filter((t) => t.status === 'completed').length,
+    }
+  }
+
   return { total: 0, running: 0, completed: 0 }
+}
+
+/** 列表筛选：与顶部「运行中」统计一致（YDDM `running`，不含 `pending` / `pending_run`） */
+export function matchesAsyncListFilter(
+  status: TaskRunStatus,
+  filter: 'all' | 'running' | 'completed',
+): boolean {
+  switch (filter) {
+    case 'running':
+      return isAsyncCardRunningStatus(status)
+    case 'completed':
+      return status === 'completed'
+    default:
+      return true
+  }
 }
 
 
@@ -260,11 +275,12 @@ export function isAsyncCardRunningStatus(status: TaskRunStatus): boolean {
   return status === 'running'
 }
 
-/** 联调/演示用任务名（如「测试定时任务」），列表页不展示、不参与轮询 */
-export function shouldHideAsyncListTaskRecord(rec: Record<string, unknown>): boolean {
-  const name = String(rec.task_name ?? rec.taskName ?? '').trim()
-  if (!name) return false
-  return /^测试/.test(name)
+/**
+ * 是否从任务列表页隐藏该 YDDM 子任务。
+ * 曾用于隐藏「测试*」联调数据，会导致顶部统计与下方列表不一致，现恒为不隐藏。
+ */
+export function shouldHideAsyncListTaskRecord(_rec: Record<string, unknown>): boolean {
+  return false
 }
 
 
@@ -283,19 +299,19 @@ export type ListTaskCardsFromAsyncResult = {
 
 
 
-/** 任务列表：`GET /api/v1/async/tasks`（拉全部分页） */
+/** 任务列表：`GET /api/v1/async/tasks?page=&limit=`（单页，翻页由列表页传入 page/limit） */
 
 export async function listTaskCardsFromAsync(
-
   ctx: SyncFetchContext,
-
+  options?: { page?: number; limit?: number },
 ): Promise<ListTaskCardsFromAsyncResult> {
-
-  const page = await listAllAsyncTaskPages(ctx)
+  const pageNum = Math.max(1, Math.floor(options?.page ?? 1))
+  const limit = Math.max(1, Math.floor(options?.limit ?? 100))
+  const parsed = await listAsyncTasks(ctx, { page: pageNum, limit })
+  const batch = parseAsyncTaskListEnvelope(parsed)
 
   const cards: TaskCardModel[] = []
-
-  for (const rec of page.items) {
+  for (const rec of batch.items) {
     if (shouldHideAsyncListTaskRecord(rec)) continue
     const card = asyncListItemToTaskCard(rec)
     if (card) cards.push(card)
@@ -304,17 +320,11 @@ export async function listTaskCardsFromAsync(
   cards.sort((a, b) => b.id - a.id)
 
   return {
-
     cards,
-
-    summary: page.summary,
-
-    page: page.page,
-
-    limit: page.limit,
-
+    summary: batch.summary,
+    page: batch.page,
+    limit: batch.limit,
   }
-
 }
 
 

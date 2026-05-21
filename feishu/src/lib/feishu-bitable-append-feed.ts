@@ -4,10 +4,11 @@
  */
 
 import { bitable, FieldType, type IAddTableConfig } from '@lark-base-open/js-sdk'
+import { fetchBitableTableMetaList } from '@/lib/feishu-bitable-tables'
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
 import { defaultNewTableNameForPlatform, readSyncCollectionPlatforms } from '@/lib/sync-collection-platforms'
 import { getOrderedColumnLabelsForPlatform } from '@/lib/test-data-field-map'
-import type { TestFeedRow } from '@/lib/test-data-feed'
+import { buildPlatformItemDedupKey, type TestFeedRow } from '@/lib/test-data-feed'
 
 /** 仅当任务未配置任何采集字段时，尝试匹配默认「文本」列做兜底 */
 const FALLBACK_TEXT_COLUMN_NAMES = ['文本', '多行文本', '备注', '说明'] as const
@@ -79,7 +80,7 @@ async function resolveStoredPlatformTableId(
   return ''
 }
 
-function readPlatformNewTableName(cfg: Record<string, unknown>, platform: PlatformKey): string {
+export function readPlatformNewTableName(cfg: Record<string, unknown>, platform: PlatformKey): string {
   const raw = cfg.platformNewTableNames ?? cfg.platform_new_table_names
   if (raw && typeof raw === 'object') {
     const v = (raw as Record<string, unknown>)[platform]
@@ -98,6 +99,14 @@ function readPlatformNewTableName(cfg: Record<string, unknown>, platform: Platfo
 
 type BitableTable = Awaited<ReturnType<typeof bitable.base.getTable>>
 type BitableField = Awaited<ReturnType<BitableTable['getFieldList']>>[number]
+
+function normalizeColumnLabelForMatch(label: string): string {
+  return label
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/[()（）]/g, '')
+    .toLowerCase()
+}
 
 async function resolveFirstFieldId(table: BitableTable, names: readonly string[]): Promise<string | null> {
   for (const name of names) {
@@ -197,8 +206,31 @@ async function resolveColumnFieldIds(
   orderedLabels: string[],
 ): Promise<Map<string, string>> {
   const map = new Map<string, string>()
+  const tableFields: { id: string; name: string; norm: string }[] = []
+  try {
+    for (const field of await table.getFieldList()) {
+      const name = (await field.getName()).trim()
+      const id =
+        field && typeof (field as { id?: unknown }).id === 'string'
+          ? ((field as { id: string }).id as string).trim()
+          : ''
+      if (id && name) {
+        tableFields.push({ id, name, norm: normalizeColumnLabelForMatch(name) })
+      }
+    }
+  } catch {
+    /* */
+  }
+
   for (const label of orderedLabels) {
-    const id = await resolveFirstFieldId(table, [label])
+    let id = await resolveFirstFieldId(table, [label])
+    if (!id && tableFields.length) {
+      const norm = normalizeColumnLabelForMatch(label)
+      const hit =
+        tableFields.find((f) => f.name === label) ??
+        tableFields.find((f) => f.norm === norm)
+      id = hit?.id ?? null
+    }
     if (id) map.set(label, id)
   }
   return map
@@ -206,7 +238,7 @@ async function resolveColumnFieldIds(
 
 function rowFingerprint(row: TestFeedRow): string {
   const stable = row.itemStableId?.trim()
-  if (stable) return `${row.taskId}:${row.platform}:${stable}`
+  if (stable) return buildPlatformItemDedupKey(row.platform, stable)
 
   const fromColumns =
     row.fieldColumns['视频唯一ID'] ??
@@ -228,7 +260,19 @@ function rowFingerprint(row: TestFeedRow): string {
   return `${row.taskId}:${row.platform}:${row.publishMs}:${row.collectedAtMs}:${row.author}`
 }
 
+/** 已有平台内容 ID 的条目：跨任务、跨次执行均不再写入 */
+const appendedPlatformItemKeys = new Set<string>()
+/** 无稳定 ID 时的兜底指纹（按任务隔离） */
 const appendedFingerprintsByTask = new Map<number, Set<string>>()
+
+function hasStablePlatformItemId(row: TestFeedRow): boolean {
+  return Boolean(row.itemStableId?.trim())
+}
+
+function isRowAlreadyAppended(row: TestFeedRow, fp: string): boolean {
+  if (hasStablePlatformItemId(row)) return appendedPlatformItemKeys.has(fp)
+  return getFpSet(row.taskId).has(fp)
+}
 
 export function pruneTestFeedAppendState(runningTaskIds: Set<number>): void {
   for (const id of [...appendedFingerprintsByTask.keys()]) {
@@ -238,6 +282,11 @@ export function pruneTestFeedAppendState(runningTaskIds: Set<number>): void {
 
 export function clearTestFeedAppendStateForTask(taskId: number): void {
   appendedFingerprintsByTask.delete(taskId)
+}
+
+/** 新一轮单次任务执行前清空全局「平台+内容ID」去重（避免上次执行导致本次 0 写入） */
+export function clearGlobalBitableAppendDedup(): void {
+  appendedPlatformItemKeys.clear()
 }
 
 function getFpSet(taskId: number): Set<string> {
@@ -254,7 +303,7 @@ function filterNotYetAppended(rows: TestFeedRow[]): TestFeedRow[] {
   const out: TestFeedRow[] = []
   for (const row of rows) {
     const fp = rowFingerprint(row)
-    if (getFpSet(row.taskId).has(fp) || seen.has(fp)) continue
+    if (isRowAlreadyAppended(row, fp) || seen.has(fp)) continue
     seen.add(fp)
     out.push(row)
   }
@@ -268,7 +317,12 @@ export function countRowsPendingBitableAppend(rows: TestFeedRow[]): number {
 
 function markAppended(rows: TestFeedRow[]): void {
   for (const row of rows) {
-    getFpSet(row.taskId).add(rowFingerprint(row))
+    const fp = rowFingerprint(row)
+    if (hasStablePlatformItemId(row)) {
+      appendedPlatformItemKeys.add(fp)
+    } else {
+      getFpSet(row.taskId).add(fp)
+    }
   }
 }
 
@@ -296,6 +350,18 @@ function rowToFields(
 
 const tableCreateLocks = new Map<string, Promise<string>>()
 
+async function findTableIdByDisplayName(name: string): Promise<string> {
+  const want = name.trim()
+  if (!want) return ''
+  try {
+    const list = await fetchBitableTableMetaList()
+    const hit = list.find((t) => t.name === want)
+    return hit?.id?.trim() ?? ''
+  } catch {
+    return ''
+  }
+}
+
 async function resolveOrCreateTableId(
   taskId: number,
   platform: PlatformKey,
@@ -320,27 +386,44 @@ async function resolveOrCreateTableId(
     const again = await resolveStoredPlatformTableId(cfg, platform, taskId, deps, mutCfg)
     if (again) return again
 
+    let editable = false
     try {
-      if (!(await bitable.base.isEditable())) return ''
+      editable = await bitable.base.isEditable()
     } catch {
-      return ''
+      editable = false
+    }
+    if (!editable) {
+      throw new Error(
+        '当前环境无法新建多维表格：请在飞书多维表格内打开本插件后再执行（浏览器单独打开页面无建表权限）',
+      )
     }
 
     const name = readPlatformNewTableName(cfg, platform)
-    let tableId = ''
-    try {
-      const res = await bitable.base.addTable({ name, fields: [] } as IAddTableConfig)
-      tableId = typeof res?.tableId === 'string' ? res.tableId.trim() : ''
-    } catch {
-      return ''
+    let tableId = await findTableIdByDisplayName(name)
+    if (!tableId) {
+      try {
+        const res = await bitable.base.addTable({ name } as IAddTableConfig)
+        tableId = typeof res?.tableId === 'string' ? res.tableId.trim() : ''
+      } catch (e) {
+        const detail = e instanceof Error ? e.message : String(e)
+        const reused = await findTableIdByDisplayName(name)
+        if (reused) {
+          tableId = reused
+        } else {
+          throw new Error(`新建数据表「${name}」失败：${detail}`)
+        }
+      }
     }
-    if (!tableId) return ''
+    if (!tableId) {
+      throw new Error(`新建数据表「${name}」失败：未返回 tableId`)
+    }
 
     let table: BitableTable
     try {
       table = await bitable.base.getTable(tableId)
-    } catch {
-      return ''
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : String(e)
+      throw new Error(`无法打开数据表「${name}」：${detail}`)
     }
 
     const orderedLabels = getOrderedColumnLabelsForPlatform(cfg, platform)
@@ -386,15 +469,28 @@ export async function ensureBitableTablesForTask(
   taskId: number,
   config: Record<string, unknown>,
   deps: TestFeedBitableDeps,
-): Promise<void> {
-  if (readTableMode(config) !== 'new') return
+  options?: { platforms?: PlatformKey[] },
+): Promise<string[]> {
+  if (readTableMode(config) !== 'new') return []
 
   const mutCfg = new Map<number, Record<string, unknown>>()
   mutCfg.set(taskId, { ...config })
 
-  for (const platform of readTaskPlatformKeys(config)) {
-    await resolveOrCreateTableId(taskId, platform, deps, mutCfg)
+  const platforms = options?.platforms?.length
+    ? options.platforms
+    : readTaskPlatformKeys(config)
+  const createdNames: string[] = []
+
+  for (const platform of platforms) {
+    const tableId = await resolveOrCreateTableId(taskId, platform, deps, mutCfg)
+    if (!tableId) {
+      throw new Error(`平台「${platform}」建表失败，请确认在飞书多维表格插件内执行`)
+    }
+    const cfgNow = mutCfg.get(taskId) ?? config
+    createdNames.push(readPlatformNewTableName(cfgNow, platform))
   }
+
+  return createdNames
 }
 
 async function resolveTableIdForRow(
@@ -481,9 +577,9 @@ export async function appendTestFeedRowsToBitable(
         }
       }
     } catch (err) {
-      if (import.meta.env.DEV) {
-        console.warn('[bitable-append] addRecords failed', { platform, taskId, tableId, err })
-      }
+      const detail = err instanceof Error ? err.message : String(err)
+      console.warn('[bitable-append] addRecords failed', { platform, taskId, tableId, detail })
+      throw new Error(`写入「${readPlatformNewTableName(cfg ?? {}, platform)}」失败：${detail}`)
     }
   }
 
@@ -510,6 +606,11 @@ export async function appendTestFeedRowsToBitable(
         fresh: filterNotYetAppended(g.rows).length,
       })),
     })
+  }
+
+  const skippedTotal = Object.values(skippedNoTable).reduce((a, b) => a + b, 0)
+  if (skippedTotal > 0 && import.meta.env.DEV) {
+    console.warn('[bitable-append] 未解析到 tableId，已跳过行', skippedNoTable)
   }
 
   return writtenByTaskId

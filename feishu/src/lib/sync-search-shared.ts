@@ -8,10 +8,25 @@ import {
   extractSyncResultDiagnostics,
   extractSyncResultPageMeta,
   getSyncApiBase,
+  isSyncHttpError,
+  SyncHttpError,
   type SyncFetchContext,
 } from '@/lib/sync-api-common'
 import { refreshYddmUserBalance } from '@/lib/refresh-yddm-balance'
-import { ensureSyncEndpointDiscountForPath } from '@/lib/sync-set-discount'
+import { primeSyncEndpointDiscountAfterSuccess } from '@/lib/sync-set-discount'
+
+/** 第三方 search-page 不稳定时，HTTP 5xx 最多重试次数 */
+export const SYNC_SEARCH_PAGE_MAX_ATTEMPTS = 3
+
+const SYNC_SEARCH_RETRY_DELAY_MS = 400
+
+function isRetryableSyncHttpStatus(status: number): boolean {
+  return status === 500 || status === 502 || status === 503 || status === 504
+}
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 export type SyncSortType = '0' | '1' | '2'
 
@@ -24,12 +39,39 @@ export function readConfigArray(config: Record<string, unknown>, camel: string, 
     .filter(Boolean)
 }
 
+function readKeywordsFromAsyncRefs(config: Record<string, unknown>): string[] {
+  const raw = config.asyncTaskRefs ?? config.async_task_refs
+  if (!Array.isArray(raw)) return []
+  const out: string[] = []
+  for (const x of raw) {
+    if (!x || typeof x !== 'object') continue
+    const kw = String((x as Record<string, unknown>).keyword ?? '').trim()
+    if (kw) out.push(kw)
+  }
+  return [...new Set(out)]
+}
+
 /**
  * search-page / async 采集用关键词列表。
- * 未配置关键词时仍发起一次请求（`keyword` 为空字符串，由采集服务按「不限关键词」处理）。
+ * 兼容 `keywords[]`、`keyword` 字符串、`asyncTaskRefs[].keyword`、YDDM `body.keyword`。
+ * 均未配置时仍发起一次请求（`keyword` 为空，由采集服务处理）。
  */
 export function readSearchKeywords(config: Record<string, unknown>): string[] {
-  const keywords = readConfigArray(config, 'keywords')
+  let keywords = readConfigArray(config, 'keywords')
+  if (!keywords.length) {
+    const single = String(config.keyword ?? '').trim()
+    if (single) keywords = [single]
+  }
+  if (!keywords.length) {
+    keywords = readKeywordsFromAsyncRefs(config)
+  }
+  if (!keywords.length) {
+    const bodyRaw = config.body
+    if (bodyRaw && typeof bodyRaw === 'object' && !Array.isArray(bodyRaw)) {
+      const bk = String((bodyRaw as Record<string, unknown>).keyword ?? '').trim()
+      if (bk) keywords = [bk]
+    }
+  }
   return keywords.length ? keywords : ['']
 }
 
@@ -104,19 +146,36 @@ export async function getSyncApiJson(input: {
     try {
       parsed = JSON.parse(text) as unknown
     } catch {
-      if (!res.ok) throw new Error(`${input.platformLabel} HTTP ${res.status}`)
+      if (!res.ok) throw new SyncHttpError(`${input.platformLabel} HTTP ${res.status}`, res.status)
       throw new Error(`${input.platformLabel}响应不是合法 JSON`)
     }
   }
   if (!res.ok) {
-    const detail =
-      parsed && typeof parsed === 'object' && parsed !== null
-        ? String((parsed as Record<string, unknown>).msg ?? (parsed as Record<string, unknown>).message ?? '')
-        : text
-    throw new Error(detail.trim() ? detail.trim() : `${input.platformLabel} HTTP ${res.status}`)
+    const detail = formatSyncHttpErrorDetail(parsed, text, res.status)
+    if (import.meta.env.DEV) {
+      console.warn(`[sync-api] GET ${url}`, { status: res.status, detail, headers: headers['X-User-Id'] })
+    }
+    const msg = detail.trim() ? detail.trim() : `${input.platformLabel} HTTP ${res.status}`
+    throw new SyncHttpError(msg, res.status)
   }
   assertSyncEnvelopeOk(parsed)
   return parsed
+}
+
+function formatSyncHttpErrorDetail(parsed: unknown, text: string, status: number): string {
+  if (parsed && typeof parsed === 'object' && parsed !== null) {
+    const o = parsed as Record<string, unknown>
+    const msg = String(o.msg ?? o.message ?? '').trim()
+    const code = o.code != null ? String(o.code) : ''
+    if (msg && code) return `${msg}（code=${code}）`
+    if (msg) return msg
+    if (code) return `HTTP ${status}（code=${code}）`
+  }
+  const t = text.trim()
+  if (t) return t.length > 200 ? `${t.slice(0, 200)}…` : t
+  if (status === 401) return '未授权：请重新登录，并确认顶部授权码与当前账户一致'
+  if (status === 400) return '请求参数错误：请检查任务配置（关键词、开始/结束时间、条数等）'
+  return ''
 }
 
 function logSyncApiRequest(
@@ -170,23 +229,21 @@ export async function postSyncApiJson(input: {
           body: input.body,
           detail: text.slice(0, 300),
         })
-        throw new Error(`${input.platformLabel} HTTP ${res.status}`)
+        throw new SyncHttpError(`${input.platformLabel} HTTP ${res.status}`, res.status)
       }
       throw new Error(`${input.platformLabel}响应不是合法 JSON`)
     }
   }
   if (!res.ok) {
-    const detail =
-      parsed && typeof parsed === 'object' && parsed !== null
-        ? String((parsed as Record<string, unknown>).msg ?? (parsed as Record<string, unknown>).message ?? '')
-        : text
+    const detail = formatSyncHttpErrorDetail(parsed, text, res.status)
     logSyncApiRequest('POST', url, {
       status: res.status,
       platformLabel: input.platformLabel,
       body: input.body,
       detail: detail.trim() ? detail.trim().slice(0, 300) : text.slice(0, 300),
     })
-    throw new Error(detail.trim() ? detail.trim() : `${input.platformLabel} HTTP ${res.status}`)
+    const msg = detail.trim() ? detail.trim() : `${input.platformLabel} HTTP ${res.status}`
+    throw new SyncHttpError(msg, res.status)
   }
   assertSyncEnvelopeOk(parsed)
   const diag = extractSyncResultDiagnostics(parsed)
@@ -225,14 +282,41 @@ export async function postSyncSearchPage(input: {
   body: Record<string, unknown>
   ctx: SyncFetchContext
 }): Promise<unknown> {
-  await ensureSyncEndpointDiscountForPath(input.path, input.ctx)
-  const parsed = await postSyncApiJson(input)
-  const pageMeta = extractSyncResultPageMeta(parsed)
-  if (pageMeta.insufficientBalance) {
-    throw new Error('账户积分不足，无法继续采集')
+  let lastErr: unknown
+  for (let attempt = 1; attempt <= SYNC_SEARCH_PAGE_MAX_ATTEMPTS; attempt++) {
+    try {
+      const parsed = await postSyncApiJson(input)
+      await primeSyncEndpointDiscountAfterSuccess(input.path, input.ctx)
+      const pageMeta = extractSyncResultPageMeta(parsed)
+      if (pageMeta.insufficientBalance) {
+        throw new Error('账户积分不足，无法继续采集')
+      }
+      void refreshYddmUserBalance()
+      if (attempt > 1 && import.meta.env.DEV) {
+        console.log('[sync-api] search-page 重试成功', {
+          platform: input.platformLabel,
+          attempt,
+          path: input.path,
+        })
+      }
+      return parsed
+    } catch (err) {
+      lastErr = err
+      const status = isSyncHttpError(err) ? err.status : 0
+      const canRetry = isRetryableSyncHttpStatus(status) && attempt < SYNC_SEARCH_PAGE_MAX_ATTEMPTS
+      if (!canRetry) break
+      if (import.meta.env.DEV) {
+        console.warn('[sync-api] search-page 将重试', {
+          platform: input.platformLabel,
+          attempt,
+          status,
+          path: input.path,
+        })
+      }
+      await sleepMs(SYNC_SEARCH_RETRY_DELAY_MS * attempt)
+    }
   }
-  void refreshYddmUserBalance()
-  return parsed
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr))
 }
 
 function pickItemId(item: Record<string, unknown>, idKeys: string[]): string {
@@ -249,12 +333,15 @@ export function mergeResultItems(input: {
   seenIds: Set<string>
   itemIdKeys: string[]
   limit: number
+  /** 与 `buildPlatformItemDedupKey` 一致，如 `douyin` */
+  platformKey?: string
 }): boolean {
   for (const item of input.batch) {
     const id = pickItemId(item, input.itemIdKeys)
     if (id) {
-      if (input.seenIds.has(id)) continue
-      input.seenIds.add(id)
+      const dedupKey = input.platformKey ? `${input.platformKey}:${id}` : id
+      if (input.seenIds.has(dedupKey)) continue
+      input.seenIds.add(dedupKey)
     }
     input.collected.push(item)
     if (input.collected.length >= input.limit) return true

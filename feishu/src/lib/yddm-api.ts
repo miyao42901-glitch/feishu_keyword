@@ -2,8 +2,8 @@
  * YDDM 计费 / 登录 HTTP 封装，与 `lib/api.ts`（飞书插件后端）分离。
  * 响应体兼容 `message` 或 `msg` 字段。
  *
- * - **本地 `npm run dev`**：默认 `/yddm-api` → Vite 代理到 `http://192.168.1.11:8001`
- * - **生产**：默认直连 `http://192.168.1.11:8001`；可用 `VITE_YDDM_API_BASE` 覆盖
+ * - **未配置 `VITE_YDDM_API_BASE`**：默认 `/yddm-api`（Vite 或 Nginx 反代到 8001）
+ * - **已配置**：直连，如 `http://192.168.1.11:8001`
  */
 
 /** YDDM 服务根地址（无末尾 `/`） */
@@ -14,13 +14,12 @@ export const YDDM_UPSTREAM_ORIGIN = DEFAULT_YDDM_API_BASE
 
 /**
  * 实际发起 fetch 使用的根地址（无末尾 `/`）。
- * 优先级：`VITE_YDDM_API_BASE` → 开发模式 `/yddm-api` → `DEFAULT_YDDM_API_BASE`
+ * 优先级：`VITE_YDDM_API_BASE` → 默认同源 `/yddm-api`
  */
 export function getYddmApiBase(): string {
   const raw = (import.meta.env.VITE_YDDM_API_BASE as string | undefined)?.trim()
   if (raw) return raw.replace(/\/$/, '')
-  if (import.meta.env.DEV) return '/yddm-api'
-  return DEFAULT_YDDM_API_BASE
+  return '/yddm-api'
 }
 
 /** 与 `/auth/register` 入参一致 */

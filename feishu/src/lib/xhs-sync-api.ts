@@ -93,11 +93,13 @@ export async function fetchXhsSearchItems(
           seenIds,
           itemIdKeys: ['note_id', 'noteId'],
           limit,
+          platformKey: 'xiaohongshu',
         })
       ) {
         break
       }
       if (!batch.length) break
+      if (collected.length === before) break
 
       const pageMeta = extractSyncResultPageMeta(payload)
       const remaining = limit - collected.length

@@ -14,6 +14,21 @@ export type BitableTableOption = {
  * 使用各表的 `getName()`，与多维表格顶部标签页展示一致；`getTableMetaList()` 的 `name`
  * 在部分环境下会为默认「数据表」等，与界面不同步。
  */
+/** 创建成功后切换到该数据表（左侧标签会高亮对应表名） */
+export async function switchBitableUiToTable(tableId: string): Promise<boolean> {
+  const id = tableId.trim()
+  if (!id) return false
+  try {
+    const ui = bitable.ui as { switchToTable?: (tid: string) => Promise<boolean> }
+    if (typeof ui.switchToTable === 'function') {
+      return await ui.switchToTable(id)
+    }
+  } catch {
+    /* */
+  }
+  return false
+}
+
 export async function fetchBitableTableMetaList(): Promise<BitableTableOption[]> {
   const tables = await bitable.base.getTableList()
   const mapped = await Promise.all(

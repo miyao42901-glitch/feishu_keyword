@@ -15,21 +15,39 @@ export type SyncFetchContext = {
   userId?: string | number | null
   /** YDDM 登录用户手机号，用于 YDDM `POST /admin/set_discount` */
   phoneNum?: string | null
+  /** 单次任务 search-page：不调用 `POST /admin/set_discount` */
+  skipSetDiscount?: boolean
+  /**
+   * 当前平台采集会话内是否已成功触发过 `set_discount`（仅在 search-page 成功响应后置 true）。
+   * 同一平台翻页复用；切换平台时由 `resetPlatformSyncBillingSession` 重置。
+   */
+  platformDiscountPrimed?: boolean
 }
 
-/** 采集服务根地址：`8765/api/v1/...`（无 `/sync` 路径前缀） */
-const DEFAULT_SYNC_API_BASE = 'http://192.168.1.11:8765'
+/** search-page / 同步 HTTP 失败（含 status，供 500 重试判断） */
+export class SyncHttpError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'SyncHttpError'
+    this.status = status
+  }
+}
+
+export function isSyncHttpError(err: unknown): err is SyncHttpError {
+  return err instanceof SyncHttpError
+}
 
 /**
  * 同步采集 API 根地址（无末尾 `/`）。
- * - 开发未配置时：空字符串，请求走同源 `/api/v1/...` → Vite 代理到 8765
- * - 已配置 `VITE_SYNC_API_BASE`：直连，如 `http://192.168.1.11:8765`
+ * - 未配置 `VITE_SYNC_API_BASE`：空字符串，请求走同源 `/api/v1/...`（Vite 或 Nginx 反代到 8765）
+ * - 已配置：直连，如 `http://192.168.1.11:8765`（需上游开 CORS）
  */
 export function getSyncApiBase(): string {
   const raw = (import.meta.env.VITE_SYNC_API_BASE as string | undefined)?.trim()
   if (raw) return raw.replace(/\/$/, '')
-  if (import.meta.env.DEV) return ''
-  return DEFAULT_SYNC_API_BASE
+  return ''
 }
 
 export function buildSyncApiHeaders(ctx: SyncFetchContext): SyncApiHeaders {
@@ -162,6 +180,33 @@ export function extractSyncResultDiagnostics(payload: unknown): SyncResultDiagno
     nextLogid: result.next_logid ?? result.next_log_id ?? result.nextLogid,
     resultKeys: Object.keys(result),
     rawDataLength: Array.isArray(raw) ? raw.length : null,
+  }
+}
+
+/** `GET .../async/tasks/{id}/results` 响应中的 `data.meta` */
+export type AsyncTaskResultsMeta = {
+  platform?: string
+  source?: string
+  action?: string
+  resultTable?: string
+}
+
+export function extractAsyncTaskResultsMeta(payload: unknown): AsyncTaskResultsMeta {
+  if (!payload || typeof payload !== 'object') return {}
+  const data = (payload as Record<string, unknown>).data
+  if (!data || typeof data !== 'object') return {}
+  const meta = (data as Record<string, unknown>).meta
+  if (!meta || typeof meta !== 'object') return {}
+  const m = meta as Record<string, unknown>
+  const platform = String(m.platform ?? m.source ?? '').trim().toLowerCase()
+  const source = String(m.source ?? '').trim().toLowerCase()
+  const action = String(m.action ?? '').trim()
+  const resultTable = String(m.result_table ?? m.resultTable ?? '').trim()
+  return {
+    platform: platform || undefined,
+    source: source || undefined,
+    action: action || undefined,
+    resultTable: resultTable || undefined,
   }
 }
 

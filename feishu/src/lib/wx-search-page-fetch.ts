@@ -57,11 +57,13 @@ export async function fetchWxSearchPageItems(input: {
           seenIds,
           itemIdKeys: ['post_id', 'postId', 'feed_id', 'feedId', 'article_id', 'articleId', 'id'],
           limit,
+          platformKey: input.platform,
         })
       ) {
         break
       }
       if (!batch.length) break
+      if (collected.length === before) break
 
       const pageMeta = extractWxSearchPageMeta(payload)
       if (pageMeta.insufficientBalance) {

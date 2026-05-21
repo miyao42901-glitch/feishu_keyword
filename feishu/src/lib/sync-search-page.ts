@@ -125,11 +125,14 @@ export async function fetchDouyinSearchItems(
           seenIds,
           itemIdKeys: ['aweme_id', 'awemeId'],
           limit,
+          platformKey: 'douyin',
         })
       ) {
         break
       }
       if (!batch.length) break
+      /* 本页有数据但去重后无新增：避免 has_more 导致重复打满 search-page */
+      if (collected.length === before) break
 
       const pageMeta = extractSyncResultPageMeta(payload)
       const nextCursor =
