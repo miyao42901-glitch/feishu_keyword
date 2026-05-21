@@ -39,7 +39,7 @@
 |------|------|
 | [工程约定](../DEVELOPMENT.md) | 全仓库 Git、注释、环境安全 |
 | [HTTP 接口规范](../API.md) | 若前端直连 **`server/`**：路径、分页、**统一响应 `code` / `message` / `data`**（第五节）；飞书任务接口见同文档 §8 |
-| [Nginx 反向代理](./NGINX.md) | 同源访问 `/api/v1`（8765）、`/api`（8000）、`/yddm-api`（8001），避免跨域 |
+| [Nginx 反向代理](./NGINX.md) | 同源访问 `/api/v1`（8765）、`/api`（8000）、`/yddm-api`（YDDM），避免跨域 |
 | [组件命名与注释](./component-style.md) | `defineOptions` 组件名、函数/变量/TS 注释约定（与新建任务示例对照表） |
 
 数据库与 ORM 文档（[DATABASE.md](../DATABASE.md)）**不直接对应** `feishu/` 源码；仅在后端联调或理解数据字段时需要查阅。

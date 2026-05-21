@@ -6,10 +6,17 @@ import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
-/** YDDM：`/yddm-api/*` → `http://192.168.1.11:8001`（去掉 `/yddm-api` 前缀） */
-const yddmApiProxyTarget =
-  (process.env.VITE_YDDM_API_BASE as string | undefined)?.trim().replace(/\/$/, '') ||
-  'http://192.168.1.11:8001'
+/** YDDM 开发代理上游（仅 Vite；与浏览器请求的 `/yddm-api` 分离） */
+function resolveYddmProxyTarget(): string {
+  const proxyTarget = process.env.YDDM_PROXY_TARGET?.trim()
+  if (proxyTarget) return proxyTarget.replace(/\/$/, '')
+  const viteBase = (process.env.VITE_YDDM_API_BASE as string | undefined)?.trim()
+  if (viteBase && /^https?:\/\//i.test(viteBase)) return viteBase.replace(/\/$/, '')
+  return 'http://192.168.1.11:8001'
+}
+
+/** YDDM：`/yddm-api/*` → YDDM 上游（去掉 `/yddm-api` 前缀） */
+const yddmApiProxyTarget = resolveYddmProxyTarget()
 
 const yddmApiProxy = {
   '/yddm-api': {
@@ -27,7 +34,7 @@ const syncApiProxyTarget =
   (process.env.VITE_SYNC_API_BASE as string | undefined)?.trim().replace(/\/$/, '') ||
   'http://192.168.1.11:8765'
 
-/** 采集服务 API：`/api/v1/*` → 8765（YDDM 登录/计费等走 `/yddm-api` → 8001） */
+/** 采集服务 API：`/api/v1/*` → 8765（YDDM 登录/计费等走 `/yddm-api`） */
 const syncApiProxy = {
   '/api/v1': {
     target: syncApiProxyTarget,
