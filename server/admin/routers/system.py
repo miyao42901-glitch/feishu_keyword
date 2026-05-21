@@ -11,9 +11,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.admin_session import issue_admin_token, revoke_admin_token
+from admin.schemas.response import admin_fail, admin_ok
+from admin.session import issue_admin_token, revoke_admin_token
 from app.api.deps import get_db
-from app.schemas.admin_response import admin_fail, admin_ok
 
 router = APIRouter(prefix="/system", tags=["管理端-系统"])
 

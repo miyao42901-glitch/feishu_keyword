@@ -18,7 +18,8 @@ from app.api.exception_handlers import (
     http_exception_handler,
     validation_exception_handler,
 )
-from app.api.router import admin_router, api_router
+from admin.router import admin_router
+from app.api.router import api_router
 from app.ci_build_info import read_build_info
 from app.health_probes import mysql_ok, redis_ok
 
@@ -48,7 +49,7 @@ def ci_test():
     info = read_build_info()
     env_name = os.getenv("ENVIRONMENT", "local")
     return {
-        "source": f"fskw-{env_name}",
+        "source": f"feishu_keyword-{env_name}",
         "ci": bool(info),
         "build": info.get("build", "local-dev"),
         "commit": info.get("commit", "unknown"),

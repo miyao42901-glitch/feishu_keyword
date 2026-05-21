@@ -8,6 +8,7 @@ import secrets
 import uuid
 from typing import Any, Optional
 
+
 ADMIN_TOKEN_PREFIX = "fkw:admin:token:"
 ADMIN_TOKEN_TTL_SEC = 86400 * 7
 

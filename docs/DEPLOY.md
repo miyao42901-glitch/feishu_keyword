@@ -1,4 +1,23 @@
-# fskw 部署说明
+# feishu_keyword 部署说明
+
+## 主机目录
+
+| 环境 | 路径 |
+|------|------|
+| 测试 | `/docker/feishu_keyword-test` |
+| 正式 | `/docker/feishu_keyword` |
+
+从旧名迁移（一次性，在 `121.43.231.225` 上）：
+
+```bash
+# 先停旧栈，再改名，避免 compose 项目名冲突
+cd /docker/feishu_keyword-test && docker compose --profile admin --profile feishu --profile worker down
+cd /docker/feishu_keyword && docker compose --profile admin --profile feishu --profile worker down 2>/dev/null || true
+mv /docker/fskw-test /docker/feishu_keyword-test
+mv /docker/fskw /docker/feishu_keyword
+# 确认 server/.env、python/.env、栈根 .env 仍在；或推送 test 分支让 CI rsync 后再 up
+cd /docker/feishu_keyword-test && cp -f server/.env .env && docker compose --profile admin --profile feishu --profile worker up -d --build
+```
 
 ## 域名
 
@@ -24,14 +43,14 @@
 
 ```bash
 # 测试
-cd /docker/fskw-test
+cd /docker/feishu_keyword-test
 cp -f server/.env.test server/.env && chmod 600 server/.env
 cp -f server/.env .env && chmod 600 .env
 cp -f python/.env.test python/.env 2>/dev/null || true
 docker compose --profile admin --profile feishu --profile worker up -d --build
 
 # 正式
-cd /docker/fskw
+cd /docker/feishu_keyword
 cp -f server/.env.master server/.env && chmod 600 server/.env
 cp -f server/.env .env && chmod 600 .env
 cp -f python/.env.master python/.env 2>/dev/null || true
@@ -42,7 +61,7 @@ docker compose --profile admin --profile feishu --profile worker up -d --build
 
 | 机制 | 文件 | 用途 |
 |------|------|------|
-| Compose 插值 | 栈根 `/docker/fskw-test/.env` | `API_PUBLIC_HOST`、`TRAEFIK_*`、`PYTHON_IMAGE` |
+| Compose 插值 | 栈根 `/docker/feishu_keyword-test/.env` | `API_PUBLIC_HOST`、`TRAEFIK_*`、`PYTHON_IMAGE` |
 | 容器业务 | `server/.env`、`python/.env` | `DATABASE_URL`、`REDIS_*` |
 
 模板：`server/.env.test` / `server/.env.master`、`python/.env.test` / `python/.env.master`（仓内占位符；真实口令仅写远端）。

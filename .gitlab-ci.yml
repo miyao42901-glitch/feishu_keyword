@@ -1,4 +1,4 @@
-# fskw：GitLab Shell Runner → rsync → SSH docker compose
+# feishu_keyword：GitLab Shell Runner → rsync → SSH docker compose
 # test 分支自动部署测试栈；master 手动部署正式栈。
 # 前端：在本地 npm run build:public:test|prod 后提交 public/admin、public/feishu（Runner 无需 Node）
 # 变量：SSH_PRIVATE_KEY、HOST_IP（默认 121.43.231.225）
@@ -7,10 +7,10 @@ variables:
   HOST_IP: "121.43.231.225"
   SSH_PORT: "22"
   SSH_USER: "root"
-  PROD_ROOT: "/docker/fskw"
-  TEST_ROOT: "/docker/fskw-test"
-  PROD_DIR: "/docker/fskw/server"
-  TEST_DIR: "/docker/fskw-test/server"
+  PROD_ROOT: "/docker/feishu_keyword"
+  TEST_ROOT: "/docker/feishu_keyword-test"
+  PROD_DIR: "/docker/feishu_keyword/server"
+  TEST_DIR: "/docker/feishu_keyword-test/server"
   COMPOSE_FILES: "-f docker-compose.yml"
 
 stages:
@@ -130,7 +130,7 @@ deploy-test:
 deploy-prod:
   extends: .ssh-setup
   stage: deploy
-  resource_group: fkw-docker-prod-121
+  resource_group: feishu-keyword-docker-prod-121
   variables:
     CI_ENVIRONMENT_NAME: production
   script:

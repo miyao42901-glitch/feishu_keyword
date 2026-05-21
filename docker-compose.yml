@@ -1,7 +1,7 @@
-# fskw Docker 编排（真源在仓库根；主机复制到 /docker/fskw-test 与 /docker/fskw）。
+# feishu_keyword Docker 编排（真源在仓库根；主机复制到 /docker/feishu_keyword-test 与 /docker/feishu_keyword）。
 #
-# 测试：cd /docker/fskw-test && cp -f server/.env .env && docker compose --profile admin --profile feishu --profile worker up -d --build
-# 正式：cd /docker/fskw && cp -f server/.env .env && docker compose --profile admin --profile feishu --profile worker up -d --build
+# 测试：cd /docker/feishu_keyword-test && cp -f server/.env .env && docker compose --profile admin --profile feishu --profile worker up -d --build
+# 正式：cd /docker/feishu_keyword && cp -f server/.env .env && docker compose --profile admin --profile feishu --profile worker up -d --build
 #
 # 前置：docker network create proxy；复用 gqs-mysql / gqs-redis
 # Compose ${VAR} 只读栈根 ./.env；容器变量读 env_file: ./server/.env、./python/.env

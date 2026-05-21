@@ -13,17 +13,17 @@ MYSQL_USER="${MYSQL_USER:-lanlang_v1}"
 MYSQL_PASSWORD="${MYSQL_PASSWORD:-}"
 REDIS_PASSWORD="${REDIS_PASSWORD:-}"
 
-mkdir -p /docker/fskw-test/server /docker/fskw-test/python \
-  /docker/fskw/server /docker/fskw/python \
-  /docker/fskw-test/public/admin /docker/fskw-test/public/feishu \
-  /docker/fskw-test/deploy/admin-static /docker/fskw-test/deploy/feishu-static \
-  /docker/fskw/public/admin /docker/fskw/public/feishu \
-  /docker/fskw/deploy/admin-static /docker/fskw/deploy/feishu-static
+mkdir -p /docker/feishu_keyword-test/server /docker/feishu_keyword-test/python \
+  /docker/feishu_keyword/server /docker/feishu_keyword/python \
+  /docker/feishu_keyword-test/public/admin /docker/feishu_keyword-test/public/feishu \
+  /docker/feishu_keyword-test/deploy/admin-static /docker/feishu_keyword-test/deploy/feishu-static \
+  /docker/feishu_keyword/public/admin /docker/feishu_keyword/public/feishu \
+  /docker/feishu_keyword/deploy/admin-static /docker/feishu_keyword/deploy/feishu-static
 
 DB_URL="mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@gqs-mysql:3306/feishu_keyword?charset=utf8mb4"
 
 write_server_test() {
-  cat > /docker/fskw-test/server/.env.test <<EOF
+  cat > /docker/feishu_keyword-test/server/.env.test <<EOF
 APT_DEBIAN_MIRROR=mirrors.aliyun.com
 PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 PYTHON_IMAGE=
@@ -45,14 +45,14 @@ TRAEFIK_SYNC_ROUTER_NAME=fkw-sync-test
 TRAEFIK_ADMIN_ROUTER_NAME=fkw-admin-test
 TRAEFIK_FEISHU_ROUTER_NAME=fkw-feishu-test
 EOF
-  cp -f /docker/fskw-test/server/.env.test /docker/fskw-test/server/.env
-  chmod 600 /docker/fskw-test/server/.env.test /docker/fskw-test/server/.env
-  cp -f /docker/fskw-test/server/.env /docker/fskw-test/.env
-  chmod 600 /docker/fskw-test/.env
+  cp -f /docker/feishu_keyword-test/server/.env.test /docker/feishu_keyword-test/server/.env
+  chmod 600 /docker/feishu_keyword-test/server/.env.test /docker/feishu_keyword-test/server/.env
+  cp -f /docker/feishu_keyword-test/server/.env /docker/feishu_keyword-test/.env
+  chmod 600 /docker/feishu_keyword-test/.env
 }
 
 write_server_prod() {
-  cat > /docker/fskw/server/.env.master <<EOF
+  cat > /docker/feishu_keyword/server/.env.master <<EOF
 APT_DEBIAN_MIRROR=mirrors.aliyun.com
 PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 PYTHON_IMAGE=
@@ -74,11 +74,11 @@ TRAEFIK_SYNC_ROUTER_NAME=fkw-sync-prod
 TRAEFIK_ADMIN_ROUTER_NAME=fkw-admin-prod
 TRAEFIK_FEISHU_ROUTER_NAME=fkw-feishu-prod
 EOF
-  chmod 600 /docker/fskw/server/.env.master
+  chmod 600 /docker/feishu_keyword/server/.env.master
 }
 
 write_python_test() {
-  cat > /docker/fskw-test/python/.env.test <<EOF
+  cat > /docker/feishu_keyword-test/python/.env.test <<EOF
 DATABASE_URL=${DB_URL}
 REDIS_URL=redis://gqs-redis:6379/2
 CELERY_BROKER_URL=
@@ -90,12 +90,12 @@ HTTP_PORT=8765
 ASYNC_DISPATCH_HTTP_ENABLED=1
 ASYNC_SCHEDULE_BEAT_ENABLED=0
 EOF
-  cp -f /docker/fskw-test/python/.env.test /docker/fskw-test/python/.env
-  chmod 600 /docker/fskw-test/python/.env.test /docker/fskw-test/python/.env
+  cp -f /docker/feishu_keyword-test/python/.env.test /docker/feishu_keyword-test/python/.env
+  chmod 600 /docker/feishu_keyword-test/python/.env.test /docker/feishu_keyword-test/python/.env
 }
 
 write_python_prod() {
-  cat > /docker/fskw/python/.env.master <<EOF
+  cat > /docker/feishu_keyword/python/.env.master <<EOF
 DATABASE_URL=${DB_URL}
 REDIS_URL=redis://gqs-redis:6379/3
 CELERY_BROKER_URL=
@@ -107,7 +107,7 @@ HTTP_PORT=8765
 ASYNC_DISPATCH_HTTP_ENABLED=1
 ASYNC_SCHEDULE_BEAT_ENABLED=0
 EOF
-  chmod 600 /docker/fskw/python/.env.master
+  chmod 600 /docker/feishu_keyword/python/.env.master
 }
 
 write_server_test

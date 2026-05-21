@@ -13,6 +13,7 @@ RUN if [ -n "$PIP_INDEX_URL" ]; then \
     fi
 
 COPY app ./app
+COPY admin ./admin
 
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

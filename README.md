@@ -7,7 +7,9 @@
 - **全称**：飞书关键词监控插件  
 - **GitLab 仓库**：[http://192.168.1.200:8080/jzl/feishu_keyword/](http://192.168.1.200:8080/jzl/feishu_keyword/)
 
-## 线上部署（fskw）
+## 线上部署
+
+主机目录：`/docker/feishu_keyword-test`（测试）、`/docker/feishu_keyword`（正式）。域名仍为 `fskw-*.tbpf.com`。
 
 | 环境 | API | Admin | Feishu 静态 |
 |------|-----|-------|-------------|
