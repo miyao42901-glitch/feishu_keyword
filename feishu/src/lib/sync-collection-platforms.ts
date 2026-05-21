@@ -54,6 +54,27 @@ export const SYNC_SEARCH_PAGE_BY_PLATFORM: Record<
   gzh: { path: '/api/v1/sync/wxvideo/search-page', label: '公众号' },
 }
 
+/** 各平台 `POST/GET /api/v1/sync/.../search-page` 客户端超时（毫秒） */
+export const SYNC_PLATFORM_REQUEST_TIMEOUT_MS: Record<SyncCollectionPlatformId, number> = {
+  douyin: 30_000,
+  xiaohongshu: 15_000,
+  shipinhao: 15_000,
+  gzh: 15_000,
+}
+
+/**
+ * 从采集路径 `/api/v1/sync/{segment}/...` 解析超时；非采集路径返回 `undefined`（不设超时）。
+ */
+export function resolveSyncCollectionRequestTimeoutMs(path: string): number | undefined {
+  const m = path.match(/\/api\/v1\/sync\/([^/?#]+)/)
+  if (!m) return undefined
+  const segment = m[1].toLowerCase()
+  if (segment === 'douyin') return SYNC_PLATFORM_REQUEST_TIMEOUT_MS.douyin
+  if (segment === 'xhs') return SYNC_PLATFORM_REQUEST_TIMEOUT_MS.xiaohongshu
+  if (segment === 'wxvideo') return SYNC_PLATFORM_REQUEST_TIMEOUT_MS.shipinhao
+  return undefined
+}
+
 export const syncCollectionPlatformLabels: Record<SyncCollectionPlatformId, string> = {
   douyin: '抖音',
   xiaohongshu: '小红书',

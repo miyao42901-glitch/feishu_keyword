@@ -2,6 +2,7 @@
  * 抖音 / 小红书 search-page 共用：HTTP、任务配置解析、去重收集。
  */
 
+import { resolveSyncCollectionRequestTimeoutMs } from '@/lib/sync-collection-platforms'
 import {
   assertSyncEnvelopeOk,
   buildSyncApiHeaders,
@@ -26,6 +27,30 @@ function isRetryableSyncHttpStatus(status: number): boolean {
 
 function sleepMs(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function fetchSyncApi(
+  url: string,
+  init: RequestInit,
+  input: { path: string; platformLabel: string },
+): Promise<Response> {
+  const timeoutMs = resolveSyncCollectionRequestTimeoutMs(input.path)
+  if (timeoutMs == null) {
+    return fetch(url, init)
+  }
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      const sec = Math.round(timeoutMs / 1000)
+      throw new SyncHttpError(`${input.platformLabel} 请求超时（${sec} 秒）`, 408)
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 export type SyncSortType = '0' | '1' | '2'
@@ -136,10 +161,14 @@ export async function getSyncApiJson(input: {
     url += url.includes('?') ? `&${qs}` : `?${qs}`
   }
   const headers = buildSyncApiHeaders(input.ctx)
-  const res = await fetch(url, {
-    method: 'GET',
-    headers: headers as Record<string, string>,
-  })
+  const res = await fetchSyncApi(
+    url,
+    {
+      method: 'GET',
+      headers: headers as Record<string, string>,
+    },
+    { path: input.path, platformLabel: input.platformLabel },
+  )
   const text = await res.text()
   let parsed: unknown = null
   if (text) {
@@ -211,11 +240,15 @@ export async function postSyncApiJson(input: {
 }): Promise<unknown> {
   const url = `${getSyncApiBase()}${input.path}`
   const headers = buildSyncApiHeaders(input.ctx)
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: headers as Record<string, string>,
-    body: JSON.stringify(input.body),
-  })
+  const res = await fetchSyncApi(
+    url,
+    {
+      method: 'POST',
+      headers: headers as Record<string, string>,
+      body: JSON.stringify(input.body),
+    },
+    { path: input.path, platformLabel: input.platformLabel },
+  )
   const text = await res.text()
   let parsed: unknown = null
   if (text) {
