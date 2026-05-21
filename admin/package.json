@@ -4,11 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "cross-env VITE_ADMIN_API_ORIGIN=https://fskw-test.tbpf.com vite",
+    "dev": "cross-env VITE_ADMIN_API_ORIGIN=https://test-fskw.tbpf.com vite",
     "dev:local": "cross-env VITE_ADMIN_API_ORIGIN=http://127.0.0.1:8000 vite",
     "build": "vue-tsc -b && vite build",
     "build:public": "npm run build:public:test",
-    "build:public:test": "cross-env VITE_ADMIN_API_ORIGIN=https://fskw-test.tbpf.com npm run build && node ./scripts/copy-dist-to-public.mjs",
+    "build:public:test": "cross-env VITE_ADMIN_API_ORIGIN=https://test-fskw.tbpf.com npm run build && node ./scripts/copy-dist-to-public.mjs",
     "build:public:prod": "cross-env VITE_ADMIN_API_ORIGIN=https://fskw.tbpf.com npm run build && node ./scripts/copy-dist-to-public.mjs",
     "preview": "vite preview"
   },

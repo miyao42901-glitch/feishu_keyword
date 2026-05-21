@@ -37,13 +37,13 @@ REDIS_PORT=6379
 REDIS_PASSWORD=${REDIS_PASSWORD}
 REDIS_DB=2
 
-API_PUBLIC_HOST=fskw-test.tbpf.com
-ADMIN_PUBLIC_HOST=fskw-admin-test.tbpf.com
-FEISHU_PUBLIC_HOST=fskw-feishu-test.tbpf.com
-TRAEFIK_API_ROUTER_NAME=fkw-api-test
-TRAEFIK_SYNC_ROUTER_NAME=fkw-sync-test
-TRAEFIK_ADMIN_ROUTER_NAME=fkw-admin-test
-TRAEFIK_FEISHU_ROUTER_NAME=fkw-feishu-test
+API_PUBLIC_HOST=test-fskw.tbpf.com
+ADMIN_PUBLIC_HOST=test-fskw-admin.tbpf.com
+FEISHU_PUBLIC_HOST=test-fskw-feishu.tbpf.com
+TRAEFIK_API_ROUTER_NAME=test-fkw-api
+TRAEFIK_SYNC_ROUTER_NAME=test-fkw-sync
+TRAEFIK_ADMIN_ROUTER_NAME=test-fkw-admin
+TRAEFIK_FEISHU_ROUTER_NAME=test-fkw-feishu
 EOF
   cp -f /docker/feishu_keyword-test/server/.env.test /docker/feishu_keyword-test/server/.env
   chmod 600 /docker/feishu_keyword-test/server/.env.test /docker/feishu_keyword-test/server/.env

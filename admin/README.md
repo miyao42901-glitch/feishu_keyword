@@ -2,7 +2,7 @@
 
 独立 **Vite + Vue 3 + TypeScript + Element Plus**。生产部署在站点路径 **`/admin`**（Traefik `StripPrefix` 后由 nginx 提供静态资源）；API 前缀为 **`/api`**。
 
-- 默认生产 API 基址：`https://feishukeyword.tbpf.com`（见 `src/config/adminApiOrigin.ts`，可用 `VITE_ADMIN_API_ORIGIN` 覆盖）。
+- 默认 API 基址：`https://test-fskw.tbpf.com`（见 `src/config/adminApiOrigin.ts`；测试打包用 `npm run build:public:test`，正式用 `build:public:prod` → `https://fskw.tbpf.com`）。
 - 开发时 Vite 将 `/api` 代理到本机 `http://127.0.0.1:8000`，避免浏览器跨域。
 
 ## 本地运行
@@ -29,10 +29,10 @@ npm run build
 
 产物在 `admin/dist/`。
 
-发布到仓库内 Docker 挂载目录：
+发布到仓库内 Docker 挂载目录（测试环境，API 域名为 `test-fskw.tbpf.com`）：
 
 ```bash
-npm run build:public
+npm run build:public:test
 ```
 
-会将 `dist/` 同步到仓根 **`public/admin/`**（与 CI rsync 目标一致）。
+会将 `dist/` 同步到仓根 **`public/admin/`**（与 CI rsync 目标一致）。正式环境用 `build:public:prod`。

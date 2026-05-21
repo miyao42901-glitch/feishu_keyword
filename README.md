@@ -9,16 +9,16 @@
 
 ## 线上部署
 
-主机目录：`/docker/feishu_keyword-test`（测试）、`/docker/feishu_keyword`（正式）。域名仍为 `fskw-*.tbpf.com`。
+主机目录：`/docker/feishu_keyword-test`（测试）、`/docker/feishu_keyword`（正式）。测试域名前缀为 `test-`（如 `test-fskw.tbpf.com`）。
 
 | 环境 | API | Admin | Feishu 静态 |
 |------|-----|-------|-------------|
-| 测试 | https://fskw-test.tbpf.com | https://fskw-admin-test.tbpf.com | https://fskw-feishu-test.tbpf.com |
+| 测试 | https://test-fskw.tbpf.com | https://test-fskw-admin.tbpf.com | https://test-fskw-feishu.tbpf.com |
 | 正式 | https://fskw.tbpf.com | https://fskw-admin.tbpf.com | https://fskw-feishu.tbpf.com |
 
-探活：`GET https://fskw-test.tbpf.com/ci-test`
+探活：`GET https://test-fskw.tbpf.com/ci-test`
 
-**测试管理后台登录**：https://fskw-admin-test.tbpf.com/login — 账号 `admin` / 密码 `Admin123a`（首次登录后请修改）
+**测试管理后台登录**：https://test-fskw-admin.tbpf.com/login — 账号 `admin` / 密码 `Admin123a`（首次登录后请修改）
 
 详细步骤见 [docs/DEPLOY.md](docs/DEPLOY.md)。
 

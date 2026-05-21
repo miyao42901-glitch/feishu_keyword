@@ -21,14 +21,24 @@ cd /docker/feishu_keyword-test && cp -f server/.env .env && docker compose --pro
 
 ## 域名
 
+命名约定：**测试环境**使用 `test-` 前缀（如 `test-fskw.tbpf.com`），与稿轻松 `test-gaoqingsong` 等一致；**正式**暂为 `fskw*.tbpf.com`（未改前缀）。
+
 | 环境 | API | Admin | Feishu 静态 |
 |------|-----|-------|-------------|
-| 测试 | https://fskw-test.tbpf.com | https://fskw-admin-test.tbpf.com | https://fskw-feishu-test.tbpf.com |
+| 测试 | https://test-fskw.tbpf.com | https://test-fskw-admin.tbpf.com | https://test-fskw-feishu.tbpf.com |
 | 正式 | https://fskw.tbpf.com | https://fskw-admin.tbpf.com | https://fskw-feishu.tbpf.com |
 
-探活：`GET https://fskw-test.tbpf.com/ci-test`
+对应 `server/.env.test` 中 `API_PUBLIC_HOST`、`ADMIN_PUBLIC_HOST`、`FEISHU_PUBLIC_HOST` 及 `TRAEFIK_*_ROUTER_NAME`（Traefik 路由名亦带 `test-` 前缀，避免与正式栈冲突）。
 
-**测试管理后台**：https://fskw-admin-test.tbpf.com/login — 账号 **`admin`** / 密码 **`Admin123a`**（种子数据，上线前请改密）
+**DNS**：在 dnspod 为上述三个测试主机名添加记录（或 `*.tbpf.com` 泛解析已覆盖则可免）。改域名后须：
+
+1. 远端更新 `/docker/feishu_keyword-test/server/.env.test` 并 `cp` 为 `server/.env`、栈根 `.env`（CI **不** rsync `.env.test`）
+2. 本地 `build-public-test.bat` 后提交 `public/admin`、`public/feishu`
+3. 推送 `test` 触发流水线
+
+探活：`GET https://test-fskw.tbpf.com/ci-test`
+
+**测试管理后台**：https://test-fskw-admin.tbpf.com/login — 账号 **`admin`** / 密码 **`Admin123a`**（种子数据，上线前请改密）
 
 ## 架构（双后端 + 单 Compose）
 
@@ -90,9 +100,9 @@ python scripts/seed_demo.py
 ## 验收 curl
 
 ```bash
-curl -sS https://fskw-test.tbpf.com/ci-test
-curl -sS https://fskw-test.tbpf.com/api/v1/health
-curl -sS -X POST https://fskw-test.tbpf.com/api/admin/v1/system/login \
+curl -sS https://test-fskw.tbpf.com/ci-test
+curl -sS https://test-fskw.tbpf.com/api/v1/health
+curl -sS -X POST https://test-fskw.tbpf.com/api/admin/v1/system/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"Admin123a"}'
 ```
