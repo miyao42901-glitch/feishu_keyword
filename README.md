@@ -22,8 +22,8 @@
 
 | 路径 | 说明 |
 |------|------|
-| `public/admin/` | 管理端静态，**提交主仓** |
-| `public/feishu/` | 飞书构建产物 + **GitHub 手动发布**（主仓忽略） |
+| `public/admin/` | 管理端静态，**本地 `build:public:*` 后提交主仓** |
+| `public/feishu/` | 飞书静态，**本地 `build:public:*` 后提交主仓**（可选另用 GitHub 仓 + `release.bat`） |
 
 ## 本地开发
 
@@ -32,6 +32,8 @@ cd server && cp .env.example .env
 cd admin && npm run dev:local
 cd feishu && npm run dev:local
 ```
+
+部署前预编译（测试环境）：仓根执行 `build-public-test.bat`，提交 `public/admin`、`public/feishu` 后推送 `test` 分支。
 
 ## 目录结构
 

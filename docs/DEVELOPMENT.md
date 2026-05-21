@@ -4,8 +4,8 @@
 
 | 项 | 说明 |
 |----|------|
-| **对应范围** | **全仓库**（根目录、`server/`、`feishu/`、`docs/` 等） |
-| **按目录查阅** | 后端专项：[docs/server/README.md](./server/README.md) · 前端专项：[docs/feishu/README.md](./feishu/README.md) |
+| **对应范围** | **全仓库**（根目录、`server/`、`admin/`、`feishu/`、`docs/` 等） |
+| **按目录查阅** | 后端专项：[docs/server/README.md](./server/README.md) · 管理端：[admin/README.md](../admin/README.md) · 飞书插件：[docs/feishu/README.md](./feishu/README.md) |
 
 ---
 
@@ -14,7 +14,8 @@
 | 目录 | 技术栈 | 说明 |
 |------|--------|------|
 | `server/` | Python 3 + FastAPI + SQLAlchemy | HTTP API、库表访问、业务服务 |
-| `feishu/` | Vue 3 + Vite + TypeScript | 飞书插件 / 前端页面 |
+| `admin/` | Vue 3 + Vite + TypeScript | 管理后台；产物输出到 `public/admin/` |
+| `feishu/` | Vue 3 + Vite + TypeScript | 飞书插件；产物输出到 `public/feishu/` |
 
 库名、表与字段以 **[DATABASE.md](./DATABASE.md)** 为准。
 
@@ -70,8 +71,21 @@ cd server
 
 ## 8. 构建与验证
 
-- **不要求**在每次完成开发任务后固定执行前端生产构建（如 `feishu/` 下 `npm run build`）或等价的全量打包校验；以任务说明、提测、CI 或协作方明确要求为准。
-- 需要确认产物、排查构建错误、或用户/流程明确要求验证时，再执行对应构建或测试命令。
+- **不要求**在每次完成开发任务后固定执行前端生产构建；以任务说明、提测、CI 或协作方明确要求为准。
+- **GitLab 部署（`test` / `master`）**：Runner **不安装 Node**；须在本地把 **admin** 与 **feishu** 都编译进 `public/admin`、`public/feishu` 后 **提交主仓**（CI 只 rsync）。
+
+```powershell
+# 测试环境（推荐：仓根一键脚本）
+.\build-public-test.bat
+
+# 或分别执行
+cd admin  && npm run build:public:test   # -> public/admin/
+cd feishu && npm run build:public:test   # -> public/feishu/
+```
+
+正式环境将 `test` 换为 `prod`，或使用 `.\build-public-prod.bat`。详见 [DEPLOY.md](./DEPLOY.md)。
+
+- 需要确认产物、排查构建错误时，再执行上述构建或测试命令。
 
 ## 9. 跨模块复用（避免重复造轮子）
 
