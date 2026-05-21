@@ -15,8 +15,11 @@
 
 from fastapi import APIRouter
 
-from app.api.routers import feishu_task_configs, monitoring_plans
+from app.api.routers import admin_system, feishu_task_configs, monitoring_plans
 
 api_router = APIRouter()
 api_router.include_router(monitoring_plans.router, tags=["监控方案"])
 api_router.include_router(feishu_task_configs.router, tags=["飞书任务配置"])
+
+admin_router = APIRouter()
+admin_router.include_router(admin_system.router)

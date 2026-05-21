@@ -18,7 +18,7 @@ from app.api.exception_handlers import (
     http_exception_handler,
     validation_exception_handler,
 )
-from app.api.router import api_router
+from app.api.router import admin_router, api_router
 from app.ci_build_info import read_build_info
 from app.health_probes import mysql_ok, redis_ok
 
@@ -40,6 +40,7 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/api")
+app.include_router(admin_router, prefix="/api/admin/v1")
 
 
 @app.get("/ci-test")

@@ -7,74 +7,85 @@
 | 测试 | https://fskw-test.tbpf.com | https://fskw-admin-test.tbpf.com | https://fskw-feishu-test.tbpf.com |
 | 正式 | https://fskw.tbpf.com | https://fskw-admin.tbpf.com | https://fskw-feishu.tbpf.com |
 
-探活：`GET https://fskw-test.tbpf.com/ci-test`（正式为 `fskw.tbpf.com`）。
+探活：`GET https://fskw-test.tbpf.com/ci-test`
 
-## 主机与 Compose
+**测试管理后台**：https://fskw-admin-test.tbpf.com/login — 账号 **`admin`** / 密码 **`Admin123a`**（种子数据，上线前请改密）
 
-- 与稿轻松同机，复用 **`gqs-mysql`**、**`gqs-redis`**（`/docker/gaoqingsong` 已 `--profile db up`）。
-- 测试栈：`/docker/fskw-test`
-- 正式栈：`/docker/fskw`
-- 编排真源：仓库根 `docker-compose.yml` + `docker-compose.test.yml` 或 `docker-compose.prod.yml`
-- Traefik：`*.tbpf.com` 泛解析 + `certresolver=dnspod`（标签内域名写死，不用 Compose 变量）
+## 架构（双后端 + 单 Compose）
+
+| 组件 | 说明 |
+|------|------|
+| `api` | `server/` FastAPI :8000 — `/ci-test`、`/api/*`、`/api/admin/v1/*` |
+| `sync-api` | `python/` FastAPI :8765 — `/api/v1/*`（Traefik 高优先级路由） |
+| `celery-worker` | 异步采集 **必须** 常驻 |
+| `admin-web` / `feishu-web` | 静态 nginx |
+
+与稿轻松一致：**仓库仅一份** [`docker-compose.yml`](../docker-compose.yml)；测试/正式靠主机目录与 **栈根 `.env`** 区分（`cp -f server/.env .env`）。
 
 ```bash
 # 测试
 cd /docker/fskw-test
-docker compose -f docker-compose.yml -f docker-compose.test.yml --profile admin --profile feishu up -d --build
+cp -f server/.env.test server/.env && chmod 600 server/.env
+cp -f server/.env .env && chmod 600 .env
+cp -f python/.env.test python/.env 2>/dev/null || true
+docker compose --profile admin --profile feishu --profile worker up -d --build
 
 # 正式
 cd /docker/fskw
-docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile admin --profile feishu up -d --build
+cp -f server/.env.master server/.env && chmod 600 server/.env
+cp -f server/.env .env && chmod 600 .env
+cp -f python/.env.master python/.env 2>/dev/null || true
+docker compose --profile admin --profile feishu --profile worker up -d --build
 ```
 
-## 首次 SSH 配置（121.43.231.225）
+## 环境变量（对齐稿轻松）
 
-1. `mkdir -p /docker/fskw-test/server /docker/fskw/server` 及 `public/admin`、`public/feishu`、`deploy/*-static`。
-2. 参考 `/docker/gaoqingsong-test/server/.env.test` 中的 `MYSQL_USER` / `MYSQL_PASSWORD`，写入 fskw 的 `.env.test` / `.env.master`：
-   - `DATABASE_URL=mysql+pymysql://用户:口令@gqs-mysql:3306/feishu_keyword?charset=utf8mb4`
-   - `REDIS_HOST=gqs-redis`，测试 `REDIS_DB=2`，正式 `REDIS_DB=3`
-3. 在 `gqs-mysql` 创建库 `feishu_keyword` 并授权（`lanlang_v1` 通常无 `CREATE DATABASE` 权限，请用 **phpMyAdmin**（`pma.tbpf.com`）或具备 root 权限的方式执行 `scripts/create_feishu_db.sql`）。
-4. `chmod 600` 各 `server/.env`。
+| 机制 | 文件 | 用途 |
+|------|------|------|
+| Compose 插值 | 栈根 `/docker/fskw-test/.env` | `API_PUBLIC_HOST`、`TRAEFIK_*`、`PYTHON_IMAGE` |
+| 容器业务 | `server/.env`、`python/.env` | `DATABASE_URL`、`REDIS_*` |
 
-远端已可通过 `scripts/remote-setup-env.sh` 写入 `/docker/fskw-test/server/.env.test` 与 `/docker/fskw/server/.env.master`（含真实 `DATABASE_URL`）。
+模板：`server/.env.test` / `server/.env.master`、`python/.env.test` / `python/.env.master`（仓内占位符；真实口令仅写远端）。
 
-CI rsync **不会覆盖** 远端 `.env`、`.env.test`、`.env.master`（仅同步代码与 compose）。
+一键写入远端（从稿轻松测试栈读取 MySQL 口令）：
+
+```bash
+bash scripts/remote-setup-env.sh
+```
+
+## 数据库与种子
+
+```bash
+# 在可连 gqs-mysql 的环境（如 api 容器内）
+cd /app && python scripts/init_schema.py
+python scripts/seed_demo.py
+# python 表：sync-api 启动时 DATABASE_RUN_MIGRATIONS=1 会跑迁移；或执行 python/social_platform/database/schema.sql
+```
 
 ## GitLab CI
 
-- 变量：`SSH_PRIVATE_KEY`、`HOST_IP`（默认 `121.43.231.225`）
-- **`test` 分支**：自动 `deploy-test`（校验 `public/admin`、`public/feishu` 已含 `index.html` → rsync → compose up）
-- **`master` 分支**：`deploy-prod` 变更时自动或手动触发
-- **Runner 无 Node**：推送前在本地执行 `build-public-test.bat`（或 `build-public-prod.bat`），并 **git 提交** `public/admin/`、`public/feishu/`。
+- `test` 分支：自动 `deploy-test`（rsync `server/`、`python/`、`public/*`、`docker-compose.yml`）
+- `master`：`deploy-prod` 手动/变更触发
+- 本地先 `build-public-test.bat` 并提交 `public/admin`、`public/feishu`
 
-## `public/admin` 与 `public/feishu`
+## 验收 curl
 
-| 目录 | 主 GitLab 仓 | 说明 |
-|------|--------------|------|
-| `public/admin/` | **提交** | `cd admin && npm run build:public:test\|prod` |
-| `public/feishu/` | **提交**（Docker/CI 部署用） | `cd feishu && npm run build:public:test\|prod` |
-
-**可选：飞书 GitHub 手动发布** — 若 `public/feishu` 内另有 GitHub 空仓（`.git`），可用 `release.bat` 在该目录内单独 `git push`；与 GitLab CI rsync **互不替代**（CI 以主仓已提交的 `public/feishu` 为准）。
+```bash
+curl -sS https://fskw-test.tbpf.com/ci-test
+curl -sS https://fskw-test.tbpf.com/api/v1/health
+curl -sS -X POST https://fskw-test.tbpf.com/api/admin/v1/system/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"Admin123a"}'
+```
 
 ## 本地开发
 
 ```bash
-# 后端
-cd server && cp .env.example .env  # 编辑 DATABASE_URL
-uvicorn app.main:app --reload --port 8000
-
-# admin
+cd server && cp .env.example .env && uvicorn app.main:app --reload --port 8000
+cd python && cp .env.example .env && python run.py   # :8765
+# celery -A social_platform.tasks.celery_app worker -l info -P gevent -c 4
 cd admin && npm run dev:local
-
-# feishu
 cd feishu && npm run dev:local
 ```
 
-推送 `test` 前（admin + feishu 一并产出）：
-
-```powershell
-.\build-public-test.bat
-git add public/admin public/feishu
-git commit -m "build: 更新测试环境静态资源"
-git push origin test
-```
+推送 test 前：`.\build-public-test.bat` → `git push origin test`

@@ -47,6 +47,8 @@ export function isSyncHttpError(err: unknown): err is SyncHttpError {
 export function getSyncApiBase(): string {
   const raw = (import.meta.env.VITE_SYNC_API_BASE as string | undefined)?.trim()
   if (raw) return raw.replace(/\/$/, '')
+  const apiRoot = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim()
+  if (apiRoot) return apiRoot.replace(/\/$/, '')
   return ''
 }
 

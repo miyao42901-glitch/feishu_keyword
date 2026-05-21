@@ -1,0 +1,22 @@
+[project]
+name = "feishu-keyword-python"
+version = "0"
+description = "Python 工具链固定使用 3.9.x，勿用 3.10+ 解释器运行。"
+requires-python = ">=3.9,<3.10"
+readme = "README.md"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+target-version = ["py39"]
+include = '\.pyi?$'
+extend-exclude = '/(__pycache__|\.venv|venv)/'
+
+[tool.isort]
+profile = "black"
+line_length = 88
+known_first_party = ["config", "http_api", "social_platform"]
+src_paths = ["."]
