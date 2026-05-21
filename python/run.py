@@ -16,4 +16,13 @@ if __name__ == "__main__":
     host = os.environ.get("HTTP_HOST", "0.0.0.0")
     port = int(os.environ.get("HTTP_PORT", "8765"))
     reload = os.environ.get("HTTP_RELOAD", "").strip() in ("1", "true", "yes")
-    uvicorn.run("http_service:app", host=host, port=port, reload=reload)
+    workers = max(1, int(os.environ.get("HTTP_WORKERS", "1")))
+    kwargs: dict = {"host": host, "port": port}
+    if reload:
+        kwargs["reload"] = True
+    elif workers > 1:
+        kwargs["workers"] = workers
+    uvicorn.run("http_service:app", **kwargs)
+
+    # 启动命令
+    # uvicorn http_service:app --host 0.0.0.0 --port 8765 --workers 4

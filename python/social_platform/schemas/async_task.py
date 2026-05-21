@@ -12,6 +12,7 @@ class AsyncTaskSubmitResponse(BaseModel):
 
 class AsyncTaskStatusResponse(BaseModel):
     task_id: int
+    task_name: str = ""
     user_id: str = ""
     platform: str = Field(
         default="",
@@ -41,3 +42,33 @@ class AsyncTaskResultsResponse(BaseModel):
     limit: int
     total: int
     items: list[Any] = Field(default_factory=list)
+
+
+class AsyncTaskListSummary(BaseModel):
+    """当前用户任务汇总（按任务条数 + 采集计数累加）。"""
+
+    total: int = 0
+    pending: int = 0
+    running: int = 0
+    success: int = 0
+    failed: int = 0
+    cancelled: int = 0
+    active: int = Field(
+        default=0, description="pending + running 任务数"
+    )
+    total_success_count: int = Field(
+        default=0, description="各任务 success_count 之和"
+    )
+    total_failed_count: int = Field(
+        default=0, description="各任务 failed_count 之和"
+    )
+
+
+class AsyncTaskListResponse(BaseModel):
+    page: int
+    limit: int
+    summary: AsyncTaskListSummary
+    items: list[AsyncTaskStatusResponse] = Field(default_factory=list)
+
+
+# 验收接口请求/响应为顶层键值对：douyin/xhs/mp/wxvideo → id 列表或更新行数，另含 total/accepted。

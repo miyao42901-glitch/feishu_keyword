@@ -33,8 +33,11 @@ feishu_keyword/
 │   │   ├── main.py           # FastAPI 应用入口
 │   │   └── api/              # 路由与接口实现
 │   └── .venv/                # 本地虚拟环境（勿提交，见各目录 .gitignore）
-├── python/                   # 爬虫 Worker（独立进程/端口；与 server、feishu 无代码耦合）
+├── python/                   # 统一 HTTP + Celery 异步采集（与 server、feishu 无代码耦合）
+│   ├── run.py                # FastAPI 入口
+│   ├── HTTP_API.md           # 接口说明
+│   └── DEPLOYMENT.md         # FastAPI / Celery 启动与生产部署
 └── docs/                     # 项目文档（设计说明、接口约定等，可按需补充）
 ```
 
-说明：`feishu` 与 `server` 可分别独立安装依赖与启动；具体启动命令以各子目录内配置为准。
+说明：`feishu` 与 `server` 可分别独立安装依赖与启动。异步采集需同时启动 **`python/run.py`** 与 **Celery Worker**，详见 [`python/DEPLOYMENT.md`](python/DEPLOYMENT.md)。

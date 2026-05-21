@@ -30,6 +30,21 @@ class Settings(BaseSettings):
     celery_task_eager: bool = Field(
         default=False, validation_alias="CELERY_TASK_ALWAYS_EAGER"
     )
+    celery_worker_pool: str = Field(
+        default="gevent",
+        validation_alias="CELERY_WORKER_POOL",
+        description="Worker 池：gevent（I/O 采集推荐）/ prefork / solo 等",
+    )
+    celery_worker_concurrency: int = Field(
+        default=4,
+        validation_alias="CELERY_WORKER_CONCURRENCY",
+        description="并发 greenlet/子进程数，与 celery -c 一致",
+    )
+    celery_worker_prefetch_multiplier: int = Field(
+        default=1,
+        validation_alias="CELERY_WORKER_PREFETCH_MULTIPLIER",
+        description="长任务建议 1，避免单 worker 囤积消息",
+    )
     celery_beat_enabled: bool = Field(
         default=False, validation_alias="CELERY_BEAT_ENABLED"
     )

@@ -37,7 +37,11 @@ from social_platform.api_status_codes import (
     get_message,
 )
 from social_platform.models.async_task import AsyncTask
-from social_platform.schemas.async_task import AsyncTaskStatusResponse
+from social_platform.schemas.async_task import (
+    AsyncTaskListResponse,
+    AsyncTaskListSummary,
+    AsyncTaskStatusResponse,
+)
 from social_platform.redis_client import ping_redis, redis_configured
 from social_platform.services import async_task_redis
 from social_platform.services.yddm_user_client import (
@@ -46,9 +50,9 @@ from social_platform.services.yddm_user_client import (
 )
 from social_platform.utils.async_task_ids import parse_async_task_pk
 from social_platform.schedule_time import (
-    normalize_schedule_datetime,
-    schedule_now_utc_naive,
-    utc_naive_from_storage,
+    naive_dt,
+    schedule_now_wall_naive,
+    schedule_wall_clock_str,
 )
 from social_platform.utils.search_fetch_all import parse_optional_datetime
 
@@ -57,6 +61,8 @@ MIN_INTERVAL_MINUTES = 5
 DEFAULT_FETCH_COUNT = 100
 MIN_FETCH_COUNT = 1
 MAX_FETCH_COUNT = 500
+MIN_TASK_NAME_LEN = 1
+MAX_TASK_NAME_LEN = 100
 logger = logging.getLogger(__name__)
 
 _SEARCH_ALL_PUBLIC_ACTIONS = frozenset(
@@ -78,14 +84,13 @@ class AsyncTaskDuplicateError(Exception):
 
 
 def _utc_naive(dt: datetime) -> datetime:
-    if dt.tzinfo is not None:
-        return dt.astimezone(timezone.utc).replace(tzinfo=None)
-    return dt
+    """与 ``naive_dt`` 一致（保留旧名供内部调用）。"""
+    return naive_dt(dt)
 
 
 def utc_now_naive() -> datetime:
-    """异步任务窗口判断用的「当前时刻」（UTC naive）。"""
-    return schedule_now_utc_naive()
+    """异步任务调度用的「当前时刻」（东八区墙钟 naive，与库字段一致）。"""
+    return schedule_now_wall_naive()
 
 
 def parse_task_schedule_times(
@@ -97,8 +102,8 @@ def parse_task_schedule_times(
     end = parse_optional_datetime(task_end_time)
     if start is None or end is None:
         raise ValueError("task_start_time 与 task_end_time 为必填且须为合法时间")
-    start_n = normalize_schedule_datetime(start)
-    end_n = normalize_schedule_datetime(end)
+    start_n = naive_dt(start)
+    end_n = naive_dt(end)
     if end_n <= start_n:
         raise ValueError("task_end_time 须晚于 task_start_time")
     now = utc_now_naive()
@@ -134,6 +139,16 @@ def normalize_fetch_count(value: Any) -> int:
     return max(MIN_FETCH_COUNT, min(MAX_FETCH_COUNT, n))
 
 
+def normalize_task_name(value: Any) -> str:
+    """任务名称：去首尾空白，长度 1～100。"""
+    if not isinstance(value, str):
+        raise ValueError("task_name 长度须为 1～100 字符")
+    name = value.strip()
+    if len(name) < MIN_TASK_NAME_LEN or len(name) > MAX_TASK_NAME_LEN:
+        raise ValueError("task_name 长度须为 1～100 字符")
+    return name
+
+
 def prepare_async_task_body(
     action: str,
     body: dict[str, Any],
@@ -159,9 +174,8 @@ def body_for_worker_execution(task: AsyncTask) -> dict[str, Any]:
 
 
 def _iso(dt: Optional[datetime]) -> Optional[str]:
-    if dt is None:
-        return None
-    return dt.replace(microsecond=0).isoformat() + "Z"
+    """API 调度时刻：``YYYY-MM-DD HH:MM:SS`` 墙钟字符串。"""
+    return schedule_wall_clock_str(dt)
 
 
 def _body_json_fingerprint(body: dict[str, Any]) -> str:
@@ -241,7 +255,7 @@ def count_active_async_tasks(db: Session, user_id: str) -> int:
 def first_run_at(task: AsyncTask, *, now: Optional[datetime] = None) -> datetime:
     """定时窗口内首次执行时刻：max(now, task_start_time)（均为 UTC naive）。"""
     t = now if now is not None else utc_now_naive()
-    start = utc_naive_from_storage(task.task_start_time)
+    start = naive_dt(task.task_start_time)
     return start if start > t else t
 
 
@@ -252,7 +266,7 @@ def next_run_after_completion(
     """本次采集结束后，若仍在窗口内则返回下次执行时刻，否则 None。"""
     if task.cancel_requested:
         return None
-    end = utc_naive_from_storage(task.task_end_time)
+    end = naive_dt(task.task_end_time)
     done = _utc_naive(completed_at)
     if done >= end:
         return None
@@ -281,20 +295,20 @@ def enqueue_async_task_run(
     if row.cancel_requested:
         return None
     now = utc_now_naive()
-    end = utc_naive_from_storage(row.task_end_time)
+    end = naive_dt(row.task_end_time)
     if now >= end:
         return None
 
     target = (
         first_run_at(row, now=now)
         if run_at is None
-        else utc_naive_from_storage(run_at)
+        else naive_dt(run_at)
     )
     if target >= end:
         return None
 
     row.next_run_at = target
-    row.update_time = datetime.utcnow()
+    row.update_time = schedule_now_wall_naive()
     db.add(row)
     db.commit()
 
@@ -326,12 +340,8 @@ def schedule_next_async_run(
                 "run_id": str(getattr(task, "current_run_id", "") or ""),
                 "success_count": int(task.success_count or 0),
                 "fetch_count_per_run": normalize_fetch_count(task.fetch_count),
-                "task_end_time": normalize_schedule_datetime(task.task_end_time).isoformat(),
-                "next_run_at": (
-                    normalize_schedule_datetime(task.next_run_at).isoformat()
-                    if task.next_run_at is not None
-                    else None
-                ),
+                "task_end_time": schedule_wall_clock_str(task.task_end_time),
+                "next_run_at": schedule_wall_clock_str(task.next_run_at),
                 "will_continue_schedule": bool(will_continue),
             },
         )
@@ -341,7 +351,7 @@ def schedule_next_async_run(
         task.next_run_at = None
         task.current_run_id = None
         task.running_lease_until = None
-        task.update_time = datetime.utcnow()
+        task.update_time = schedule_now_wall_naive()
         db.add(task)
         db.commit()
         _log_schedule_next_decision(False)
@@ -354,7 +364,7 @@ def schedule_next_async_run(
         task.next_run_at = None
         task.current_run_id = None
         task.running_lease_until = None
-        task.update_time = datetime.utcnow()
+        task.update_time = schedule_now_wall_naive()
         db.add(task)
         db.commit()
         _log_schedule_next_decision(False)
@@ -362,9 +372,10 @@ def schedule_next_async_run(
 
     task.status = "pending"
     task.next_run_at = nxt
+    task.celery_task_id = None
     task.current_run_id = None
     task.running_lease_until = None
-    task.update_time = datetime.utcnow()
+    task.update_time = schedule_now_wall_naive()
     db.add(task)
     db.commit()
     key = (
@@ -384,6 +395,7 @@ def submit_async_task(
     body: dict[str, Any],
     user_id: str,
     api_key: str,
+    task_name: str,
     task_start_time: datetime,
     task_end_time: datetime,
     interval_minutes: int = DEFAULT_INTERVAL_MINUTES,
@@ -426,8 +438,11 @@ def submit_async_task(
             message=get_message(CODE_ASYNC_SUBMIT_QUOTA_EXCEEDED),
         )
 
+    name = normalize_task_name(task_name)
+
     row = AsyncTask(
         user_id=uid[:64],
+        task_name=name[:MAX_TASK_NAME_LEN],
         status="pending",
         action=action.strip()[:128],
         body_json=body_for_db,
@@ -452,16 +467,12 @@ def submit_async_task(
     return task_id
 
 
-def get_task_status(db: Session, task_id: str) -> Optional[AsyncTaskStatusResponse]:
-    pk = parse_async_task_pk(task_id)
-    if pk is None:
-        return None
-    row = db.get(AsyncTask, pk)
-    if row is None:
-        return None
+def _async_task_row_to_status(row: AsyncTask) -> AsyncTaskStatusResponse:
     plat = platform_for_result_listing(row.action) or ""
+    interval_min = int(row.interval_minutes or 60)
     return AsyncTaskStatusResponse(
         task_id=int(row.id),
+        task_name=str(row.task_name or ""),
         user_id=row.user_id,
         platform=plat,
         status=row.status,
@@ -477,10 +488,90 @@ def get_task_status(db: Session, task_id: str) -> Optional[AsyncTaskStatusRespon
         next_run_at=_iso(row.next_run_at),
         current_run_id=row.current_run_id,
         running_lease_until=_iso(row.running_lease_until),
-        interval_minutes=int(row.interval_minutes or 60),
+        interval_minutes=interval_min,
         fetch_count=int(row.fetch_count or 100),
         create_time=_iso(row.create_time),
         update_time=_iso(row.update_time),
+    )
+
+
+def get_task_status(db: Session, task_id: str) -> Optional[AsyncTaskStatusResponse]:
+    pk = parse_async_task_pk(task_id)
+    if pk is None:
+        return None
+    row = db.get(AsyncTask, pk)
+    if row is None:
+        return None
+    return _async_task_row_to_status(row)
+
+
+def list_async_tasks_for_user(
+    db: Session,
+    user_id: str,
+    *,
+    page: int = 1,
+    limit: int = 20,
+    status: Optional[str] = None,
+) -> AsyncTaskListResponse:
+    """按 user_id 分页列出任务，并返回状态分布与采集计数汇总。"""
+    uid = str(user_id or "").strip()
+    page = max(1, int(page))
+    limit = max(1, min(100, int(limit)))
+    offset = (page - 1) * limit
+
+    filters: list[Any] = [AsyncTask.user_id == uid]
+    status_filter = (status or "").strip()
+    if status_filter:
+        filters.append(AsyncTask.status == status_filter)
+
+    total = int(
+        db.scalar(select(func.count()).select_from(AsyncTask).where(*filters)) or 0
+    )
+
+    status_rows = db.execute(
+        select(AsyncTask.status, func.count())
+        .where(AsyncTask.user_id == uid)
+        .group_by(AsyncTask.status)
+    ).all()
+    counts: dict[str, int] = {str(s or ""): int(c or 0) for s, c in status_rows}
+
+    sum_row = db.execute(
+        select(
+            func.coalesce(func.sum(AsyncTask.success_count), 0),
+            func.coalesce(func.sum(AsyncTask.failed_count), 0),
+        ).where(AsyncTask.user_id == uid)
+    ).one()
+    total_success_count = int(sum_row[0] or 0)
+    total_failed_count = int(sum_row[1] or 0)
+
+    pending_n = counts.get("pending", 0)
+    running_n = counts.get("running", 0)
+    summary = AsyncTaskListSummary(
+        total=total,
+        pending=pending_n,
+        running=running_n,
+        success=counts.get("success", 0),
+        failed=counts.get("failed", 0),
+        cancelled=counts.get("cancelled", 0),
+        active=pending_n + running_n,
+        total_success_count=total_success_count,
+        total_failed_count=total_failed_count,
+    )
+
+    rows = db.scalars(
+        select(AsyncTask)
+        .where(*filters)
+        .order_by(AsyncTask.id.desc())
+        .offset(offset)
+        .limit(limit)
+    ).all()
+    items = [_async_task_row_to_status(r) for r in rows if r is not None]
+
+    return AsyncTaskListResponse(
+        page=page,
+        limit=limit,
+        summary=summary,
+        items=items,
     )
 
 
@@ -490,6 +581,116 @@ def assert_async_task_user(*, api_key: str, x_user_id: str) -> str:
     return assert_x_user_id_matches_yddm(
         settings, api_key=api_key, x_user_id=x_user_id
     )
+
+
+def assert_async_task_auth_token(*, auth_token: str, x_user_id: str) -> str:
+    """校验 X-Auth-Token / X-User-Id（与 X-API-Key 相同，走 yddm users/me）。"""
+    return assert_async_task_user(api_key=auth_token, x_user_id=x_user_id)
+
+
+def update_async_task(
+    db: Session,
+    task_id: str,
+    *,
+    user_id: str,
+    updates: dict[str, Any],
+) -> Optional[AsyncTaskStatusResponse]:
+    """
+    按任务 ID 部分更新字段；返回 None 表示任务不存在。
+    用户不一致时抛出 ApiHttpError(403)。
+    """
+    from social_platform.api_response import ApiHttpError
+    from social_platform.api_status_codes import CODE_ASYNC_SUBMIT_USER_MISMATCH
+
+    if not updates:
+        raise ValueError("至少提供一个要修改的字段")
+
+    pk = parse_async_task_pk(task_id)
+    if pk is None:
+        return None
+    row = db.get(AsyncTask, pk)
+    if row is None:
+        return None
+
+    uid = str(user_id or "").strip()
+    if uid and str(row.user_id or "").strip() != uid:
+        raise ApiHttpError(
+            CODE_ASYNC_SUBMIT_USER_MISMATCH,
+            http_status=403,
+        )
+
+    changed: dict[str, Any] = {}
+    schedule_fields = {"interval_minutes", "fetch_count", "task_start_time", "task_end_time", "priority"}
+    wants_schedule = bool(schedule_fields.intersection(updates))
+    if wants_schedule and row.status != "pending":
+        raise ValueError("仅 pending 状态的任务可修改调度相关字段")
+
+    if "task_name" in updates:
+        row.task_name = normalize_task_name(updates["task_name"])[:MAX_TASK_NAME_LEN]
+        changed["task_name"] = row.task_name
+
+    if "interval_minutes" in updates:
+        row.interval_minutes = normalize_interval_minutes(updates["interval_minutes"])
+        changed["interval_minutes"] = int(row.interval_minutes)
+
+    if "fetch_count" in updates:
+        row.fetch_count = normalize_fetch_count(updates["fetch_count"])
+        changed["fetch_count"] = int(row.fetch_count)
+
+    if "priority" in updates:
+        row.priority = max(0, min(9, int(updates["priority"])))
+        changed["priority"] = int(row.priority)
+
+    if "task_start_time" in updates or "task_end_time" in updates:
+        start_raw = updates.get("task_start_time", row.task_start_time)
+        end_raw = updates.get("task_end_time", row.task_end_time)
+        start_parsed = parse_optional_datetime(start_raw)
+        end_parsed = parse_optional_datetime(end_raw)
+        if start_parsed is None or end_parsed is None:
+            raise ValueError("task_start_time 与 task_end_time 须为合法时间")
+        start_n = naive_dt(start_parsed)
+        end_n = naive_dt(end_parsed)
+        if end_n <= start_n:
+            raise ValueError("task_end_time 须晚于 task_start_time")
+        now = utc_now_naive()
+        if end_n <= now:
+            raise ValueError("task_end_time 须晚于当前时间")
+        if "task_start_time" in updates:
+            row.task_start_time = start_n
+            changed["task_start_time"] = schedule_wall_clock_str(start_n)
+        if "task_end_time" in updates:
+            row.task_end_time = end_n
+            changed["task_end_time"] = schedule_wall_clock_str(end_n)
+
+    if not changed:
+        raise ValueError("至少提供一个要修改的字段")
+
+    row.update_time = schedule_now_wall_naive()
+    db.add(row)
+    db.commit()
+
+    logger.info(
+        "async_task_edited user_id=%s task_id=%s fields=%s values=%s at=%s",
+        uid,
+        pk,
+        list(changed.keys()),
+        changed,
+        schedule_wall_clock_str(row.update_time),
+    )
+
+    row = db.get(AsyncTask, pk)
+    if row is None:
+        return None
+    return _async_task_row_to_status(row)
+
+
+def _revoke_celery_task(celery_id: Optional[str], *, terminate: bool = False) -> None:
+    cid = (celery_id or "").strip()
+    if not cid:
+        return
+    from social_platform.tasks.celery_app import celery_app
+
+    celery_app.control.revoke(cid, terminate=terminate)
 
 
 def cancel_async_task(
@@ -525,15 +726,63 @@ def cancel_async_task(
     row.next_run_at = None
     row.current_run_id = None
     row.running_lease_until = None
-    row.update_time = datetime.utcnow()
+    row.update_time = schedule_now_wall_naive()
     db.add(row)
     db.commit()
     async_task_redis.retain_async_task_redis_on_cancel(row)
     if celery_id and was_active:
-        from social_platform.tasks.celery_app import celery_app
-
-        celery_app.control.revoke(celery_id, terminate=False)
+        _revoke_celery_task(celery_id, terminate=False)
     return "cancelled"
+
+
+def delete_async_task(db: Session, task_id: str, *, user_id: str) -> bool:
+    """
+    删除异步任务：从 Redis 调度中移除、撤销 Celery 消息/执行，并删除 MySQL 任务行。
+    关联采集结果表因外键 ON DELETE CASCADE 一并删除。
+    任意 status（含 cancelled）均可删除；不调用 yddm，仅比对库中 user_id。
+    返回 False 表示任务不存在；用户不一致抛出 ApiHttpError(403)。
+    """
+    from social_platform.api_response import ApiHttpError
+    from social_platform.api_status_codes import CODE_ASYNC_SUBMIT_USER_MISMATCH
+
+    pk = parse_async_task_pk(task_id)
+    if pk is None:
+        return False
+    row = db.get(AsyncTask, pk)
+    if row is None:
+        return False
+
+    uid = str(user_id or "").strip()
+    if uid and str(row.user_id or "").strip() != uid:
+        raise ApiHttpError(
+            CODE_ASYNC_SUBMIT_USER_MISMATCH,
+            http_status=403,
+        )
+
+    celery_id = row.celery_task_id
+    was_active = row.status in ("pending", "running")
+    terminate = row.status == "running"
+    task_name = str(row.task_name or "")
+    action = str(row.action or "")
+    status = str(row.status or "")
+
+    async_task_redis.delete_async_task_redis(pk)
+    if celery_id and was_active:
+        _revoke_celery_task(celery_id, terminate=terminate)
+
+    db.delete(row)
+    db.commit()
+
+    logger.info(
+        "async_task_deleted user_id=%s task_id=%s task_name=%s action=%s status=%s celery_revoked=%s",
+        uid,
+        pk,
+        task_name,
+        action,
+        status,
+        bool(celery_id and was_active),
+    )
+    return True
 
 
 def restart_async_task(
@@ -574,7 +823,7 @@ def restart_async_task(
         return "already_active"
 
     now = utc_now_naive()
-    if now >= utc_naive_from_storage(row.task_end_time):
+    if now >= naive_dt(row.task_end_time):
         return "window_ended"
 
     settings = get_settings()
@@ -596,7 +845,7 @@ def restart_async_task(
     row.current_run_id = None
     row.running_lease_until = None
     row.error_message = None
-    row.update_time = datetime.utcnow()
+    row.update_time = schedule_now_wall_naive()
     db.add(row)
     db.commit()
 

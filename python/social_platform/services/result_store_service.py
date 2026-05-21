@@ -12,14 +12,14 @@ import re
 from datetime import datetime
 from typing import Any, Iterable, Optional, Type
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from config.settings import get_settings
 from social_platform.database.session import session_scope
 from social_platform.models.base import Base
-from social_platform.models.results.registry import get_result_model
+from social_platform.models.results.registry import get_result_model, list_supported_platforms
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,93 @@ _RESULT_API_EXCLUDE_COLUMNS = frozenset(
     {"id", "task_id", "user_id", "create_time", "update_time"}
 )
 _MODAL_ID_RE = re.compile(r"modal_id=(\d+)", re.IGNORECASE)
+_RESULT_REF_SEP = ":"
+_SUPPORTED_PLATFORMS = frozenset(list_supported_platforms())
+
+
+def encode_result_ref(platform: str, row_id: int) -> str:
+    """跨平台唯一结果引用：``{platform}:{表主键 id}``。"""
+    plat = (platform or "").strip().lower()
+    if plat not in _SUPPORTED_PLATFORMS:
+        raise ValueError(f"unsupported platform: {platform!r}")
+    return f"{plat}{_RESULT_REF_SEP}{int(row_id)}"
+
+
+def parse_result_ref(ref: str) -> tuple[str, int]:
+    """解析 ``encode_result_ref`` 生成的引用。"""
+    raw = (ref or "").strip()
+    if _RESULT_REF_SEP not in raw:
+        raise ValueError(f"invalid result ref: {ref!r}")
+    plat, _, id_part = raw.partition(_RESULT_REF_SEP)
+    plat = plat.strip().lower()
+    if plat not in _SUPPORTED_PLATFORMS:
+        raise ValueError(f"unsupported platform in ref: {ref!r}")
+    try:
+        row_id = int(id_part.strip())
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"invalid result id in ref: {ref!r}") from e
+    if row_id <= 0:
+        raise ValueError(f"invalid result id in ref: {ref!r}")
+    return plat, row_id
+
+
+def list_pending_result_row_ids(
+    session: Session,
+    *,
+    platform: str,
+    user_id: Optional[str] = None,
+    task_id: Optional[int] = None,
+) -> list[int]:
+    """
+    查询某平台 ``is_upload=0`` 的结果表主键列表。
+    ``task_id=None`` 不按任务过滤（含同步单次执行 ``task_id IS NULL`` 的行）。
+    """
+    model = get_result_model(platform)
+    tid_col = getattr(model, "task_id")
+    uid_col = getattr(model, "user_id")
+    upload_col = getattr(model, "is_upload")
+    id_col = getattr(model, "id")
+
+    filters = [upload_col == 0]
+    if task_id is not None:
+        filters.append(tid_col == int(task_id))
+    if user_id is not None and str(user_id).strip():
+        filters.append(uid_col == str(user_id).strip())
+
+    stmt = select(id_col).where(*filters).order_by(id_col.asc())
+    return [int(r) for r in session.execute(stmt).scalars().all()]
+
+
+def mark_results_uploaded(
+    session: Session,
+    *,
+    platform: str,
+    row_ids: Iterable[int],
+    user_id: Optional[str] = None,
+    task_id: Optional[int] = None,
+) -> int:
+    """
+    将指定主键行的 ``is_upload`` 置为 1（仅更新当前仍为 0 的行）。
+    ``task_id=None`` 时不限制任务（可验收同步单次写入、无 task_id 的行）。
+    """
+    ids = sorted({int(i) for i in row_ids if int(i) > 0})
+    if not ids:
+        return 0
+    model = get_result_model(platform)
+    tid_col = getattr(model, "task_id")
+    uid_col = getattr(model, "user_id")
+    upload_col = getattr(model, "is_upload")
+    id_col = getattr(model, "id")
+
+    filters = [upload_col == 0, id_col.in_(ids)]
+    if task_id is not None:
+        filters.append(tid_col == int(task_id))
+    if user_id is not None and str(user_id).strip():
+        filters.append(uid_col == str(user_id).strip())
+
+    stmt = update(model).where(*filters).values(is_upload=1)
+    result = session.execute(stmt)
+    return int(result.rowcount or 0)
 
 
 def _coerce_task_id_optional(task_id: Any) -> Optional[int]:
@@ -439,7 +526,7 @@ def save_search_results(
     }
 
 
-def _model_to_result_item(obj: Base) -> dict[str, Any]:
+def _model_to_result_item(obj: Base, *, platform: str = "") -> dict[str, Any]:
     """按 ORM 列名序列化单条结果；排除基层字段，不做跨平台字段映射。"""
     d: dict[str, Any] = {}
     for col in obj.__table__.columns:
@@ -450,6 +537,10 @@ def _model_to_result_item(obj: Base) -> dict[str, Any]:
             d[col.key] = v.isoformat()
         else:
             d[col.key] = v
+    plat = (platform or "").strip().lower()
+    row_id = getattr(obj, "id", None)
+    if plat and row_id is not None:
+        d["result_ref"] = encode_result_ref(plat, int(row_id))
     return d
 
 
@@ -491,4 +582,47 @@ def paginate_task_results(
         .limit(limit)
     )
     rows = session.execute(list_stmt).scalars().all()
-    return total, [_model_to_result_item(r) for r in rows]
+    plat_key = (platform or "").strip().lower()
+    return total, [_model_to_result_item(r, platform=plat_key) for r in rows]
+
+
+def list_pending_acceptance_by_platform(
+    session: Session,
+    *,
+    user_id: Optional[str] = None,
+) -> tuple[dict[str, list[int]], int]:
+    """
+    四平台待验收（``is_upload=0``）主键，按平台分组。
+    含异步任务与同步单次执行（``task_id`` 可为 NULL）的数据。
+    """
+    by_platform: dict[str, list[int]] = {}
+    for plat in list_supported_platforms():
+        row_ids = list_pending_result_row_ids(
+            session, platform=plat, user_id=user_id, task_id=None
+        )
+        if row_ids:
+            by_platform[plat] = row_ids
+    total = sum(len(v) for v in by_platform.values())
+    return by_platform, total
+
+
+def accept_results_by_platform(
+    session: Session,
+    *,
+    by_platform: dict[str, Iterable[int]],
+    user_id: Optional[str] = None,
+) -> dict[str, int]:
+    """批量验收：``{ platform: [row_id, ...] }``，返回各平台实际更新行数。"""
+    updated: dict[str, int] = {}
+    for plat_raw, row_ids in (by_platform or {}).items():
+        plat = (plat_raw or "").strip().lower()
+        if plat not in _SUPPORTED_PLATFORMS:
+            raise ValueError(f"unsupported platform: {plat_raw!r}")
+        updated[plat] = mark_results_uploaded(
+            session,
+            platform=plat,
+            row_ids=row_ids,
+            user_id=user_id,
+            task_id=None,
+        )
+    return updated

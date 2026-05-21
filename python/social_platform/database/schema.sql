@@ -4,6 +4,7 @@
 CREATE TABLE IF NOT EXISTS feishu_async_tasks (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '任务主键自增数字' PRIMARY KEY,
     user_id VARCHAR(64) NOT NULL COMMENT '调用方系统用户 ID（与 yddm users/me 的 data.id 一致），用于权限与统计',
+    task_name VARCHAR(100) NOT NULL DEFAULT '' COMMENT '任务名称（1～100 字符）',
     status VARCHAR(32) NOT NULL DEFAULT 'pending' COMMENT '任务状态：pending/running/success/failed/cancelled',
     action VARCHAR(128) NOT NULL DEFAULT '' COMMENT '对外已注册 action（kebab-case），如 douyin-search-all',
     body_json JSON NOT NULL COMMENT '仅存储请求 body 对象（不含 API Key）；平台由 action 在应用层解析',
@@ -26,7 +27,8 @@ CREATE TABLE IF NOT EXISTS feishu_async_tasks (
     INDEX ix_feishu_async_tasks_status (status),
     INDEX ix_feishu_async_tasks_user_id (user_id),
     INDEX ix_feishu_async_tasks_action (action),
-    INDEX ix_feishu_async_tasks_celery_task_id (celery_task_id)
+    INDEX ix_feishu_async_tasks_celery_task_id (celery_task_id),
+    INDEX ix_async_tasks_user_status_id (user_id, status, id DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='异步采集任务';
 
 -- 抖音 / 小红书结果表列集合一致（小红书多 xsec_token），未使用列填默认值
@@ -65,6 +67,8 @@ CREATE TABLE IF NOT EXISTS feishu_douyin_results (
     INDEX ix_feishu_douyin_results_is_upload (is_upload),
     INDEX ix_feishu_douyin_results_create_time (create_time),
     INDEX ix_feishu_douyin_results_keyword (keyword),
+    INDEX ix_feishu_douyin_results_task_upload_ct (task_id, is_upload, create_time DESC),
+    INDEX ix_feishu_douyin_results_user_upload_id (user_id, is_upload, id),
     CONSTRAINT fk_feishu_douyin_results_task
         FOREIGN KEY (task_id) REFERENCES feishu_async_tasks (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='抖音搜索结果';
@@ -104,6 +108,8 @@ CREATE TABLE IF NOT EXISTS feishu_xhs_results (
     INDEX ix_feishu_xhs_results_is_upload (is_upload),
     INDEX ix_feishu_xhs_results_create_time (create_time),
     INDEX ix_feishu_xhs_results_keyword (keyword),
+    INDEX ix_feishu_xhs_results_task_upload_ct (task_id, is_upload, create_time DESC),
+    INDEX ix_feishu_xhs_results_user_upload_id (user_id, is_upload, id),
     CONSTRAINT fk_feishu_xhs_results_task
         FOREIGN KEY (task_id) REFERENCES feishu_async_tasks (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='小红书搜索结果';
@@ -134,6 +140,8 @@ CREATE TABLE IF NOT EXISTS feishu_wxvideo_results (
     INDEX ix_feishu_wxvideo_results_is_upload (is_upload),
     INDEX ix_feishu_wxvideo_results_create_time (create_time),
     INDEX ix_feishu_wxvideo_results_keyword (keyword),
+    INDEX ix_feishu_wxvideo_results_task_upload_ct (task_id, is_upload, create_time DESC),
+    INDEX ix_feishu_wxvideo_results_user_upload_id (user_id, is_upload, id),
     CONSTRAINT fk_feishu_wxvideo_results_task
         FOREIGN KEY (task_id) REFERENCES feishu_async_tasks (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='视频号搜索结果';
@@ -160,6 +168,8 @@ CREATE TABLE IF NOT EXISTS feishu_mp_results (
     INDEX ix_feishu_mp_results_is_upload (is_upload),
     INDEX ix_feishu_mp_results_create_time (create_time),
     INDEX ix_feishu_mp_results_keyword (keyword),
+    INDEX ix_feishu_mp_results_task_upload_ct (task_id, is_upload, create_time DESC),
+    INDEX ix_feishu_mp_results_user_upload_id (user_id, is_upload, id),
     CONSTRAINT fk_feishu_mp_results_task
         FOREIGN KEY (task_id) REFERENCES feishu_async_tasks (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='公众号文章搜索结果';
@@ -176,3 +186,10 @@ CREATE TABLE IF NOT EXISTS feishu_mp_results (
 --
 -- ALTER TABLE feishu_async_tasks
 --     ADD COLUMN api_key VARCHAR(128) NOT NULL DEFAULT '' COMMENT '提交任务的API_KEY' AFTER body_json;
+--
+-- ALTER TABLE feishu_async_tasks
+--     ADD COLUMN task_name VARCHAR(100) NOT NULL DEFAULT '' COMMENT '任务名称（1～100 字符）' AFTER user_id;
+--
+-- P0 索引（见 migrations/011_index_p0_optimization.sql）：
+-- ALTER TABLE feishu_async_tasks ADD INDEX ix_async_tasks_user_status_id (user_id, status, id DESC);
+-- 各 feishu_*_results 表 ADD INDEX task_upload_ct / user_upload_id ...

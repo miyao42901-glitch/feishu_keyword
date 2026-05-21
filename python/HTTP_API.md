@@ -17,8 +17,15 @@
 | POST | `/api/v1/sync/xhs/search-page` | 小红书单页搜索（同步） |
 | POST | `/api/v1/sync/xhs/search-all` | 小红书多页搜索（同步） |
 | POST | `/api/v1/async/tasks` | 提交异步任务（kebab-case `action`） |
+| POST | `/api/v1/async/tasks/edit` | 编辑任务（部分更新） |
+| GET | `/api/v1/async/tasks` | 任务列表与汇总（`X-API-Key` + `X-User-Id`） |
 | GET | `/api/v1/async/tasks/{task_id}` | 查询任务状态 |
 | GET | `/api/v1/async/tasks/{task_id}/results` | 分页查询落库结果 |
+| POST | `/api/v1/async/tasks/{task_id}/cancel` | 取消任务 |
+| POST | `/api/v1/async/tasks/{task_id}/delete` | 删除任务（停止 Celery 并删库） |
+| POST | `/api/v1/async/tasks/{task_id}/restart` | 重启任务 |
+| GET | `/api/v1/results/acceptance` | 待验收 id（平台 → id 列表） |
+| POST | `/api/v1/results/acceptance` | 批量验收（`is_upload=1`） |
 
 下文以 **`BASE = http://127.0.0.1:8765`** 为例，业务路径均为 **`BASE + /api/v1` + 资源路径**。
 
@@ -66,6 +73,25 @@ JSON：`action` + `params`。`params` 内凭证可用 **`key`** 或 **`X-API-KEY
 异步 **GET** 接口可选带 **`X-User-Id`**：若提供且与任务所属用户不一致，返回 **403**。
 
 **校验失败：** 可能返回 **422**（FastAPI 标准校验结构）或 **400**（`code` + `msg`）。
+
+### 2.4 限流（按接口独立 scope）
+
+同一用户（`X-User-Id`，无则按 IP）在 **60 秒** 滑动窗口内计数；**每个 HTTP 路由单独一个 Redis 桶**，互不占额度（勿再用统一的 `async_list` 等合并 scope）。
+
+| 方法 | 路径 | scope | 默认上限 / 60s |
+|------|------|-------|----------------|
+| POST | `/api/v1/async/tasks` | `async_submit` | 30 |
+| POST | `/api/v1/async/tasks/edit` | `async_task_edit` | 60 |
+| GET | `/api/v1/async/tasks` | `async_task_list` | 60 |
+| GET | `/api/v1/async/tasks/{task_id}` | `async_task_status` | 120 |
+| GET | `/api/v1/async/tasks/{task_id}/results` | `async_task_results` | 120 |
+| POST | `/api/v1/async/tasks/{task_id}/cancel` | `async_task_cancel` | 30 |
+| POST | `/api/v1/async/tasks/{task_id}/delete` | `async_task_delete` | 30 |
+| POST | `/api/v1/async/tasks/{task_id}/restart` | `async_task_restart` | 30 |
+| GET | `/api/v1/results/acceptance` | `result_acceptance_pending` | 120 |
+| POST | `/api/v1/results/acceptance` | `result_acceptance_accept` | 60 |
+
+超限返回 **429**，`code` 为限流业务码，响应头含 **`Retry-After`**（秒）。常量定义见 `http_api/rate_limit_scopes.py`。
 
 ---
 
@@ -366,10 +392,12 @@ curl -s -X POST "http://127.0.0.1:8765/api/v1/sync/xhs/search-all" \
 
 ```bash
 python run.py
-celery -A celery_jobs.celery_app worker -l info
+celery -A social_platform.tasks.celery_app worker -l info -P gevent -c 4 --prefetch-multiplier=1
 ```
 
-任务记录写入 MySQL 表 `feishu_async_tasks`；`search-all` / `search-page` 采集结果写入对应 `feishu_*_results` 表。
+并发与 systemd / Nginx 配置见 **`DEPLOYMENT.md`**。
+
+任务记录写入 MySQL 表 `feishu_async_tasks`；`search-all` / `search-page` 采集结果写入对应 `feishu_*_results` 表（同步单次执行 `task_id` 可为空，验收走 `/api/v1/results/acceptance`）。
 
 ---
 
@@ -402,6 +430,7 @@ celery -A celery_jobs.celery_app worker -l info
 
 | 字段 | 类型 | 必填 | 默认 | 说明 |
 |------|------|------|------|------|
+| `task_name` | string | 是 | — | 任务名称，**1～100** 字符，不能为空字符串 |
 | `action` | string | 是 | — | 上表 kebab-case 之一 |
 | `body` | object | 否 | `{}` | 业务参数（**不含** `fetch_count`）；按 `action` 做 Pydantic 校验 |
 | `task_start_time` | string | 是 | — | 定时窗口开始（ISO8601 或毫秒时间戳）；**无时区时按东八区（Asia/Shanghai）** |
@@ -415,6 +444,7 @@ celery -A celery_jobs.celery_app worker -l info
 
 ```json
 {
+  "task_name": "完成项目报告",
   "action": "douyin-search-all",
   "body": {
     "keyword": "人民日报",
@@ -432,6 +462,7 @@ celery -A celery_jobs.celery_app worker -l info
 
 ```json
 {
+  "task_name": "小红书穿搭采集",
   "action": "xhs-search-all",
   "body": {
     "keyword": "穿搭博主"
@@ -470,7 +501,8 @@ celery -A celery_jobs.celery_app worker -l info
 
 | HTTP | `code` / 体 | 说明 |
 |------|-------------|------|
-| 400 | `400` 或 `{"code":400,"message":"unsupported action"}` | 未知 `action` 或 body 校验失败 |
+| 400 | `400` 或 `{"code":400,"message":"unsupported action"}` | 未知 `action`、缺少 `task_name` 或 body 校验失败 |
+| 401 | `1005` 等 | 无效的 `X-API-Key`（yddm 校验失败） |
 | 429 | `1021` | 该用户进行中任务数超限 |
 | 503 | 非 0 | 未配置 `DATABASE_URL` |
 
@@ -487,6 +519,7 @@ celery -A celery_jobs.celery_app worker -l info
 | 字段 | 说明 |
 |------|------|
 | `task_id` | 任务 ID |
+| `task_name` | 任务名称 |
 | `user_id` | 所属用户 |
 | `platform` | 由 `action` 推导（`douyin` / `xhs`），不入库 |
 | `status` | `pending` / `running` / `success` / `failed` / `cancelled` 等 |
@@ -504,6 +537,96 @@ celery -A celery_jobs.celery_app worker -l info
 **`data.meta`：** 同 §10.2（含 `platform`、`source`、`result_table`）。
 
 **404：** 任务不存在。
+
+列表 `GET /api/v1/async/tasks` 的 `data.result.items[]` 中同样包含 `task_name` 字段。
+
+---
+
+### 10.3.1 编辑任务 `POST /api/v1/async/tasks/edit`
+
+**Header：** `X-API-Key`、`X-User-Id`（必填，与提交/取消任务一致，经 yddm `users/me` 校验）
+
+**Body（JSON）：**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `task_id` | int | 是 | 任务 ID |
+| `task_name` | string | 否 | 1～100 字符 |
+| `interval_minutes` | int | 否 | ≥ 5；仅 **pending** 可改 |
+| `fetch_count` | int | 否 | 1～500；仅 **pending** 可改 |
+| `task_start_time` | string | 否 | 定时窗口开始；仅 **pending** 可改 |
+| `task_end_time` | string | 否 | 定时窗口结束；仅 **pending** 可改 |
+| `priority` | int | 否 | 0～9；仅 **pending** 可改 |
+
+除 `task_name` 外，调度类字段仅在任务状态为 `pending` 时允许修改。**至少提供一个**要修改的字段（除 `task_id` 外）。
+
+**成功响应：** `data.result` 为更新后的完整任务对象（字段同 §10.3，含 `task_name`）。
+
+**示例：**
+
+```bash
+curl -s -X POST "http://127.0.0.1:8765/api/v1/async/tasks/edit" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "X-User-Id: 12345" \
+  -d '{"task_id": 42, "task_name": "完成项目报告（修订）"}'
+```
+
+**常见错误：**
+
+| HTTP | `code` | 说明 |
+|------|--------|------|
+| 401 | `1005` 等 | `X-API-Key` 无效或未授权 |
+| 503 | `1022` | 用户校验服务暂时不可用，请稍后重试 |
+| 400 | `400` | 缺少 `task_id`、未提供可修改字段、`task_name` 长度不合法等 |
+| 403 | `1020` | `X-User-Id` 与任务归属不一致 |
+| 404 | `1023` | 任务不存在 |
+
+服务端会记录编辑日志（用户、时间、任务 ID、变更字段及新值）。
+
+---
+
+### 10.3.2 删除任务 `POST /api/v1/async/tasks/{task_id}/delete`
+
+**Header：** `X-User-Id`（必填，须与任务在库中的 `user_id` 一致）
+
+**说明：** 删除接口**不调用** yddm 用户校验，避免「用户校验服务暂时不可用」时无法清理任务。`pending` / `running` / `success` / `failed` / **`cancelled`** 等任意状态均可删除。
+
+**行为：**
+
+1. 从 Redis 调度 ZSET 移除，并删除任务快照、`api_key` 缓存、投递锁
+2. 若任务为 `pending` / `running`，对当前 `celery_task_id` 执行 `revoke`（`running` 时 `terminate=true` 以尝试终止正在执行的 Worker）
+3. 删除 MySQL `feishu_async_tasks` 对应行；各平台结果表 `feishu_*_results` 中 `task_id` 关联行因 **ON DELETE CASCADE** 一并删除
+
+**成功响应：**
+
+```json
+{
+  "code": 0,
+  "data": {
+    "result": {
+      "task_id": "42",
+      "deleted": true
+    }
+  }
+}
+```
+
+**常见错误：**
+
+| HTTP | `code` | 说明 |
+|------|--------|------|
+| 404 | `1023` | 任务不存在 |
+| 403 | `1020` | `X-User-Id` 与任务归属不一致 |
+
+与「取消」不同：取消依赖 yddm 校验且已 `cancelled` 时返回 409；**删除**不依赖 yddm，且**已取消任务也可直接删除**。删除为不可恢复，请谨慎调用。
+
+**示例：**
+
+```bash
+curl -s -X POST "http://127.0.0.1:8765/api/v1/async/tasks/42/delete" \
+  -H "X-User-Id: 12345"
+```
 
 ---
 

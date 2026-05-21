@@ -8,6 +8,12 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class AsyncTaskSubmitRequest(BaseModel):
+    task_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="任务名称（必填，1～100 字符）",
+    )
     action: str = Field(
         ..., min_length=1, max_length=128, description="已注册的 kebab-case action"
     )
@@ -17,12 +23,18 @@ class AsyncTaskSubmitRequest(BaseModel):
     task_start_time: str = Field(
         ...,
         min_length=1,
-        description="定时任务开始时间（ISO8601 或毫秒时间戳，必填）",
+        description=(
+            "定时任务开始时间（必填）：\"YYYY-MM-DD HH:MM:SS\"，按 naive datetime 原样入库，"
+            "亦支持 ISO8601 / 毫秒时间戳"
+        ),
     )
     task_end_time: str = Field(
         ...,
         min_length=1,
-        description="定时任务结束时间（ISO8601 或毫秒时间戳，必填）",
+        description=(
+            "定时任务结束时间（必填）：\"YYYY-MM-DD HH:MM:SS\"，按 naive datetime 原样入库，"
+            "亦支持 ISO8601 / 毫秒时间戳"
+        ),
     )
     interval_minutes: int = Field(
         default=60,
@@ -35,6 +47,18 @@ class AsyncTaskSubmitRequest(BaseModel):
         le=500,
         description="单次采集条数上限，不传默认 100",
     )
+
+    @field_validator("task_name", mode="before")
+    @classmethod
+    def _normalize_task_name(cls, value: Any) -> Any:
+        if value is None:
+            raise ValueError("task_name 为必填")
+        if not isinstance(value, str):
+            return value
+        stripped = value.strip()
+        if not stripped or len(stripped) > 100:
+            raise ValueError("task_name 长度须为 1～100 字符")
+        return stripped
 
     @field_validator("task_start_time", "task_end_time", mode="before")
     @classmethod

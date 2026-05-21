@@ -9,7 +9,11 @@ from social_platform.api_response import async_task_meta
 from social_platform.models.async_task import AsyncTask
 from social_platform.models.results.registry import get_result_model
 from social_platform.schemas.async_task import AsyncTaskResultsResponse
-from social_platform.services.result_store_service import paginate_task_results
+from social_platform.services.result_store_service import (
+    accept_results_by_platform,
+    list_pending_acceptance_by_platform,
+    paginate_task_results,
+)
 from social_platform.utils.async_task_ids import parse_async_task_pk
 
 
@@ -64,4 +68,38 @@ def paginate_result(
     return (
         AsyncTaskResultsResponse(page=page, limit=limit, total=total, items=items),
         meta,
+    )
+
+
+def list_batch_acceptance_pending(
+    db: Session,
+    *,
+    user_id: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """当前用户四平台待验收 id（``is_upload=0``），含无 task_id 的同步单次数据。"""
+    uid = (user_id or "").strip()
+    by_platform, total = list_pending_acceptance_by_platform(db, user_id=uid)
+    return (
+        {**by_platform, "total": total},
+        async_task_meta(platform="", action=""),
+    )
+
+
+def accept_batch_results(
+    db: Session,
+    *,
+    user_id: str,
+    by_platform: dict[str, list[int]],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """批量验收：``{ platform: [id, ...] }`` → ``is_upload=1``。"""
+    uid = (user_id or "").strip()
+    try:
+        updated = accept_results_by_platform(db, by_platform=by_platform, user_id=uid)
+    except ValueError:
+        raise
+    accepted = sum(int(n) for n in updated.values())
+    db.commit()
+    return (
+        {**updated, "accepted": accepted},
+        async_task_meta(platform="", action=""),
     )

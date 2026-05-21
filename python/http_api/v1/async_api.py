@@ -11,6 +11,16 @@ from sqlalchemy.orm import Session
 
 from config.settings import get_settings
 from http_api.rate_limit import ip_rate_limit
+from http_api.rate_limit_scopes import (
+    ASYNC_SUBMIT,
+    ASYNC_TASK_CANCEL,
+    ASYNC_TASK_DELETE,
+    ASYNC_TASK_EDIT,
+    ASYNC_TASK_LIST,
+    ASYNC_TASK_RESTART,
+    ASYNC_TASK_RESULTS,
+    ASYNC_TASK_STATUS,
+)
 from social_platform.actions.registry import get_action_spec
 from social_platform.api_response import (
     ApiHttpError,
@@ -32,6 +42,7 @@ from social_platform.api_status_codes import (
     CODE_UNSUPPORTED_ACTION,
     get_message,
 )
+from social_platform.schemas.async_edit import AsyncTaskEditRequest
 from social_platform.schemas.async_submit import AsyncTaskSubmitRequest
 from social_platform.services import result_service, task_service
 from social_platform.services.yddm_user_client import YddmCallError
@@ -78,12 +89,67 @@ def _require_db(db: Optional[Session]) -> None:
         )
 
 
+def _edit_async_task_handler(
+    *,
+    body: AsyncTaskEditRequest,
+    x_api_key: str,
+    x_user_id: str,
+    db: Session,
+) -> JSONResponse:
+    try:
+        uid = task_service.assert_async_task_user(
+            api_key=x_api_key.strip(),
+            x_user_id=x_user_id.strip(),
+        )
+    except YddmCallError as e:
+        return respond_yddm_error(e.api_code, e.message, http_status=e.http_status)
+
+    try:
+        updated = task_service.update_async_task(
+            db,
+            str(body.task_id),
+            user_id=uid,
+            updates=body.updates_dict(),
+        )
+    except ValidationError as ve:
+        return respond_err(
+            CODE_BAD_REQUEST,
+            get_message(CODE_BAD_REQUEST),
+            data={"errors": ve.errors()},
+            http_status=400,
+        )
+    except ApiHttpError as e:
+        return respond_err(
+            e.code,
+            e.msg,
+            e.data,
+            http_status=e.http_status,
+            headers=e.headers,
+        )
+    except ValueError as e:
+        return respond_err(
+            CODE_BAD_REQUEST,
+            str(e) or get_message(CODE_BAD_REQUEST),
+            http_status=400,
+        )
+
+    if updated is None:
+        return respond_err(CODE_NOT_FOUND, http_status=404)
+
+    return respond(
+        ok_with_meta(
+            updated.model_dump(),
+            async_task_meta(platform=updated.platform, action=updated.action),
+        )
+    )
+
+
 def build_async_router() -> APIRouter:
     r = APIRouter(prefix="/async", tags=["v1-async"])
 
     @r.post(
         "/tasks",
-        dependencies=[ip_rate_limit(max_requests=30, window_seconds=60, scope="async_submit")],
+        dependencies=[ip_rate_limit(max_requests=30, window_seconds=60, scope=ASYNC_SUBMIT)],
     )
     def submit_async_task(
         body: AsyncTaskSubmitRequest,
@@ -119,6 +185,7 @@ def build_async_router() -> APIRouter:
                 body=body.body if isinstance(body.body, dict) else {},
                 user_id=x_user_id.strip(),
                 api_key=x_api_key.strip(),
+                task_name=body.task_name,
                 task_start_time=schedule_start,
                 task_end_time=schedule_end,
                 interval_minutes=task_service.normalize_interval_minutes(
@@ -174,17 +241,83 @@ def build_async_router() -> APIRouter:
 
         plat = spec.platform if spec is not None else ""
 
+        st = task_service.get_task_status(db, str(tid))  # type: ignore[arg-type]
+        result: dict = {"task_id": tid, "status": "pending"}
+        if st is not None:
+            result = st.model_dump()
+
         return respond(
             ok_with_meta(
-                {"task_id": tid, "status": "pending"},
+                result,
                 async_task_meta(platform=plat, action=action),
+            )
+        )
+
+    @r.post(
+        "/tasks/edit",
+        dependencies=[
+            ip_rate_limit(max_requests=60, window_seconds=60, scope=ASYNC_TASK_EDIT)
+        ],
+    )
+    def edit_async_task(
+        body: AsyncTaskEditRequest,
+        x_api_key: Annotated[str, Header(alias="X-API-Key", min_length=1)],
+        x_user_id: Annotated[str, Header(alias="X-User-Id", min_length=1)],
+        db: Annotated[Optional[Session], Depends(get_db)],
+    ) -> JSONResponse:
+        _require_db(db)
+        return _edit_async_task_handler(
+            body=body,
+            x_api_key=x_api_key,
+            x_user_id=x_user_id,
+            db=db,  # type: ignore[arg-type]
+        )
+
+    @r.get(
+        "/tasks",
+        dependencies=[
+            ip_rate_limit(max_requests=60, window_seconds=60, scope=ASYNC_TASK_LIST)
+        ],
+    )
+    def list_async_tasks(
+        x_api_key: Annotated[str, Header(alias="X-API-Key", min_length=1)],
+        x_user_id: Annotated[str, Header(alias="X-User-Id", min_length=1)],
+        db: Annotated[Optional[Session], Depends(get_db)],
+        page: Annotated[int, Query(ge=1)] = 1,
+        limit: Annotated[int, Query(ge=1, le=100)] = 20,
+        task_status: Annotated[
+            Optional[str],
+            Query(description="按状态筛选：pending/running/success/failed/cancelled"),
+        ] = None,
+    ) -> JSONResponse:
+        _require_db(db)
+
+        try:
+            uid = task_service.assert_async_task_user(
+                api_key=x_api_key.strip(),
+                x_user_id=x_user_id.strip(),
+            )
+        except YddmCallError as e:
+            return respond_yddm_error(e.api_code, e.message, http_status=e.http_status)
+
+        data = task_service.list_async_tasks_for_user(
+            db,  # type: ignore[arg-type]
+            uid,
+            page=page,
+            limit=limit,
+            status=task_status,
+        )
+        return respond(
+            ok_with_meta(
+                data.model_dump(),
+                async_task_meta(platform="", action=""),
             )
         )
 
     @r.get(
         "/tasks/{task_id}",
         dependencies=[
-            ip_rate_limit(max_requests=120, window_seconds=60, scope="async_task_read")
+            ip_rate_limit(max_requests=120, window_seconds=60, scope=ASYNC_TASK_STATUS)
         ],
     )
     def get_task_status(
@@ -212,7 +345,7 @@ def build_async_router() -> APIRouter:
     @r.post(
         "/tasks/{task_id}/cancel",
         dependencies=[
-            ip_rate_limit(max_requests=30, window_seconds=60, scope="async_task_cancel")
+            ip_rate_limit(max_requests=30, window_seconds=60, scope=ASYNC_TASK_CANCEL)
         ],
     )
     def cancel_async_task(
@@ -269,9 +402,48 @@ def build_async_router() -> APIRouter:
         )
 
     @r.post(
+        "/tasks/{task_id}/delete",
+        dependencies=[
+            ip_rate_limit(max_requests=30, window_seconds=60, scope=ASYNC_TASK_DELETE)
+        ],
+    )
+    def delete_async_task(
+        task_id: str,
+        x_user_id: Annotated[str, Header(alias="X-User-Id", min_length=1)],
+        db: Annotated[Optional[Session], Depends(get_db)],
+    ) -> JSONResponse:
+        """删除任务：仅校验 X-User-Id 与库中 user_id 一致（不调用 yddm）；任意状态含 cancelled 均可删。"""
+        _require_db(db)
+
+        try:
+            deleted = task_service.delete_async_task(
+                db,  # type: ignore[arg-type]
+                task_id,
+                user_id=x_user_id.strip(),
+            )
+        except ApiHttpError as e:
+            return respond_err(
+                e.code,
+                e.msg,
+                e.data,
+                http_status=e.http_status,
+                headers=e.headers,
+            )
+
+        if not deleted:
+            return respond_err(CODE_NOT_FOUND, http_status=404)
+
+        return respond(
+            ok_with_meta(
+                {"task_id": task_id, "deleted": True},
+                async_task_meta(platform="", action=""),
+            )
+        )
+
+    @r.post(
         "/tasks/{task_id}/restart",
         dependencies=[
-            ip_rate_limit(max_requests=30, window_seconds=60, scope="async_task_restart")
+            ip_rate_limit(max_requests=30, window_seconds=60, scope=ASYNC_TASK_RESTART)
         ],
     )
     def restart_async_task(
@@ -363,7 +535,7 @@ def build_async_router() -> APIRouter:
     @r.get(
         "/tasks/{task_id}/results",
         dependencies=[
-            ip_rate_limit(max_requests=120, window_seconds=60, scope="async_task_read")
+            ip_rate_limit(max_requests=120, window_seconds=60, scope=ASYNC_TASK_RESULTS)
         ],
     )
     def get_task_results(
@@ -371,7 +543,7 @@ def build_async_router() -> APIRouter:
         db: Annotated[Optional[Session], Depends(get_db)],
         page: Annotated[int, Query(ge=1)] = 1,
         limit: Annotated[Optional[int], Query(ge=1, le=200)] = None,
-        is_upload: Annotated[Optional[int], Query(ge=0, le=1)] = None,
+        is_upload: Annotated[int, Query(ge=0, le=1)] = 0,
         x_user_id: Annotated[Optional[str], Header(alias="X-User-Id")] = None,
     ) -> JSONResponse:
 

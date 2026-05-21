@@ -31,6 +31,18 @@ class MpSearchResult(Base):
         Index("ix_feishu_mp_results_is_upload", "is_upload"),
         Index("ix_feishu_mp_results_create_time", "create_time"),
         Index("ix_feishu_mp_results_keyword", "keyword"),
+        Index(
+            "ix_feishu_mp_results_task_upload_ct",
+            "task_id",
+            "is_upload",
+            "create_time",
+        ),
+        Index(
+            "ix_feishu_mp_results_user_upload_id",
+            "user_id",
+            "is_upload",
+            "id",
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

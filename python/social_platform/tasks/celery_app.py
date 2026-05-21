@@ -1,4 +1,4 @@
-"""Celery 应用：broker/backend 与任务注册（供 `celery -A celery_jobs.celery_app` 或本模块启动）。"""
+"""Celery 应用：broker/backend 与任务注册（`celery -A social_platform.tasks.celery_app`）。"""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ import os
 import sys
 from pathlib import Path
 
-# Windows：billiard 默认 prefork 易触发 ``fast_trace_task`` 中 ``_loc`` 解包失败（celery/celery#8921）。
-# 须在导入 Celery / billiard 之前设置；另见下方 ``worker_pool = "solo"``。
+# Windows：prefork 易触发 billiard ``_loc`` 错误；默认改用 gevent（见 CELERY_WORKER_POOL）。
+# 若仍用 prefork，须在导入 Celery 前设置本变量。
 if sys.platform == "win32":
     os.environ.setdefault("FORKED_BY_MULTIPROCESSING", "1")
 
@@ -59,7 +59,16 @@ celery_app.conf.update(
     task_eager_propagates=_settings.celery_task_eager,
 )
 
-if sys.platform == "win32":
+_pool = (_settings.celery_worker_pool or "").strip().lower()
+if _pool:
+    celery_app.conf.worker_pool = _pool
+    celery_app.conf.worker_concurrency = max(
+        1, int(_settings.celery_worker_concurrency)
+    )
+    celery_app.conf.worker_prefetch_multiplier = max(
+        1, int(_settings.celery_worker_prefetch_multiplier)
+    )
+elif sys.platform == "win32":
     celery_app.conf.worker_pool = "solo"
 
 celery_app.conf.include = ["social_platform.tasks.worker_tasks"]

@@ -18,5 +18,5 @@ extend-exclude = '/(__pycache__|\.venv|venv)/'
 [tool.isort]
 profile = "black"
 line_length = 88
-known_first_party = ["config", "http_api", "social_platform", "celery_jobs"]
+known_first_party = ["config", "http_api", "social_platform"]
 src_paths = ["."]

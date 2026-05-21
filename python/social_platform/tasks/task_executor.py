@@ -21,7 +21,7 @@ from social_platform.services.search_persist import (
     try_save_search_after_crawl,
     unbind_search_all_async_persist,
 )
-from social_platform.schedule_time import utc_naive_from_storage
+from social_platform.schedule_time import naive_dt, schedule_now_wall_naive
 from social_platform.services import async_task_redis, task_service
 
 
@@ -62,21 +62,21 @@ def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
         logger.warning("async task %s missing api_key in payload and db", task_id)
         task.status = "failed"
         task.error_message = "missing api_key"
-        task.update_time = datetime.utcnow()
+        task.update_time = schedule_now_wall_naive()
         db.add(task)
         db.commit()
         return
 
     now = task_service.utc_now_naive()
-    window_start = utc_naive_from_storage(task.task_start_time)
-    window_end = utc_naive_from_storage(task.task_end_time)
+    window_start = naive_dt(task.task_start_time)
+    window_end = naive_dt(task.task_end_time)
 
     if task.cancel_requested:
         task.status = "cancelled"
         task.next_run_at = None
         task.current_run_id = None
         task.running_lease_until = None
-        task.update_time = datetime.utcnow()
+        task.update_time = schedule_now_wall_naive()
         db.add(task)
         db.commit()
         async_task_redis.unschedule_async_task(task_id)
@@ -87,7 +87,7 @@ def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
         task.next_run_at = None
         task.current_run_id = None
         task.running_lease_until = None
-        task.update_time = datetime.utcnow()
+        task.update_time = schedule_now_wall_naive()
         db.add(task)
         db.commit()
         async_task_redis.unschedule_async_task(task_id)
@@ -98,7 +98,7 @@ def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
         task.next_run_at = window_start
         task.current_run_id = None
         task.running_lease_until = None
-        task.update_time = datetime.utcnow()
+        task.update_time = schedule_now_wall_naive()
         db.add(task)
         db.commit()
         async_task_redis.enqueue_async_task_execution(
@@ -127,7 +127,7 @@ def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
     task.next_run_at = None
     task.current_run_id = run_id
     task.running_lease_until = running_lease_until
-    task.update_time = datetime.utcnow()
+    task.update_time = schedule_now_wall_naive()
     db.add(task)
     db.commit()
     async_task_redis.unschedule_async_task(task_id)
@@ -183,7 +183,7 @@ def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
         task = db.get(AsyncTask, task_id)
         if task is None:
             return
-        task.update_time = datetime.utcnow()
+        task.update_time = schedule_now_wall_naive()
         if not ok:
             msg = api_body.get("msg")
             err = (str(msg) if msg is not None else "")[:64]
@@ -199,7 +199,7 @@ def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
             return
         if not task.error_message:
             task.error_message = "execution error"
-        task.update_time = datetime.utcnow()
+        task.update_time = schedule_now_wall_naive()
         db.add(task)
         db.commit()
         ok = False

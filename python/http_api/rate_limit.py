@@ -1,4 +1,7 @@
-"""按客户端 IP 的滑动窗口限流（Redis ZSET；Redis 不可用时回退进程内计数）。"""
+"""按用户 + 接口 scope 的滑动窗口限流（有 X-User-Id 时按用户，否则回退 IP）。
+
+Redis ZSET key：``feishu:ratelimit:{scope}:{client}``；Redis 不可用时回退进程内计数。
+"""
 
 from __future__ import annotations
 
@@ -36,6 +39,16 @@ def client_ip(request: Request) -> str:
     return "unknown"
 
 
+def rate_limit_client_key(request: Request) -> str:
+    """限流主体：优先 ``X-User-Id``，否则客户端 IP。"""
+    user_id = (request.headers.get("X-User-Id") or "").strip()
+    if user_id:
+        safe = user_id.replace(":", "_")[:128]
+        return f"user:{safe}"
+    safe_ip = client_ip(request).replace(":", "_")[:128]
+    return f"ip:{safe_ip}"
+
+
 def normalize_rate_limit_scope(scope: str) -> str:
     """
     限流桶名：仅允许短标识（字母开头），禁止 URL/path，避免 Redis key 爆炸。
@@ -48,18 +61,18 @@ def normalize_rate_limit_scope(scope: str) -> str:
     return s
 
 
-def _redis_rate_limit_key(ip: str, scope: str) -> str:
-    """feishu:ratelimit:{scope}:{ip} — 不含 method/path/URL。"""
-    safe_ip = (ip or "unknown").replace(":", "_")[:128]
-    return f"{RATE_LIMIT_KEY_PREFIX}{scope}:{safe_ip}"
+def _redis_rate_limit_key(client_key: str, scope: str) -> str:
+    """feishu:ratelimit:{scope}:{client} — client 为 user:… 或 ip:…。"""
+    safe = (client_key or "ip:unknown").replace(":", "_")[:160]
+    return f"{RATE_LIMIT_KEY_PREFIX}{scope}:{safe}"
 
 
 def _now_ms() -> int:
     return int(time.time() * 1000)
 
 
-def _check_ip_rate_limit_redis(
-    ip: str,
+def _check_rate_limit_redis(
+    client_key: str,
     scope: str,
     *,
     max_requests: int,
@@ -67,7 +80,7 @@ def _check_ip_rate_limit_redis(
 ) -> None:
     r = get_redis()
     scope_key = normalize_rate_limit_scope(scope)
-    key = _redis_rate_limit_key(ip, scope_key)
+    key = _redis_rate_limit_key(client_key, scope_key)
     now_ms = _now_ms()
     window_ms = max(1, int(float(window_seconds) * 1000))
     cutoff_ms = now_ms - window_ms
@@ -94,15 +107,15 @@ def _check_ip_rate_limit_redis(
     r.expire(key, int(max(window_seconds, 1)) + 1)
 
 
-def _check_ip_rate_limit_memory(
-    ip: str,
+def _check_rate_limit_memory(
+    client_key: str,
     scope: str,
     *,
     max_requests: int,
     window_seconds: float,
 ) -> None:
     scope_key = normalize_rate_limit_scope(scope)
-    bucket = (ip, scope_key)
+    bucket = (client_key, scope_key)
     now = time.monotonic()
     cutoff = now - window_seconds
     with _lock:
@@ -120,7 +133,7 @@ def _check_ip_rate_limit_memory(
         q.append(now)
 
 
-def check_ip_rate_limit(
+def check_rate_limit(
     request: Request,
     *,
     max_requests: int,
@@ -131,12 +144,12 @@ def check_ip_rate_limit(
         return
     if not (scope or "").strip():
         raise ValueError("rate limit scope is required")
-    ip = client_ip(request)
+    client_key = rate_limit_client_key(request)
     scope_key = normalize_rate_limit_scope(scope)
     if redis_configured():
         try:
-            _check_ip_rate_limit_redis(
-                ip,
+            _check_rate_limit_redis(
+                client_key,
                 scope_key,
                 max_requests=max_requests,
                 window_seconds=window_seconds,
@@ -149,8 +162,8 @@ def check_ip_rate_limit(
                 "redis rate limit failed, falling back to memory",
                 exc_info=True,
             )
-    _check_ip_rate_limit_memory(
-        ip,
+    _check_rate_limit_memory(
+        client_key,
         scope_key,
         max_requests=max_requests,
         window_seconds=window_seconds,
@@ -163,12 +176,12 @@ def ip_rate_limit(
     window_seconds: float = 60.0,
     scope: str,
 ):
-    """FastAPI 依赖：同一 IP 在 ``window_seconds`` 秒内最多 ``max_requests`` 次。"""
+    """FastAPI 依赖：同一用户（``X-User-Id``）+ scope 在窗口内最多 ``max_requests`` 次；无用户头时按 IP。"""
 
     normalize_rate_limit_scope(scope)
 
     def _dep(request: Request) -> None:
-        check_ip_rate_limit(
+        check_rate_limit(
             request,
             max_requests=max_requests,
             window_seconds=window_seconds,

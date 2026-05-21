@@ -76,7 +76,7 @@ class DouyinParser:
             signature = author.get("signature", "")
 
             # 头像
-            avatar = author.get("avatar_larger", {}).get("url_list", [""])[0]
+            avatar = author.get("avatar_larger", {}).get("url_list", [""])[0] or author.get("avatar_thumb", {}).get("url_list", [""])[0]
 
             # 企业认证
             enterprise_verify_reason = author.get("enterprise_verify_reason", "")

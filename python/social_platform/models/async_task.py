@@ -3,17 +3,22 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any, Optional
 
-from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Integer, String
+from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from social_platform.models.base import Base
+from social_platform.schedule_time import schedule_now_wall_naive
 
 
 class AsyncTask(Base):
     __tablename__ = "feishu_async_tasks"
+    __table_args__ = (
+        Index("ix_async_tasks_user_status_id", "user_id", "status", "id"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    task_name: Mapped[str] = mapped_column(String(100), default="", nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
     action: Mapped[str] = mapped_column(String(128), default="", index=True)
     body_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
@@ -36,10 +41,10 @@ class AsyncTask(Base):
     interval_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
     fetch_count: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
     create_time: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=lambda: dt.datetime.utcnow()
+        DateTime, default=schedule_now_wall_naive
     )
     update_time: Mapped[dt.datetime] = mapped_column(
         DateTime,
-        default=lambda: dt.datetime.utcnow(),
-        onupdate=lambda: dt.datetime.utcnow(),
+        default=schedule_now_wall_naive,
+        onupdate=schedule_now_wall_naive,
     )

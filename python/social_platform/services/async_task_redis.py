@@ -12,11 +12,12 @@ from sqlalchemy import or_, select
 from social_platform.models.async_task import AsyncTask
 from social_platform.redis_client import get_redis, redis_configured
 from social_platform.schedule_time import (
-    normalize_schedule_datetime,
     parse_schedule_utc_iso,
-    schedule_now_utc_naive,
-    schedule_utc_iso,
-    utc_naive_from_storage,
+    parse_schedule_wall_clock,
+    schedule_now_wall_naive,
+    schedule_wall_clock_str,
+    naive_dt,
+    wall_clock_to_timestamp,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,8 +52,8 @@ def _dispatch_lock_ttl_seconds() -> int:
 def _ttl_seconds(task_end: datetime, *, extra: int = 3600) -> int:
     from config.settings import get_settings
 
-    end = utc_naive_from_storage(task_end)
-    now = schedule_now_utc_naive()
+    end = naive_dt(task_end)
+    now = schedule_now_wall_naive()
     raw = max(60, int((end - now).total_seconds()) + extra)
     max_ttl = max(60, int(get_settings().async_task_redis_max_ttl_seconds))
     return min(raw, max_ttl)
@@ -73,33 +74,16 @@ def parse_cached_datetime(value: Any) -> Optional[datetime]:
     if value is None:
         return None
     if isinstance(value, datetime):
-        if value.tzinfo is not None:
-            return value.astimezone(timezone.utc).replace(tzinfo=None)
-        return value
+        return naive_dt(value)
     if not isinstance(value, str):
         return None
-    raw = value.strip()
-    if not raw:
-        return None
-    if raw.endswith("Z"):
-        return parse_schedule_utc_iso(raw)
-    try:
-        parsed = datetime.fromisoformat(raw)
-        if parsed.tzinfo is not None:
-            return parsed.astimezone(timezone.utc).replace(tzinfo=None)
-        return parsed
-    except ValueError:
-        return None
+    return parse_schedule_wall_clock(value)
 
 
 def is_run_at_due(run_at: datetime, *, now: Optional[datetime] = None) -> bool:
-    """判断 scheduled run_at 是否已到（参数均为 UTC naive）。"""
-    t = now if now is not None else schedule_now_utc_naive()
-    at = (
-        run_at.astimezone(timezone.utc).replace(tzinfo=None)
-        if run_at.tzinfo
-        else run_at.replace(tzinfo=None)
-    )
+    """判断 scheduled run_at 是否已到（东八区墙钟 naive）。"""
+    t = naive_dt(now) if now is not None else schedule_now_wall_naive()
+    at = naive_dt(run_at)
     return at <= t
 
 
@@ -107,9 +91,7 @@ def _lease_expired(row: AsyncTask, *, now: datetime) -> bool:
     lease_until = getattr(row, "running_lease_until", None)
     if lease_until is None:
         return True
-    if lease_until.tzinfo is not None:
-        lease_until = lease_until.astimezone(timezone.utc).replace(tzinfo=None)
-    return lease_until <= now
+    return naive_dt(lease_until) <= naive_dt(now)
 
 
 def get_committed_next_run_at(row: AsyncTask) -> Optional[datetime]:
@@ -118,7 +100,7 @@ def get_committed_next_run_at(row: AsyncTask) -> Optional[datetime]:
     if raw is None:
         return None
     if isinstance(raw, datetime):
-        return utc_naive_from_storage(raw)
+        return naive_dt(raw)
     return parse_cached_datetime(raw)
 
 
@@ -131,7 +113,7 @@ def resolve_next_run_at(
     """ZSET 对齐 / restore：优先 DB next_run_at，缺失时回退窗口内首次执行时刻。"""
     from social_platform.services.task_service import first_run_at
 
-    t = now if now is not None else schedule_now_utc_naive()
+    t = now if now is not None else schedule_now_wall_naive()
     start = first_run_at(row, now=t)
     committed = get_committed_next_run_at(row)
     if committed is not None:
@@ -147,18 +129,16 @@ def _recovery_run_at(row: AsyncTask, *, now: Optional[datetime] = None) -> datet
     """running 租约过期后重新预约：按 interval_minutes 推迟，而非立即重跑。"""
     from social_platform.services.task_service import first_run_at, next_run_after_completion
 
-    t = now if now is not None else schedule_now_utc_naive()
+    t = now if now is not None else schedule_now_wall_naive()
     nxt = next_run_after_completion(row, t)
     if nxt is not None:
         return nxt
     return first_run_at(row, now=t)
 
 
-def _celery_dispatch_backoff_seconds(row: AsyncTask) -> int:
-    from social_platform.services.task_service import interval_minutes_to_seconds
-
-    interval = max(30, int(interval_minutes_to_seconds(getattr(row, "interval_minutes", 60))))
-    return min(interval, 300)
+def _celery_broker_retry_seconds() -> int:
+    """Celery broker 投递失败时的短退避（秒），与采集周期 interval 无关。"""
+    return 60
 
 
 def defer_pending_celery_dispatch(
@@ -170,13 +150,14 @@ def defer_pending_celery_dispatch(
     """Celery 投递失败时：将 next_run_at 推后并写回 ZSET，避免无间隔重复 dispatch。"""
     from social_platform.database.session import session_scope
 
-    now = schedule_now_utc_naive()
-    backoff = timedelta(seconds=_celery_dispatch_backoff_seconds(row))
-    committed = get_committed_next_run_at(row)
+    now = schedule_now_wall_naive()
+    backoff = timedelta(seconds=_celery_broker_retry_seconds())
     deferred = now + backoff
-    if committed is not None and committed > deferred:
+    committed = get_committed_next_run_at(row)
+    # 仅保留「未来」的采集预约（如 schedule_next 写入）；勿把已过期或首次调度时刻顶掉短退避
+    if committed is not None and committed > now and committed > deferred:
         deferred = committed
-    end = utc_naive_from_storage(row.task_end_time)
+    end = naive_dt(row.task_end_time)
     if deferred >= end:
         unschedule_async_task(task_id)
         return deferred
@@ -185,7 +166,7 @@ def defer_pending_celery_dispatch(
         db_row = db.get(AsyncTask, tid)
         if db_row is not None and str(db_row.status or "") == "pending":
             db_row.next_run_at = deferred
-            db_row.update_time = datetime.utcnow()
+            db_row.update_time = schedule_now_wall_naive()
             db.add(db_row)
             row = db_row
     schedule_async_task_run(tid, deferred)
@@ -195,7 +176,7 @@ def defer_pending_celery_dispatch(
         extra={
             "task_id": tid,
             "reason": str(reason),
-            "next_run_at": schedule_utc_iso(deferred),
+            "next_run_at": schedule_wall_clock_str(deferred),
             "backoff_seconds": int(backoff.total_seconds()),
         },
     )
@@ -225,15 +206,21 @@ def _row_to_cache(
         "success_count": int(row.success_count or 0),
         "failed_count": int(row.failed_count or 0),
         "task_start_time": (
-            row.task_start_time.isoformat() if row.task_start_time else None
+            schedule_wall_clock_str(row.task_start_time)
+            if row.task_start_time
+            else None
         ),
-        "task_end_time": row.task_end_time.isoformat() if row.task_end_time else None,
+        "task_end_time": (
+            schedule_wall_clock_str(row.task_end_time)
+            if row.task_end_time
+            else None
+        ),
         "interval_minutes": interval_min,
         "interval_seconds": interval_minutes_to_seconds(interval_min),
         "fetch_count": int(getattr(row, "fetch_count", None) or 100),
         "run_id": str(getattr(row, "current_run_id", "") or ""),
         "running_lease_until": (
-            schedule_utc_iso(row.running_lease_until)
+            schedule_wall_clock_str(row.running_lease_until)
             if getattr(row, "running_lease_until", None) is not None
             else None
         ),
@@ -241,9 +228,9 @@ def _row_to_cache(
     if clear_next_run:
         return payload
     if next_run_at is not None:
-        payload["next_run_at"] = schedule_utc_iso(next_run_at)
+        payload["next_run_at"] = schedule_wall_clock_str(next_run_at)
     elif getattr(row, "next_run_at", None) is not None:
-        payload["next_run_at"] = schedule_utc_iso(utc_naive_from_storage(row.next_run_at))
+        payload["next_run_at"] = schedule_wall_clock_str(row.next_run_at)
     elif previous and previous.get("next_run_at"):
         payload["next_run_at"] = previous["next_run_at"]
     return payload
@@ -345,7 +332,7 @@ def schedule_async_task_run(task_id: int, run_at: datetime) -> None:
     """将任务加入 Redis 调度 ZSET（score = 执行时刻 Unix 秒）。"""
     if not redis_configured():
         raise RuntimeError("Redis 未配置，无法调度异步任务")
-    score = utc_naive_from_storage(run_at).timestamp()
+    score = wall_clock_to_timestamp(run_at)
     get_redis().zadd(SCHEDULE_ZSET, {str(int(task_id)): score})
 
 
@@ -444,8 +431,8 @@ def apply_celery_run_at(
     key = (api_key or "").strip()
     if not key:
         return None
-    now = schedule_now_utc_naive()
-    target = utc_naive_from_storage(run_at)
+    now = schedule_now_wall_naive()
+    target = naive_dt(run_at)
     countdown = max(0, int((target - now).total_seconds()))
     kwargs: dict[str, Any] = {
         "args": [int(task_id), key],
@@ -484,7 +471,7 @@ def _persist_celery_task_id(task_id: int, celery_task_id: str) -> None:
         row = db.get(AsyncTask, int(task_id))
         if row is not None:
             row.celery_task_id = celery_task_id
-            row.update_time = datetime.utcnow()
+            row.update_time = schedule_now_wall_naive()
             db.add(row)
     update_cached_celery_id(task_id, celery_task_id)
 
@@ -510,7 +497,7 @@ def dispatch_task_by_id(task_id: int) -> Optional[str]:
     try:
         priority = 0
         api_key: Optional[str] = None
-        now = schedule_now_utc_naive()
+        now = schedule_now_wall_naive()
         with session_scope() as db:
             row = db.get(AsyncTask, int(task_id))
             if row is None:
@@ -522,7 +509,15 @@ def dispatch_task_by_id(task_id: int) -> Optional[str]:
                 unschedule_async_task(task_id)
                 _log_cleanup_schedule_member(task_id, f"status_{status}")
                 return None
-            if now >= utc_naive_from_storage(row.task_end_time):
+            if now >= naive_dt(row.task_end_time):
+                row.status = "success"
+                row.next_run_at = None
+                row.celery_task_id = None
+                row.current_run_id = None
+                row.running_lease_until = None
+                row.update_time = schedule_now_wall_naive()
+                db.add(row)
+                db.commit()
                 unschedule_async_task(task_id)
                 _log_cleanup_schedule_member(task_id, "task_window_ended")
                 return None
@@ -547,7 +542,7 @@ def dispatch_task_by_id(task_id: int) -> Optional[str]:
                 return None
             priority = int(row.priority or 0)
 
-        run_at = committed if committed is not None else schedule_now_utc_naive()
+        run_at = committed if committed is not None else schedule_now_wall_naive()
         cid = apply_celery_run_at(
             task_id, str(api_key or ""), run_at, priority=priority
         )
@@ -585,8 +580,8 @@ def dispatch_due_async_tasks(*, batch_size: int = 50) -> int:
     if not redis_configured():
         return 0
     r = get_redis()
-    now_dt = schedule_now_utc_naive()
-    now = now_dt.timestamp()
+    now_dt = schedule_now_wall_naive()
+    now = wall_clock_to_timestamp(now_dt)
     members = r.zrangebyscore(SCHEDULE_ZSET, "-inf", now, start=0, num=batch_size)
     dispatched = 0
     from social_platform.database.session import session_scope
@@ -615,7 +610,7 @@ def dispatch_due_async_tasks(*, batch_size: int = 50) -> int:
                     if status in ("success", "cancelled") or row.cancel_requested:
                         should_cleanup = True
                         cleanup_reason = f"status_{status}"
-                    elif now >= utc_naive_from_storage(row.task_end_time).timestamp():
+                    elif now >= wall_clock_to_timestamp(row.task_end_time):
                         should_cleanup = True
                         cleanup_reason = "task_window_ended"
             if should_cleanup:
@@ -639,25 +634,32 @@ def dispatch_due_async_tasks(*, batch_size: int = 50) -> int:
                             defer_dt,
                         )
                         continue
-            r.zadd(SCHEDULE_ZSET, {member: defer_dt.timestamp()})
+            r.zadd(SCHEDULE_ZSET, {member: wall_clock_to_timestamp(defer_dt)})
             logger.info(
                 "async task %s dispatch deferred, re-queued at %s", tid, defer_dt
             )
     return dispatched
 
 
-def _pending_celery_in_flight(row: AsyncTask, *, grace_seconds: float = 600.0) -> bool:
-    """pending 且近期已投递 Celery：避免重复 apply_async。"""
+def _pending_celery_in_flight(row: AsyncTask, *, grace_seconds: float = 120.0) -> bool:
+    """
+    pending 且近期已投递 Celery：避免重复 apply_async。
+    仅当 next_run_at 仍未到期时生效；已到期须允许再次 dispatch（上一轮 Celery 通常已结束）。
+    """
     if str(row.status or "") != "pending":
         return False
     cid = (row.celery_task_id or "").strip()
     if not cid:
         return False
+    committed = get_committed_next_run_at(row)
+    now = schedule_now_wall_naive()
+    if committed is not None and is_run_at_due(committed, now=now):
+        return False
     updated = row.update_time or row.create_time
     if updated is None:
         return True
     u = updated.replace(tzinfo=None) if updated.tzinfo else updated
-    age = (schedule_now_utc_naive() - u).total_seconds()
+    age = (now - u).total_seconds()
     return age < grace_seconds
 
 
@@ -667,7 +669,7 @@ def recover_stale_running_tasks(*, batch_size: int = 50) -> int:
         return 0
     from social_platform.database.session import session_scope
 
-    now = schedule_now_utc_naive()
+    now = schedule_now_wall_naive()
     reset = 0
     with session_scope() as db:
         rows = db.scalars(
@@ -686,9 +688,9 @@ def recover_stale_running_tasks(*, batch_size: int = 50) -> int:
         for row in rows:
             if row is None:
                 continue
-            if utc_naive_from_storage(row.task_start_time) > now:
+            if naive_dt(row.task_start_time) > now:
                 continue
-            if utc_naive_from_storage(row.task_end_time) <= now:
+            if naive_dt(row.task_end_time) <= now:
                 continue
             tid = int(row.id)
             api_key = resolve_api_key_for_task(task_id=tid, row=row)
@@ -701,7 +703,7 @@ def recover_stale_running_tasks(*, batch_size: int = 50) -> int:
             row.celery_task_id = None
             row.current_run_id = None
             row.running_lease_until = None
-            row.update_time = datetime.utcnow()
+            row.update_time = schedule_now_wall_naive()
             db.add(row)
             db.commit()
             schedule_async_task_run(tid, run_at)
@@ -716,7 +718,7 @@ def recover_stale_pending_tasks(*, batch_size: int = 50) -> int:
         return 0
     from social_platform.database.session import session_scope
 
-    now = schedule_now_utc_naive()
+    now = schedule_now_wall_naive()
     recovered = 0
     with session_scope() as db:
         rows = db.scalars(
@@ -732,9 +734,19 @@ def recover_stale_pending_tasks(*, batch_size: int = 50) -> int:
         for row in rows:
             if row is None:
                 continue
-            if utc_naive_from_storage(row.task_start_time) > now:
+            if naive_dt(row.task_start_time) > now:
                 continue
-            if utc_naive_from_storage(row.task_end_time) <= now:
+            end = naive_dt(row.task_end_time)
+            if end <= now:
+                row.status = "success"
+                row.next_run_at = None
+                row.celery_task_id = None
+                row.current_run_id = None
+                row.running_lease_until = None
+                row.update_time = schedule_now_wall_naive()
+                db.add(row)
+                db.commit()
+                unschedule_async_task(int(row.id))
                 continue
             tid = int(row.id)
             api_key = resolve_api_key_for_task(task_id=tid, row=row)
@@ -764,14 +776,14 @@ def enqueue_async_task_execution(
     同步 Redis 缓存与 ZSET；run_at 在未来仅 zadd，已到期则 dispatch。
     调用方（submit / schedule_next）须已把 next_run_at 写入 DB。
     """
-    target = utc_naive_from_storage(run_at)
+    target = naive_dt(run_at)
     key = (api_key or "").strip() or str(getattr(row, "api_key", "") or "").strip()
     if not key:
         logger.warning("skip enqueue async task %s: empty api_key", int(row.id))
         return None
     cache_async_task(row, api_key=key, next_run_at=target)
     tid = int(row.id)
-    now = schedule_now_utc_naive()
+    now = schedule_now_wall_naive()
 
     if target > now:
         schedule_async_task_run(tid, target)
@@ -812,7 +824,7 @@ def restore_schedule_tasks_from_mysql(*, batch_size: int = 1000) -> dict[str, in
             "skipped_no_api_key": 0,
             "dispatch_due_count": 0,
         }
-    now = schedule_now_utc_naive()
+    now = schedule_now_wall_naive()
     restore_dispatch_due = bool(get_settings().async_restore_dispatch_due_on_startup)
     restored = 0
     already_scheduled = 0
@@ -848,7 +860,7 @@ def restore_schedule_tasks_from_mysql(*, batch_size: int = 1000) -> dict[str, in
                     skipped += 1
                     _log_cleanup_schedule_member(tid, "cancel_requested")
                     continue
-                if utc_naive_from_storage(row.task_end_time) <= now:
+                if naive_dt(row.task_end_time) <= now:
                     skipped += 1
                     continue
                 committed = get_committed_next_run_at(row)
@@ -867,15 +879,15 @@ def restore_schedule_tasks_from_mysql(*, batch_size: int = 1000) -> dict[str, in
                     extra={
                         "task_id": int(tid),
                         "status": status,
-                        "next_run_at": schedule_utc_iso(committed),
+                        "next_run_at": schedule_wall_clock_str(committed),
                         "dispatch_immediately": bool(dispatch_now),
                     },
                 )
                 member = str(tid)
                 old_score = r.zscore(SCHEDULE_ZSET, member)
-                r.zadd(SCHEDULE_ZSET, {member: committed.timestamp()})
+                r.zadd(SCHEDULE_ZSET, {member: wall_clock_to_timestamp(committed)})
                 if old_score is not None and float(old_score) == float(
-                    committed.timestamp()
+                    wall_clock_to_timestamp(committed)
                 ):
                     already_scheduled += 1
                 else:
