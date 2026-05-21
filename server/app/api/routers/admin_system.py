@@ -3,17 +3,17 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any, Optional
 
 import bcrypt
-from fastapi import APIRouter, Header, Request
+from fastapi import APIRouter, Depends, Header, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.admin_session import issue_admin_token, revoke_admin_token
 from app.api.deps import get_db
 from app.schemas.admin_response import admin_fail, admin_ok
-from fastapi import Depends
-from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/system", tags=["管理端-系统"])
 
@@ -23,7 +23,7 @@ class AdminLoginBody(BaseModel):
     password: str = Field(..., min_length=1, max_length=128)
 
 
-def _verify_password(plain: str, password_hash: str | None) -> bool:
+def _verify_password(plain: str, password_hash: Optional[str]) -> bool:
     if not password_hash:
         return False
     try:
@@ -78,7 +78,7 @@ def admin_login(body: AdminLoginBody, db: Session = Depends(get_db)):
 
 
 @router.post("/logout")
-def admin_logout(request: Request, token: str | None = Header(default=None)):
+def admin_logout(request: Request, token: Optional[str] = Header(default=None)):
     tok = token or request.headers.get("token")
     if tok:
         revoke_admin_token(tok)
