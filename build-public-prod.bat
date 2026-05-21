@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions
-rem 正式环境 API 地址预编译 admin + feishu
+rem 正式环境 API 预编译 admin + feishu
 
 set "ROOT=%~dp0"
 if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"

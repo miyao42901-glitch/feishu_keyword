@@ -1,8 +1,7 @@
 @echo off
 setlocal EnableExtensions
 rem 本地预编译 admin + feishu 到 public/（GitLab CI 仅 rsync，Runner 无需 Node）
-rem 用法: build-public-test.bat
-rem 正式: build-public-prod.bat
+rem 测试环境一键构建；正式环境用 build-public-prod.bat
 
 set "ROOT=%~dp0"
 if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
