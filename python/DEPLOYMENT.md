@@ -110,6 +110,7 @@ celery -A social_platform.tasks.celery_app worker -l info
 
 - `GET http://127.0.0.1:8765/api/v1/health`
 - 文档：`http://127.0.0.1:8765/docs`
+- ApiFox文档 `https://s.apifox.cn/ef07b14c-bbfd-4ed9-b26b-5bf796bfa15e`
 
 开发热重载（仅 HTTP，单进程）：
 

@@ -265,6 +265,7 @@ def persist_search_all_page_if_async(chunk: list[Any]) -> int:
             int(_stat_int(stats, "failed_count", "persist_errors")),
         )
         apply_search_persist_stats_to_async_task(ctx.db, int(ctx.task_id), stats)
+        ctx.db.commit()
         return int(_stat_int(stats, "inserted_count", "inserted"))
     logger.warning(
         "search-all chunk persist skipped/failed task_id=%s run_id=%s action=%s",

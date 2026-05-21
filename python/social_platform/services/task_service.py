@@ -34,6 +34,7 @@ from social_platform.actions.registry import (
 )
 from social_platform.api_status_codes import (
     CODE_ASYNC_SUBMIT_QUOTA_EXCEEDED,
+    CODE_INSUFFICIENT_BALANCE,
     get_message,
 )
 from social_platform.models.async_task import AsyncTask
@@ -693,6 +694,93 @@ def _revoke_celery_task(celery_id: Optional[str], *, terminate: bool = False) ->
     celery_app.control.revoke(cid, terminate=terminate)
 
 
+def _cancel_async_task_row(
+    db: Session,
+    row: AsyncTask,
+    *,
+    error_message: Optional[str] = None,
+) -> bool:
+    """
+    将单条任务置为 cancelled（与 cancel 接口一致，不删库、不删 Redis 快照）。
+    返回 True 表示本次新取消；False 表示已是 cancelled。
+    """
+    if row.status == "cancelled" or row.cancel_requested:
+        return False
+
+    celery_id = row.celery_task_id
+    was_active = row.status in ("pending", "running")
+    row.cancel_requested = True
+    row.status = "cancelled"
+    row.next_run_at = None
+    row.current_run_id = None
+    row.running_lease_until = None
+    if error_message is not None:
+        row.error_message = (error_message or "")[:64] or None
+    row.update_time = schedule_now_wall_naive()
+    db.add(row)
+    db.commit()
+    async_task_redis.retain_async_task_redis_on_cancel(row)
+    if celery_id and was_active:
+        _revoke_celery_task(celery_id, terminate=False)
+    return True
+
+
+def cancel_all_active_async_tasks_for_user(
+    db: Session,
+    user_id: str,
+    *,
+    error_message: Optional[str] = None,
+) -> int:
+    """
+    取消该用户所有 pending/running 定时任务（不删除 MySQL 行）。
+    用于 yddm 数据接口返回余额不足（1001）后的批量止损。
+    """
+    uid = str(user_id or "").strip()
+    if not uid:
+        return 0
+    rows = list(
+        db.scalars(
+            select(AsyncTask)
+            .where(
+                AsyncTask.user_id == uid,
+                AsyncTask.status.in_(("pending", "running")),
+            )
+            .order_by(AsyncTask.id.asc())
+        )
+    )
+    cancelled = 0
+    for row in rows:
+        if row is None:
+            continue
+        if _cancel_async_task_row(db, row, error_message=error_message):
+            cancelled += 1
+    if cancelled:
+        logger.warning(
+            "cancelled_all_active_async_tasks user_id=%s count=%s reason=insufficient_balance",
+            uid,
+            cancelled,
+        )
+    return cancelled
+
+
+def cancel_async_task_on_insufficient_balance(
+    db: Session,
+    *,
+    user_id: str,
+    trigger_task_id: int,
+) -> int:
+    """yddm 余额不足：取消该用户全部进行中的定时任务。"""
+    msg = get_message(CODE_INSUFFICIENT_BALANCE)
+    n = cancel_all_active_async_tasks_for_user(db, user_id, error_message=msg)
+    logger.warning(
+        "insufficient_balance_cancel_user_tasks user_id=%s trigger_task_id=%s cancelled=%s",
+        str(user_id or "").strip(),
+        int(trigger_task_id),
+        n,
+    )
+    return n
+
+
 def cancel_async_task(
     db: Session, task_id: str, *, user_id: str
 ) -> Optional[CancelAsyncTaskOutcome]:
@@ -719,19 +807,7 @@ def cancel_async_task(
     if row.status == "cancelled" or row.cancel_requested:
         return "already_cancelled"
 
-    celery_id = row.celery_task_id
-    was_active = row.status in ("pending", "running")
-    row.cancel_requested = True
-    row.status = "cancelled"
-    row.next_run_at = None
-    row.current_run_id = None
-    row.running_lease_until = None
-    row.update_time = schedule_now_wall_naive()
-    db.add(row)
-    db.commit()
-    async_task_redis.retain_async_task_redis_on_cancel(row)
-    if celery_id and was_active:
-        _revoke_celery_task(celery_id, terminate=False)
+    _cancel_async_task_row(db, row)
     return "cancelled"
 
 

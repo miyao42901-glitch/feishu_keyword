@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from social_platform.actions.registry import get_action_spec
 from social_platform.actions.runner import execute_public_action
-from social_platform.api_response import from_worker_run
+from social_platform.api_response import from_worker_run, worker_run_insufficient_balance
 from social_platform.api_status_codes import CODE_SUCCESS
 from social_platform.models.async_task import AsyncTask
 from social_platform.services.search_persist import (
@@ -167,6 +167,15 @@ def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
         finally:
             if token is not None:
                 unbind_search_all_async_persist(token)
+
+        if worker_run_insufficient_balance(raw):
+            task_service.cancel_async_task_on_insufficient_balance(
+                db,
+                user_id=str(task.user_id or ""),
+                trigger_task_id=int(task_id),
+            )
+            return
+
         stats = try_save_search_after_crawl(
             task.action,
             body,
@@ -176,6 +185,7 @@ def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
         )
         if stats:
             apply_search_persist_stats_to_async_task(db, task_id, stats)
+            db.commit()
 
         api_body = from_worker_run(raw)
         ok = int(api_body.get("code", -1)) == CODE_SUCCESS

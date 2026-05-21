@@ -161,6 +161,23 @@ def async_task_meta(*, platform: str, action: str = "") -> dict[str, Any]:
     return out
 
 
+def worker_run_insufficient_balance(result: Any) -> bool:
+    """Worker 返回 {ok, data, ...} 且 data.insufficient_balance 或上游业务码 1001。"""
+    if not isinstance(result, dict):
+        return False
+    data = result.get("data")
+    if isinstance(data, dict) and data.get("insufficient_balance"):
+        return True
+    err = result.get("error")
+    if isinstance(err, dict):
+        try:
+            if int(err.get("code", -1)) == CODE_INSUFFICIENT_BALANCE:
+                return True
+        except (TypeError, ValueError):
+            pass
+    return False
+
+
 def from_worker_run(result: dict[str, Any]) -> dict[str, Any]:
     """
     将各 Worker run_task 内部结构 {ok, data, error, meta} 转为统一响应。

@@ -8,6 +8,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from sqlalchemy import or_, select
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session
 
 from social_platform.models.async_task import AsyncTask
 from social_platform.redis_client import get_redis, redis_configured
@@ -68,6 +70,63 @@ def _log_cleanup_schedule_member(task_id: int, reason: str) -> None:
             "cleaned_schedule_member": 1,
         },
     )
+
+
+def _is_mysql_lock_wait_timeout(exc: BaseException) -> bool:
+    if not isinstance(exc, OperationalError):
+        return False
+    parts = [str(exc)]
+    orig = getattr(exc, "orig", None)
+    if orig is not None:
+        parts.append(str(orig))
+    msg = " ".join(parts)
+    return "1205" in msg or "Lock wait timeout exceeded" in msg
+
+
+def _scheduler_skip_log(task_id: int, status: str, *, reason: str) -> None:
+    logger.warning(
+        "scheduler_skip task_id=%s status=%s reason=%s",
+        int(task_id),
+        status or "",
+        reason,
+    )
+
+
+def _try_mark_pending_task_window_success(db: Session, row: AsyncTask) -> bool:
+    """仅 pending 且采集窗口已结束时标 success；调用方负责 commit。"""
+    tid = int(row.id)
+    db.refresh(row)
+    status = str(row.status or "")
+    if status != "pending":
+        _scheduler_skip_log(tid, status, reason="mark_success_not_pending")
+        return False
+    if naive_dt(row.task_end_time) > schedule_now_wall_naive():
+        return False
+    row.status = "success"
+    row.next_run_at = None
+    row.celery_task_id = None
+    row.current_run_id = None
+    row.running_lease_until = None
+    row.update_time = schedule_now_wall_naive()
+    db.add(row)
+    return True
+
+
+def _commit_or_skip_lock_timeout(db: Session, *, task_id: int, op: str) -> bool:
+    """commit；遇 1205 则 rollback 并返回 False。"""
+    try:
+        db.commit()
+        return True
+    except OperationalError as e:
+        db.rollback()
+        if _is_mysql_lock_wait_timeout(e):
+            logger.warning(
+                "scheduler_lock_timeout task_id=%s op=%s",
+                int(task_id),
+                op,
+            )
+            return False
+        raise
 
 
 def parse_cached_datetime(value: Any) -> Optional[datetime]:
@@ -510,14 +569,12 @@ def dispatch_task_by_id(task_id: int) -> Optional[str]:
                 _log_cleanup_schedule_member(task_id, f"status_{status}")
                 return None
             if now >= naive_dt(row.task_end_time):
-                row.status = "success"
-                row.next_run_at = None
-                row.celery_task_id = None
-                row.current_run_id = None
-                row.running_lease_until = None
-                row.update_time = schedule_now_wall_naive()
-                db.add(row)
-                db.commit()
+                if not _try_mark_pending_task_window_success(db, row):
+                    return None
+                if not _commit_or_skip_lock_timeout(
+                    db, task_id=task_id, op="dispatch_mark_success"
+                ):
+                    return None
                 unschedule_async_task(task_id)
                 _log_cleanup_schedule_member(task_id, "task_window_ended")
                 return None
@@ -672,43 +729,68 @@ def recover_stale_running_tasks(*, batch_size: int = 50) -> int:
     now = schedule_now_wall_naive()
     reset = 0
     with session_scope() as db:
-        rows = db.scalars(
-            select(AsyncTask)
-            .where(
-                AsyncTask.status == "running",
-                AsyncTask.cancel_requested.is_(False),
-                or_(
-                    AsyncTask.running_lease_until.is_(None),
-                    AsyncTask.running_lease_until < now,
-                ),
+        rows = list(
+            db.scalars(
+                select(AsyncTask)
+                .where(
+                    AsyncTask.status == "running",
+                    AsyncTask.cancel_requested.is_(False),
+                    or_(
+                        AsyncTask.running_lease_until.is_(None),
+                        AsyncTask.running_lease_until < now,
+                    ),
+                )
+                .order_by(AsyncTask.id.asc())
+                .limit(batch_size)
+                .with_for_update(skip_locked=True)
             )
-            .order_by(AsyncTask.id.asc())
-            .limit(batch_size)
         )
         for row in rows:
             if row is None:
                 continue
-            if naive_dt(row.task_start_time) > now:
-                continue
-            if naive_dt(row.task_end_time) <= now:
-                continue
             tid = int(row.id)
-            api_key = resolve_api_key_for_task(task_id=tid, row=row)
-            if not api_key:
-                continue
-            get_redis().delete(_dispatch_lock_key(tid))
-            run_at = _recovery_run_at(row, now=now)
-            row.status = "pending"
-            row.next_run_at = run_at
-            row.celery_task_id = None
-            row.current_run_id = None
-            row.running_lease_until = None
-            row.update_time = schedule_now_wall_naive()
-            db.add(row)
-            db.commit()
-            schedule_async_task_run(tid, run_at)
-            update_async_task_cache(row, next_run_at=run_at)
-            reset += 1
+            try:
+                if naive_dt(row.task_start_time) > now:
+                    continue
+                if naive_dt(row.task_end_time) <= now:
+                    continue
+                db.refresh(row)
+                if str(row.status or "") != "running":
+                    _scheduler_skip_log(
+                        tid,
+                        str(row.status or ""),
+                        reason="reset_running_status_changed",
+                    )
+                    continue
+                api_key = resolve_api_key_for_task(task_id=tid, row=row)
+                if not api_key:
+                    continue
+                get_redis().delete(_dispatch_lock_key(tid))
+                run_at = _recovery_run_at(row, now=now)
+                row.status = "pending"
+                row.next_run_at = run_at
+                row.celery_task_id = None
+                row.current_run_id = None
+                row.running_lease_until = None
+                row.update_time = schedule_now_wall_naive()
+                db.add(row)
+                if not _commit_or_skip_lock_timeout(
+                    db, task_id=tid, op="recover_reset_running"
+                ):
+                    continue
+                schedule_async_task_run(tid, run_at)
+                update_async_task_cache(row, next_run_at=run_at)
+                reset += 1
+            except OperationalError as e:
+                db.rollback()
+                if _is_mysql_lock_wait_timeout(e):
+                    logger.warning(
+                        "scheduler_lock_timeout task_id=%s status=%s op=recover_stale_running",
+                        tid,
+                        str(row.status or ""),
+                    )
+                    continue
+                raise
     return reset
 
 
@@ -721,48 +803,68 @@ def recover_stale_pending_tasks(*, batch_size: int = 50) -> int:
     now = schedule_now_wall_naive()
     recovered = 0
     with session_scope() as db:
-        rows = db.scalars(
-            select(AsyncTask)
-            .where(
-                AsyncTask.status == "pending",
-                AsyncTask.cancel_requested.is_(False),
-                AsyncTask.next_run_at.is_not(None),
+        rows = list(
+            db.scalars(
+                select(AsyncTask)
+                .where(
+                    AsyncTask.status == "pending",
+                    AsyncTask.cancel_requested.is_(False),
+                    AsyncTask.next_run_at.is_not(None),
+                )
+                .order_by(AsyncTask.id.asc())
+                .limit(batch_size)
+                .with_for_update(skip_locked=True)
             )
-            .order_by(AsyncTask.id.asc())
-            .limit(batch_size)
         )
         for row in rows:
             if row is None:
                 continue
-            if naive_dt(row.task_start_time) > now:
-                continue
-            end = naive_dt(row.task_end_time)
-            if end <= now:
-                row.status = "success"
-                row.next_run_at = None
-                row.celery_task_id = None
-                row.current_run_id = None
-                row.running_lease_until = None
-                row.update_time = schedule_now_wall_naive()
-                db.add(row)
-                db.commit()
-                unschedule_async_task(int(row.id))
-                continue
             tid = int(row.id)
-            api_key = resolve_api_key_for_task(task_id=tid, row=row)
-            if not api_key:
-                continue
-            committed = get_committed_next_run_at(row)
-            if committed is None:
-                continue
-            schedule_async_task_run(tid, committed)
-            update_async_task_cache(row, next_run_at=committed)
-            if not is_run_at_due(committed, now=now):
-                continue
-            if _pending_celery_in_flight(row):
-                continue
-            if dispatch_task_by_id(tid):
-                recovered += 1
+            try:
+                if naive_dt(row.task_start_time) > now:
+                    continue
+                end = naive_dt(row.task_end_time)
+                if end <= now:
+                    if not _try_mark_pending_task_window_success(db, row):
+                        continue
+                    if not _commit_or_skip_lock_timeout(
+                        db, task_id=tid, op="recover_mark_success"
+                    ):
+                        continue
+                    unschedule_async_task(tid)
+                    continue
+                db.refresh(row)
+                if str(row.status or "") != "pending":
+                    _scheduler_skip_log(
+                        tid,
+                        str(row.status or ""),
+                        reason="recover_dispatch_not_pending",
+                    )
+                    continue
+                api_key = resolve_api_key_for_task(task_id=tid, row=row)
+                if not api_key:
+                    continue
+                committed = get_committed_next_run_at(row)
+                if committed is None:
+                    continue
+                schedule_async_task_run(tid, committed)
+                update_async_task_cache(row, next_run_at=committed)
+                if not is_run_at_due(committed, now=now):
+                    continue
+                if _pending_celery_in_flight(row):
+                    continue
+                if dispatch_task_by_id(tid):
+                    recovered += 1
+            except OperationalError as e:
+                db.rollback()
+                if _is_mysql_lock_wait_timeout(e):
+                    logger.warning(
+                        "scheduler_lock_timeout task_id=%s status=%s op=recover_stale_pending",
+                        tid,
+                        str(row.status or ""),
+                    )
+                    continue
+                raise
     return recovered
 
 
