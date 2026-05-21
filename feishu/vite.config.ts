@@ -5,6 +5,7 @@ import { defineConfig } from 'vite'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
+import { DEFAULT_YDDM_UPSTREAM_ORIGIN } from './src/lib/yddm-api'
 
 /** YDDM 开发代理上游（仅 Vite；与浏览器请求的 `/yddm-api` 分离） */
 function resolveYddmProxyTarget(): string {
@@ -12,7 +13,7 @@ function resolveYddmProxyTarget(): string {
   if (proxyTarget) return proxyTarget.replace(/\/$/, '')
   const viteBase = (process.env.VITE_YDDM_API_BASE as string | undefined)?.trim()
   if (viteBase && /^https?:\/\//i.test(viteBase)) return viteBase.replace(/\/$/, '')
-  return 'http://192.168.1.11:8001'
+  return DEFAULT_YDDM_UPSTREAM_ORIGIN
 }
 
 /** YDDM：`/yddm-api/*` → YDDM 上游（去掉 `/yddm-api` 前缀） */

@@ -3,14 +3,17 @@
  * 响应体兼容 `message` 或 `msg` 字段。
  *
  * - **未配置 `VITE_YDDM_API_BASE`**：默认 `/yddm-api`（Vite 或 Nginx 反代到 YDDM 上游）
- * - **已配置**：直连，如 `http://yddm.example.com`（需上游开 CORS）
+ * - **已配置**：直连，如 `https://api.yddm.com`（需上游开 CORS）
  */
 
-/** YDDM 服务根地址（无末尾 `/`）；与 `getYddmApiBase()` 未配置时一致 */
+/** 浏览器默认同源路径（无末尾 `/`）；与 `getYddmApiBase()` 未配置时一致 */
 export const DEFAULT_YDDM_API_BASE = '/yddm-api'
 
-/** @deprecated 使用 `DEFAULT_YDDM_API_BASE` */
-export const YDDM_UPSTREAM_ORIGIN = DEFAULT_YDDM_API_BASE
+/** Vite / Nginx 反代默认上游（公网 YDDM API，无末尾 `/`） */
+export const DEFAULT_YDDM_UPSTREAM_ORIGIN = 'https://api.yddm.com'
+
+/** @deprecated 使用 `DEFAULT_YDDM_UPSTREAM_ORIGIN` */
+export const YDDM_UPSTREAM_ORIGIN = DEFAULT_YDDM_UPSTREAM_ORIGIN
 
 /**
  * 实际发起 fetch 使用的根地址（无末尾 `/`）。
