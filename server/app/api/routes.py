@@ -1,8 +1,9 @@
-from fastapi import APIRouter
+"""
+兼容入口：历史代码可能从本模块导入 `router`。
 
-router = APIRouter()
+实际聚合逻辑见 `app.api.router.api_router`。
+"""
 
+from app.api.router import api_router as router
 
-@router.get("/health")
-def health():
-    return {"status": "ok", "service": "feishu_keyword"}
+__all__ = ["router"]

@@ -1,10 +1,10 @@
-# 飞书关键词监控插件
+# 关键词监控
 
 ## 当前项目
 
 本项目是面向**飞书（Lark）**的**关键词监控插件**，用于在飞书生态内对关键词进行监控与相关能力扩展。
 
-- **全称**：飞书关键词监控插件  
+- **全称**：关键词监控  
 - **GitLab 仓库**：[http://192.168.1.200:8080/jzl/feishu_keyword/](http://192.168.1.200:8080/jzl/feishu_keyword/)
 
 克隆示例：
@@ -64,14 +64,14 @@ feishu_keyword/
 ├── public/
 │   └── admin/                # 管理端静态（提交主仓）
 ├── deploy/
-│   └── admin-static/         # admin nginx 配置（default.conf）
-├── feishu/                   # 飞书侧前端源码（Vite + Vue 3）
+│   └── admin-static/         # admin nginx 配置
+├── feishu/                   # 飞书侧前端（Vite + Vue 3）
 ├── server/                   # FastAPI 后端
 │   ├── Dockerfile
 │   ├── .env.example
 │   ├── deploy/docker/mysql-init/
 │   └── app/
-└── docs/                     # 补充文档；编排真源见根目录
+└── docs/                     # 技术文档（入口 docs/README.md）
 ```
 
 说明：`feishu` 与 `server` 可分别独立安装依赖与启动；生产以 Docker 为准。
