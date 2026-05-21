@@ -1,10 +1,14 @@
 # 本地残留目录（勿提交）
 /web/
 
-# public：admin 随主仓；feishu 为构建产物 + GitHub 手动发布（内嵌 .git），不进主仓
+# public：admin / feishu 预编译产物随主仓提交（CI 仅 rsync，Runner 无需 Node）
 /public/*
 !/public/admin/
 !/public/admin/**
+!/public/feishu/
+!/public/feishu/**
+# 若 public/feishu 内嵌 GitHub 发布用 .git，勿进主仓
+/public/feishu/.git/
 
 # Docker 本地数据卷
 /data/

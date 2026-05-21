@@ -1,5 +1,6 @@
 # fskw：GitLab Shell Runner → rsync → SSH docker compose
 # test 分支自动部署测试栈；master 手动部署正式栈。
+# 前端：在本地 npm run build:public:test|prod 后提交 public/admin、public/feishu（Runner 无需 Node）
 # 变量：SSH_PRIVATE_KEY、HOST_IP（默认 121.43.231.225）
 
 variables:
@@ -71,15 +72,15 @@ deploy-test:
         echo "ERROR: 请配置 CI 变量 HOST_IP"
         exit 1
       fi
-    - echo "测试环境部署开始..."
+    - echo "测试环境部署开始（使用仓内已提交的 public/admin、public/feishu）..."
     - |
-      if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
-        echo "→ 构建 admin …"
-        (cd admin && npm ci && npm run build:public:test) || exit 1
-        echo "→ 构建 feishu …"
-        (cd feishu && npm ci && npm run build:public:test) || exit 1
-      else
-        echo "WARN: Runner 无 Node，跳过前端构建"
+      if [ ! -f public/admin/index.html ]; then
+        echo "ERROR: 缺少 public/admin/index.html，请在本地执行: cd admin && npm run build:public:test 后提交"
+        exit 1
+      fi
+      if [ ! -f public/feishu/index.html ]; then
+        echo "ERROR: 缺少 public/feishu/index.html，请在本地执行: cd feishu && npm run build:public:test 后提交"
+        exit 1
       fi
     - |
       DEPLOY_TS=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
@@ -97,12 +98,8 @@ deploy-test:
       RSYNC_EXCLUDES="--exclude=.venv/ --exclude=venv/ --exclude=__pycache__/ --exclude=/.env --exclude=.env.test --exclude=.env.master --exclude=*.pyc --exclude=uploads/"
       rsync -azP --delete -e "ssh -p $SSH_PORT" $RSYNC_EXCLUDES server/ "$SSH_USER@$HOST_IP:$TEST_DIR/"
       rsync -azP -e "ssh -p $SSH_PORT" docker-compose.yml docker-compose.test.yml "$SSH_USER@$HOST_IP:$TEST_ROOT/"
-      if [ -d public/admin ]; then
-        rsync -azP --delete -e "ssh -p $SSH_PORT" public/admin/ "$SSH_USER@$HOST_IP:$TEST_ROOT/public/admin/"
-      fi
-      if [ -d public/feishu ]; then
-        rsync -azP --delete -e "ssh -p $SSH_PORT" public/feishu/ "$SSH_USER@$HOST_IP:$TEST_ROOT/public/feishu/"
-      fi
+      rsync -azP --delete -e "ssh -p $SSH_PORT" public/admin/ "$SSH_USER@$HOST_IP:$TEST_ROOT/public/admin/"
+      rsync -azP --delete -e "ssh -p $SSH_PORT" public/feishu/ "$SSH_USER@$HOST_IP:$TEST_ROOT/public/feishu/"
       rsync -azP -e "ssh -p $SSH_PORT" deploy/admin-static/ "$SSH_USER@$HOST_IP:$TEST_ROOT/deploy/admin-static/"
       rsync -azP -e "ssh -p $SSH_PORT" deploy/feishu-static/ "$SSH_USER@$HOST_IP:$TEST_ROOT/deploy/feishu-static/"
     - |
@@ -139,11 +136,11 @@ deploy-prod:
         echo "ERROR: 请配置 CI 变量 HOST_IP"
         exit 1
       fi
-    - echo "正式环境部署开始..."
+    - echo "正式环境部署开始（使用仓内已提交的 public/admin、public/feishu）..."
     - |
-      if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
-        (cd admin && npm ci && npm run build:public:prod) || exit 1
-        (cd feishu && npm ci && npm run build:public:prod) || exit 1
+      if [ ! -f public/admin/index.html ] || [ ! -f public/feishu/index.html ]; then
+        echo "ERROR: 缺少 public/admin 或 public/feishu 构建产物，请本地 build:public:prod 后提交"
+        exit 1
       fi
     - |
       DEPLOY_TS=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
