@@ -106,13 +106,13 @@ deploy-test:
       rsync -azP -e "ssh -p $SSH_PORT" deploy/feishu-static/ "$SSH_USER@$HOST_IP:$TEST_ROOT/deploy/feishu-static/"
     - |
       ssh -p $SSH_PORT $SSH_USER@$HOST_IP "
-        if [ -f /docker/gaoqingsong/server/.env ]; then
-          cd /docker/gaoqingsong && docker compose --profile db up -d mysql redis 2>/dev/null || true
+        if ! docker ps --format '{{.Names}}' | grep -q '^tbpf-mysql$'; then
+          echo 'WARN: tbpf-mysql 未运行，请先: cd /docker/traefik && docker compose up -d mysql redis'
         fi
         set -e
         cd $TEST_DIR
         if [ ! -f .env.test ]; then
-          echo 'ERROR: 远端缺少 .env.test，请先 SSH 配置（见 docs/DEPLOY.md）'
+          echo 'ERROR: 远端缺少 server/.env.test，请配置栈根/server .env（见 .env.stack.example、docs/DEPLOY.md）'
           exit 1
         fi
         cp -f .env.test .env && chmod 600 .env

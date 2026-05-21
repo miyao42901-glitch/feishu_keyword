@@ -1,5 +1,5 @@
 #!/bin/bash
-# 在 feishu_keyword 已 GRANT 后，于测试栈 api 容器内建表+种子（只连 feishu_keyword）。
+# 在 feishu_keyword 库已创建后，于测试栈 api 容器内建表+种子（DATABASE_URL 指向 feishu_keyword）。
 set -euo pipefail
 
 STACK="${STACK:-/docker/feishu_keyword-test}"
