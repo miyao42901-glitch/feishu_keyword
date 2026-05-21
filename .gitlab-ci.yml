@@ -97,8 +97,12 @@ deploy-test:
       RSYNC_EXCLUDES="--exclude=.venv/ --exclude=venv/ --exclude=__pycache__/ --exclude=/.env --exclude=.env.test --exclude=.env.master --exclude=*.pyc --exclude=uploads/"
       rsync -azP --delete -e "ssh -p $SSH_PORT" $RSYNC_EXCLUDES server/ "$SSH_USER@$HOST_IP:$TEST_DIR/"
       rsync -azP -e "ssh -p $SSH_PORT" docker-compose.yml docker-compose.test.yml "$SSH_USER@$HOST_IP:$TEST_ROOT/"
-      rsync -azP --delete -e "ssh -p $SSH_PORT" public/admin/ "$SSH_USER@$HOST_IP:$TEST_ROOT/public/admin/"
-      rsync -azP --delete -e "ssh -p $SSH_PORT" public/feishu/ "$SSH_USER@$HOST_IP:$TEST_ROOT/public/feishu/"
+      if [ -d public/admin ]; then
+        rsync -azP --delete -e "ssh -p $SSH_PORT" public/admin/ "$SSH_USER@$HOST_IP:$TEST_ROOT/public/admin/"
+      fi
+      if [ -d public/feishu ]; then
+        rsync -azP --delete -e "ssh -p $SSH_PORT" public/feishu/ "$SSH_USER@$HOST_IP:$TEST_ROOT/public/feishu/"
+      fi
       rsync -azP -e "ssh -p $SSH_PORT" deploy/admin-static/ "$SSH_USER@$HOST_IP:$TEST_ROOT/deploy/admin-static/"
       rsync -azP -e "ssh -p $SSH_PORT" deploy/feishu-static/ "$SSH_USER@$HOST_IP:$TEST_ROOT/deploy/feishu-static/"
     - |
@@ -119,15 +123,9 @@ deploy-test:
         echo '测试环境部署完成'
       "
   rules:
+    # test 分支每次推送均自动部署（不依赖 MR/合并到 master）
     - if: $CI_COMMIT_BRANCH == "test"
-      changes:
-        - docker-compose.yml
-        - docker-compose.test.yml
-        - server/**/*
-        - admin/**/*
-        - feishu/**/*
-        - deploy/**/*
-        - .gitlab-ci.yml
+      when: on_success
 
 deploy-prod:
   extends: .ssh-setup
