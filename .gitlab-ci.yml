@@ -119,6 +119,7 @@ deploy-test:
         cd $TEST_ROOT
         cp -f server/.env .env && chmod 600 .env
         if [ -f python/.env.test ]; then cp -f python/.env.test python/.env && chmod 600 python/.env; fi
+        docker compose --profile admin --profile feishu --profile worker down --remove-orphans 2>/dev/null || true
         docker compose --profile admin --profile feishu --profile worker up -d --build
         echo '测试环境部署完成'
       "
@@ -179,6 +180,7 @@ deploy-prod:
         cd $PROD_ROOT
         cp -f server/.env .env && chmod 600 .env
         if [ -f python/.env.master ]; then cp -f python/.env.master python/.env && chmod 600 python/.env; fi
+        docker compose --profile admin --profile feishu --profile worker down --remove-orphans 2>/dev/null || true
         docker compose --profile admin --profile feishu --profile worker up -d --build
         echo '正式环境部署完成'
       "

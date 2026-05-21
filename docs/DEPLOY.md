@@ -93,7 +93,8 @@ python scripts/seed_demo.py
 
 ## GitLab CI
 
-- `test` 分支：自动 `deploy-test`（rsync `server/`、`python/`、`public/*`、`docker-compose.yml`）
+- `test` 分支：自动 `deploy-test`（rsync 后先 `docker compose down --remove-orphans` 再 `up`，避免容器名冲突）
+- 若 Job 报 `container name is already in use`：在栈目录执行 `docker compose --profile admin --profile feishu --profile worker down --remove-orphans` 后 **Retry** 流水线即可，勿并行手动 `up --build`
 - `master`：`deploy-prod` 手动/变更触发
 - 本地先 `build-public-test.bat` 并提交 `public/admin`、`public/feishu`
 
