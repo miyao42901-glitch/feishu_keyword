@@ -6,7 +6,8 @@ services:
       - traefik.enable=true
       - traefik.docker.network=proxy
       - traefik.http.services.fkw-api-test.loadbalancer.server.port=8000
-      - traefik.http.routers.fkw-api-test.rule=Host(`fskw-test.tbpf.com`) && PathPrefix(`/api`)
+      # 整 Host 转发（含 GET /ci-test）；与 gaoqingsong API 路由一致，勿仅用 PathPrefix(/api)
+      - traefik.http.routers.fkw-api-test.rule=Host(`fskw-test.tbpf.com`)
       - traefik.http.routers.fkw-api-test.entrypoints=websecure
       - traefik.http.routers.fkw-api-test.tls.certresolver=dnspod
       - traefik.http.routers.fkw-api-test.tls.domains[0].main=tbpf.com

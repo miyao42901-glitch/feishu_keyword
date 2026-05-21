@@ -6,7 +6,7 @@ services:
       - traefik.enable=true
       - traefik.docker.network=proxy
       - traefik.http.services.fkw-api-prod.loadbalancer.server.port=8000
-      - traefik.http.routers.fkw-api-prod.rule=Host(`fskw.tbpf.com`) && PathPrefix(`/api`)
+      - traefik.http.routers.fkw-api-prod.rule=Host(`fskw.tbpf.com`)
       - traefik.http.routers.fkw-api-prod.entrypoints=websecure
       - traefik.http.routers.fkw-api-prod.tls.certresolver=dnspod
       - traefik.http.routers.fkw-api-prod.tls.domains[0].main=tbpf.com
