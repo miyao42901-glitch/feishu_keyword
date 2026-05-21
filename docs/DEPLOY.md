@@ -84,12 +84,32 @@ bash scripts/remote-setup-env.sh
 
 ## 数据库与种子
 
+**独立库 `feishu_keyword`**：与稿轻松 `jzl_editor` 分离，共用 `gqs-mysql` 实例但**不要**在 `jzl_editor` 里建表或改数据。
+
+`DATABASE_URL` 固定为：
+
+`mysql+pymysql://lanlang_v1:***@gqs-mysql:3306/feishu_keyword?charset=utf8mb4`
+
+### 首次：给 `lanlang_v1` 授权（仅 feishu_keyword）
+
+登录 500 多为：`Access denied ... to database 'feishu_keyword'`。在 **phpMyAdmin**（root）执行仓库内：
+
+[`scripts/grant-feishu-keyword-only.sql`](../scripts/grant-feishu-keyword-only.sql)
+
+### 建表与演示账号
+
+授权完成后在测试栈执行：
+
 ```bash
-# 在可连 gqs-mysql 的环境（如 api 容器内）
-cd /app && python scripts/init_schema.py
-python scripts/seed_demo.py
-# python 表：sync-api 启动时 DATABASE_RUN_MIGRATIONS=1 会跑迁移；或执行 python/social_platform/database/schema.sql
+bash scripts/bootstrap-feishu-keyword-db.sh
+# 或
+docker exec feishu_keyword-test-api-1 python scripts/init_schema.py
+docker exec feishu_keyword-test-api-1 python scripts/seed_demo.py
 ```
+
+管理端登录：`admin` / `Admin123a`
+
+python 业务表：sync-api 启动时 `DATABASE_RUN_MIGRATIONS=1` 会迁移；或执行 `python/social_platform/database/schema.sql`
 
 ## GitLab CI
 

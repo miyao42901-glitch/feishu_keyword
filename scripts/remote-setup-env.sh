@@ -11,6 +11,7 @@ source "$GQS_ENV"
 
 MYSQL_USER="${MYSQL_USER:-lanlang_v1}"
 MYSQL_PASSWORD="${MYSQL_PASSWORD:-}"
+MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-}"
 REDIS_PASSWORD="${REDIS_PASSWORD:-}"
 
 mkdir -p /docker/feishu_keyword-test/server /docker/feishu_keyword-test/python \
@@ -115,8 +116,16 @@ write_server_prod
 write_python_test
 write_python_prod
 
-docker exec gqs-mysql mysql -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" -e \
-  "CREATE DATABASE IF NOT EXISTS feishu_keyword CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" \
-  2>/dev/null || true
+# 仅创建 feishu_keyword 库（不写入 jzl_editor）。lanlang_v1 通常无权 CREATE/GRANT，需 root 授权。
+if docker exec gqs-mysql mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" -h127.0.0.1 -e \
+  "CREATE DATABASE IF NOT EXISTS feishu_keyword CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   GRANT ALL PRIVILEGES ON feishu_keyword.* TO '${MYSQL_USER}'@'%';
+   FLUSH PRIVILEGES;" 2>/dev/null; then
+  echo "remote-setup-env: feishu_keyword 库已创建并授权给 ${MYSQL_USER}"
+else
+  echo "WARN: 无法用 root 授权 feishu_keyword（稿轻松 .env 中 MYSQL_ROOT_PASSWORD 可能与实际 root 不一致）"
+  echo "      请在 phpMyAdmin 用 root 执行: scripts/grant-feishu-keyword-only.sql"
+  echo "      仅授权 feishu_keyword.*，勿修改 jzl_editor 库内数据"
+fi
 
 echo "remote-setup-env: done"
