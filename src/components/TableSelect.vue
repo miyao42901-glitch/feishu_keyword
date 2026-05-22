@@ -45,8 +45,11 @@
         selectedTableId.value = newValue;
       });
 
-      // 读取数据表列表
-      const loadTableList = async () => {
+      // 读取数据表列表（visible: true=展开, false=收起）
+      const loadTableList = async (visible) => {
+        // 只有展开时才加载数据
+        if (!visible) return;
+        
         isLoading.value = true;
         try {
           const tableList = await bitable.base.getTableList();

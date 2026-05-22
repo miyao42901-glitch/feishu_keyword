@@ -29,6 +29,7 @@
   import PV2Form from '@/paneForms/v2Form.vue'
   import PKsForm from '@/paneForms/ksForm.vue'
   import PXhsForm from '@/paneForms/xhsForm.vue'
+  import PDyFormCopy from '@/paneForms/dyForm_copy.vue'
 
   import SensitiveText from './sensitiveText.vue'
   import LoginDialog from './LoginDialog.vue'
@@ -64,6 +65,7 @@
       PV2Form,
       PKsForm,
       PXhsForm,
+      PDyFormCopy,
 
       SensitiveText,
       LoginDialog,
@@ -205,7 +207,7 @@
           if (res && res.data && res.data.code === 0) {
             formData.value.isLogin = true;
             formData.value.key = res.data.data.key;
-            // formData.value.key = 'JZL6f0685390502a6b9';
+            formData.value.key = 'JZL6f0685390502a6b9';
             formData.value.username = res.data.data.user_name;
             formData.value.remainMoney = res.data.data.remain_money;
             result = true
@@ -507,8 +509,11 @@
         </el-tabs>
       </el-card> -->
 
-      <el-card v-show="!showRechargeCard" class="card-item" shadow="hover">
+      <!-- <el-card v-show="!showRechargeCard" class="card-item" shadow="hover"> -->
         <el-tabs :disabled="isLocked">
+          <el-tab-pane :label="'测试'">
+            <PDyFormCopy :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+          </el-tab-pane>
           <el-tab-pane :label="t('form.tabs.douyin')">
             <PDyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
@@ -525,7 +530,7 @@
             <PKsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
           </el-tab-pane>
         </el-tabs>
-      </el-card>
+      <!-- </el-card> -->
       
       <!-- <p>{{ formData }}</p>
       <p>{{ isLocked }}</p> -->

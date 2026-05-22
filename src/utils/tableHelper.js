@@ -220,6 +220,23 @@ export const updateTable = async (tableId, dataList, fieldsConfig) => {
       fieldMap[fieldName] = field;
     }
 
+    // 补全表格字段
+    fieldList = await table.getFieldList();
+    
+    for (const field of fieldList) {
+      const fieldName = await field.getName();
+      fieldMap[fieldName] = field;
+    }
+
+    // 添加缺失的字段
+    for (const fieldConfigValue of Object.values(fieldsConfig)) {
+      if (!fieldMap[fieldConfigValue.label]) {
+        const fieldCell = buildFieldConfig(fieldConfigValue);
+        const newFieldId = await table.addField(fieldCell);
+        fieldMap[fieldConfigValue.label] = await table.getField(newFieldId);
+      }
+    }
+
     // 筛选出字段配置中和表格字段均包含的字段
     const commonFields = {};
     for (const [fieldConfigKey, fieldConfigValue] of Object.entries(fieldsConfig)) {
