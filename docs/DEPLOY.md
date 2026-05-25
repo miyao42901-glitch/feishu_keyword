@@ -7,27 +7,6 @@
 | 测试 | `/docker/feishu_keyword-test` |
 | 正式 | `/docker/feishu_keyword` |
 
-从旧名迁移（一次性，在 `121.43.231.225` 上）：
-
-```bash
-# 先停旧栈，再改名，避免 compose 项目名冲突
-cd /docker/feishu_keyword-test && docker compose --profile admin --profile feishu --profile worker down
-cd /docker/feishu_keyword && docker compose --profile admin --profile feishu --profile worker down 2>/dev/null || true
-mv /docker/fskw-test /docker/feishu_keyword-test
-mv /docker/fskw /docker/feishu_keyword
-# 确认 server/.env、python/.env、栈根 .env 仍在；或推送 test 分支让 CI rsync 后再 up
-cd /docker/feishu_keyword-test && cp -f server/.env .env && docker compose --profile admin --profile feishu --profile worker up -d --build
-```
-
-### Traefik 路由重复（fskw-test 与 test-fskw 并存）
-
-若 Traefik 面板同时出现 `Host(\`fskw-test.tbpf.com\`)` / `fkw-api-test` 与 `test-fskw.tbpf.com` / `test-fkw-api`，说明**旧 compose 项目 `fskw-test-*` 容器仍在 `proxy` 网络**。以 `server/.env.test` 为准（`test-fskw.*`、`test-fkw-*`）。
-
-```bash
-bash scripts/cleanup-old-fskw-test-stack.sh
-# 确认仅 feishu_keyword-test-* 在运行：docker ps --filter network=proxy | grep feishu_keyword
-```
-
 ## 域名
 
 命名约定：**测试环境**使用 `test-` 前缀（如 `test-fskw.tbpf.com`）；**正式**为 `fskw*.tbpf.com`。
@@ -108,7 +87,7 @@ bash scripts/remote-setup-env.sh
 
 `mysql+pymysql://root:<MYSQL_ROOT_PASSWORD>@tbpf-mysql:3306/feishu_keyword?charset=utf8mb4`
 
-**勿**对运行中 `tbpf-mysql` 使用 `skip-grant-tables` 热改配置。历史稿轻松 `gqs-mysql` 脚本见 [`scripts/legacy/`](../scripts/legacy/)。
+**勿**对运行中 `tbpf-mysql` 使用 `skip-grant-tables` 热改配置。
 
 ## 数据库与种子
 
@@ -153,11 +132,25 @@ curl -sS -X POST https://test-fskw.tbpf.com/api/admin/v1/system/login \
 
 ## 本地开发
 
+### 局域网联调（不用 Docker）
+
+| 目录 | 模板 | 本地文件（勿提交） | 启动 |
+|------|------|-------------------|------|
+| `server/` | `.env.local.example` | `.env.local` | `uvicorn app.main:app --reload --host 0.0.0.0 --port 8000` |
+| `python/` | `.env.local.example` | `.env.local` | `python run.py`（:8765） |
+| `admin/` | `.env.local.example` | `.env.local` | `npm run dev:lan` |
+| `feishu/` | `.env.local.example` | `.env.local` | `npm run dev:lan` |
+
+加载顺序：**`.env` → `.env.local`**（仅本地存在 `.env.local` 时覆盖）。前端 `dev:lan` 由 Vite 自动读取 `.env.local`。
+
+仅本机浏览器访问可用 `npm run dev:local`（API `127.0.0.1`）。
+
+### 其它
+
 ```bash
-cd server && cp .env.example .env && uvicorn app.main:app --reload --port 8000
-cd python && cp .env.example .env && python run.py   # :8765
-cd admin && npm run dev:local
-cd feishu && npm run dev:local
+# 需要对照 Docker 变量时，可看 .env.example / .env.test，勿与 .env.local 混用提交
+cd server && cp .env.local.example .env.local
+cd python && cp .env.local.example .env.local
 ```
 
 推送 test 前：`.\build-public-test.bat` → `git push origin test`

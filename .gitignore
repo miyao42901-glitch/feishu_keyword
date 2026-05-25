@@ -21,6 +21,7 @@
 .env.development
 .env.production
 # 浠绘剰瀛愮洰褰曚笅鐨勭幆澧冩枃浠讹紙淇濈暀 *.example / *.sample 妯℃澘锛?**/.env
-!**/.env.example
+!**/.env.example
+!**/.env.local.example
 !**/.env.sample
 scripts/reset-root.sql

@@ -4,7 +4,7 @@
 在 `server/` 目录执行：
     .\\.venv\\Scripts\\python scripts\\ensure_feishu_task_configs_table.py
 
-依赖 `server/.env` 中的 `DATABASE_URL`。
+依赖 `server/.env` / `server/.env.local` 中的 `DATABASE_URL`。
 """
 
 from __future__ import annotations
@@ -12,11 +12,15 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
 from sqlalchemy import create_engine, inspect, text
 
 _SERVER_ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(_SERVER_ROOT / ".env")
+if str(_SERVER_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SERVER_ROOT))
+
+from app.env_loader import load_server_dotenv
+
+load_server_dotenv()
 
 DDL = """
 CREATE TABLE IF NOT EXISTS feishu_task_configs (
@@ -48,7 +52,7 @@ def main() -> None:
 
     url = os.getenv("DATABASE_URL")
     if not url or not url.strip():
-        print("错误：未设置 DATABASE_URL，请配置 server/.env", file=sys.stderr)
+        print("错误：未设置 DATABASE_URL，请配置 server/.env.local", file=sys.stderr)
         sys.exit(1)
 
     engine = create_engine(url, pool_pre_ping=True)

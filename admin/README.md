@@ -10,7 +10,8 @@
 ```bash
 cd admin
 npm ci
-npm run dev:local
+npm run dev:local    # 本机 127.0.0.1:8000
+npm run dev:lan      # 局域网：先 cp .env.local.example .env.local
 ```
 
 浏览器打开 `http://localhost:5101/admin/`（注意末尾斜杠与 `base: '/admin/'` 一致）。

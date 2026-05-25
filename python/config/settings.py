@@ -8,13 +8,24 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# python/config/settings.py -> python/（含 .env）
+# python/config/settings.py -> python/（含 .env、.env.local）
 _PY_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _settings_env_files() -> tuple[str, ...]:
+    files: list[str] = []
+    env_path = _PY_ROOT / ".env"
+    if env_path.is_file():
+        files.append(str(env_path))
+    local_path = _PY_ROOT / ".env.local"
+    if local_path.is_file():
+        files.append(str(local_path))
+    return tuple(files) if files else (str(env_path),)
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=str(_PY_ROOT / ".env"),
+        env_file=_settings_env_files(),
         env_file_encoding="utf-8",
         extra="ignore",
     )

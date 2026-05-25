@@ -19,9 +19,12 @@ def ensure_dotenv_loaded() -> None:
 
     here = Path(__file__).resolve().parent  # .../python/social_platform
     py_root = here.parent  # .../python（.env 所在目录）
-    candidate = py_root / ".env"
-    if candidate.is_file():
-        load_dotenv(candidate, override=False)
-    else:
+    env_file = py_root / ".env"
+    if env_file.is_file():
+        load_dotenv(env_file, override=False)
+    local_file = py_root / ".env.local"
+    if local_file.is_file():
+        load_dotenv(local_file, override=True)
+    elif not env_file.is_file():
         load_dotenv(override=False)
     _LOADED = True
