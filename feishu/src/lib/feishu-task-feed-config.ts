@@ -61,7 +61,7 @@ export function buildFeedConfigFromListCard(card: TaskCardModel): Record<string,
   if (local) {
     const merged = { ...patch, ...local, taskType: patch.taskType, task_type: patch.taskType }
     const kw = readSearchKeywords(merged)
-    if (kw.length && kw[0]) merged.keywords = kw
+    if (kw.length && kw[0]) (merged as Record<string, unknown>).keywords = kw
     return narrowFeedConfigToListCard(merged, card)
   }
   return patch

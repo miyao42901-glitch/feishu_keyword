@@ -61,7 +61,6 @@ import type { AsyncTaskListSummary } from '@/lib/async-task-api'
 import { refreshYddmUserBalance } from '@/lib/refresh-yddm-balance'
 import { buildTestDataFeedFromConfig, taskUsesOnlyTestDataPlatforms, type TestFeedRow } from '@/lib/test-data-feed'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
-import { useYddmAuthStore } from '@/stores/yddmAuth'
 
 /** 任务列表空态图（`public/images/task-list/empty.png`） */
 const taskListEmptyImgSrc = `${import.meta.env.BASE_URL}images/task-list/empty.png`
@@ -79,7 +78,6 @@ const editingTaskStatus = ref<TaskRunStatus | null>(null)
 const taskDetail = ref<FeishuTaskConfigDetail | null>(null)
 
 const globalSettings = useGlobalSettingsStore()
-const yddmAuth = useYddmAuthStore()
 const { authCode } = storeToRefs(globalSettings)
 
 /** 运行中且仅抖音/小红书：按 test_data 与任务配置写入飞书表并更新条数统计 */

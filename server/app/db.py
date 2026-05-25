@@ -15,13 +15,12 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-# 无论从哪个工作目录启动，都加载 server/.env
-_env_path = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(_env_path)
+from app.env_loader import load_server_dotenv
+
+load_server_dotenv()
 
 DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL")
 

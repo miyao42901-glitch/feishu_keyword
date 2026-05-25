@@ -1,0 +1,6 @@
+-- 自旧版（含 feishu_async_results / 结果表 raw_json 等）迁移到当前 schema 的参考步骤（按库况裁剪后执行）
+-- 1) 备份库
+-- 2) 若仍存在 feishu_async_results：DROP TABLE feishu_async_results;
+-- 3) 将 feishu_async_tasks 的 created_at/updated_at 重命名为 create_time/update_time（若尚未统一）
+-- 4) 将 error_message 改为 VARCHAR(64)，params_json 改为 VARCHAR(2048)，user_id 改为 VARCHAR(64) 等（与 schema.sql 对齐）
+-- 5) 重建 feishu_douyin_results / feishu_xhs_results（或 ALTER 增加统一列、迁移 post_id 后删旧列）

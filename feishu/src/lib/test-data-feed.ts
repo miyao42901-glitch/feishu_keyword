@@ -620,7 +620,7 @@ export async function buildTestDataFeedFromConfig(params: {
   let sources = readSelectedSources(config)
   if (params.onlyPlatforms?.length) {
     const allow = new Set(params.onlyPlatforms)
-    sources = sources.filter((p) => allow.has(p))
+    sources = sources.filter((p) => allow.has(p as SyncCollectionPlatformId))
   }
   if (!sources.length || !taskUsesOnlyTestDataPlatforms(sources)) {
     return { rows: [] }

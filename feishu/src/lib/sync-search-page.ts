@@ -98,7 +98,7 @@ export async function fetchDouyinSearchItems(
 ): Promise<Record<string, unknown>[]> {
   const keywords = readSearchKeywords(config)
   const limit = readDataRange(config)
-  const rowsPerPage = expectedApiPageRows('douyin')
+  void expectedApiPageRows('douyin')
   const collected: Record<string, unknown>[] = []
   const seenIds = new Set<string>()
   const path = '/api/v1/sync/douyin/search-page'

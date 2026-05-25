@@ -65,7 +65,10 @@ cd server
 
 ## 代码分层（摘要）
 
-详见 [DEVELOPMENT.md](../DEVELOPMENT.md) 第二节：`app/main.py` → `api/router.py` → `api/routers/` → `services/` → `models/` / `schemas/`。
+详见 [DEVELOPMENT.md](../DEVELOPMENT.md) 第二节：
+
+- **C 端 / 业务 API**：`app/main.py` → `app/api/router.py` → `app/api/routers/` → `services/` → `models/` / `schemas/`
+- **管理端 API**：`server/admin/`（`admin/router.py` 聚合 `admin/routers/*`，挂载前缀 `/api/admin/v1`；与仓库根 `admin/` Vue 静态站对应）
 
 ## 接口实现与注释
 
