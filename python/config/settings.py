@@ -67,7 +67,7 @@ class Settings(BaseSettings):
         default=604800, validation_alias="ASYNC_TASK_REDIS_MAX_TTL_SECONDS"
     )
     async_task_running_stale_seconds: float = Field(
-        default=1800.0, validation_alias="ASYNC_TASK_RUNNING_STALE_SECONDS"
+        default=120.0, validation_alias="ASYNC_TASK_RUNNING_STALE_SECONDS"
     )
 
     database_run_migrations: bool = Field(
