@@ -13,6 +13,7 @@ import {
   SyncHttpError,
   type SyncFetchContext,
 } from '@/lib/sync-api-common'
+import { KEYWORD_MAX_LEN, KEYWORD_TOO_LONG_HINT } from '@/lib/keyword-limits'
 import { refreshYddmUserBalance } from '@/lib/refresh-yddm-balance'
 import { primeSyncEndpointDiscountAfterSuccess } from '@/lib/sync-set-discount'
 
@@ -142,8 +143,8 @@ export function mapNoteTime(publishTime: string): string {
 
 export function assertKeywordLength(keyword: string): string {
   const kw = keyword.trim()
-  if (kw.length > 100) {
-    throw new Error('搜索关键词不能超过 100 个字')
+  if (kw.length > KEYWORD_MAX_LEN) {
+    throw new Error(KEYWORD_TOO_LONG_HINT)
   }
   return kw
 }

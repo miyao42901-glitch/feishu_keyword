@@ -49,7 +49,11 @@ import { fetchXhsSearchItems } from '@/lib/xhs-sync-api'
 import { buildXhsSearchPageBody } from '@/lib/xhs-sync-api'
 import type { SyncItemsByPlatform } from '@/lib/sync-collection-cache'
 import { setSyncCollectionCache } from '@/lib/sync-collection-cache'
-import { platformDisplayNames } from '@/views/TaskCreateForm/constants'
+import {
+  DEFAULT_CRAWL_FREQUENCY,
+  platformDisplayNames,
+  TASK_NAME_MAX_LEN,
+} from '@/views/TaskCreateForm/constants'
 
 const ASYNC_TASK_PATH = '/api/v1/async/tasks'
 /** `GET /api/v1/async/tasks` 每页条数（列表页轮询默认只拉第 1 页，见 `listTaskCardsFromAsync`） */
@@ -82,7 +86,7 @@ export type AsyncTaskBody = {
  * 定时任务 `POST /api/v1/async/tasks` 入参。
  * `task_start_time` / `task_end_time` 对应表单「开始/结束时间」；
  * `interval_minutes` 对应「采集频率」；`fetch_count` 对应「选择条数」；
- * `task_name` 对应表单「任务名称」（1～100 字符）。
+ * `task_name` 对应表单「任务名称」（1～30 字符）。
  *
  * 采集节奏由 YDDM 按上述窗口与频率调度：首轮在 `task_start_time`，之后每隔 `interval_minutes`；
  * 前端每平台×关键词提交一条异步任务。预估轮次见 `countScheduledExecutionRounds`
@@ -271,10 +275,11 @@ export function readAsyncTaskSchedule(config: Record<string, unknown>): {
   }
   const task_start_time = String(config.effectiveAt ?? config.effective_at ?? '').trim()
   const task_end_time = String(config.expireAt ?? config.expire_at ?? '').trim()
-  const freqRaw = config.crawlFrequency ?? config.crawl_frequency ?? '10'
+  const freqRaw = config.crawlFrequency ?? config.crawl_frequency ?? DEFAULT_CRAWL_FREQUENCY
   const interval = typeof freqRaw === 'number' ? freqRaw : Number(String(freqRaw).trim())
+  const fallbackMins = Number(DEFAULT_CRAWL_FREQUENCY)
   const interval_minutes =
-    Number.isFinite(interval) && interval > 0 ? Math.floor(interval) : 10
+    Number.isFinite(interval) && interval > 0 ? Math.floor(interval) : fallbackMins
   const fetch_count = readDataRange(config)
 
   if (!task_start_time) {
@@ -291,7 +296,9 @@ export function readAsyncTaskSchedule(config: Record<string, unknown>): {
 export function readAsyncTaskName(config: Record<string, unknown>): string {
   const name = String(config.planName ?? config.plan_name ?? config.task_name ?? '').trim()
   if (!name) throw new Error('请填写任务名称')
-  if (name.length > 100) throw new Error('任务名称不能超过 100 个字符')
+  if (name.length > TASK_NAME_MAX_LEN) {
+    throw new Error(`任务名称不能超过 ${TASK_NAME_MAX_LEN} 个字符`)
+  }
   return name
 }
 
@@ -815,7 +822,9 @@ export function buildAsyncTaskEditRequest(
 
   const name = String(input.planName ?? input.plan_name ?? input.task_name ?? '').trim()
   if (name) {
-    if (name.length > 100) throw new Error('任务名称不能超过 100 个字符')
+    if (name.length > TASK_NAME_MAX_LEN) {
+      throw new Error(`任务名称不能超过 ${TASK_NAME_MAX_LEN} 个字符`)
+    }
     body.task_name = name
   }
 

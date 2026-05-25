@@ -13,15 +13,22 @@ export const platformDisplayNames: Record<PlatformKey, string> = {
   kuaishou: '快手',
 }
 
+/** 任务名称（planName / task_name）最大字符数 */
+export const TASK_NAME_MAX_LEN = 30
+
 /** Element Plus 日期时间展示与 v-model 字符串格式 */
 export const DATETIME_FORMAT = 'YYYY-MM-DD HH:mm:ss'
+
+/** 定时任务采集间隔默认值（分钟） */
+export const DEFAULT_CRAWL_FREQUENCY = '60'
 
 /** 定时任务采集间隔（value 为分钟数字符串） */
 export const frequencyOptions = [
   { label: '每5分钟', value: '5' },
-  { label: '每10分钟', value: '10' },
-  { label: '每30分钟', value: '30' },
+  { label: '每15分钟', value: '15' },
   { label: '每1小时', value: '60' },
+  { label: '每6小时', value: '360' },
+  { label: '每24小时', value: '1440' },
 ] as const
 
 /** 排序方式下拉 */

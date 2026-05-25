@@ -25,10 +25,16 @@ import {
 import type { FeishuTaskConfigDetail } from '@/lib/api'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
 import { useAccountPointsStore } from '@/stores/accountPoints'
+import { refreshYddmUserBalance } from '@/lib/refresh-yddm-balance'
 import {
   estimatePointsFromItemsByPlatform,
   estimateTaskPointsBreakdown,
 } from '@/lib/task-estimate-points'
+import {
+  KEYWORD_COUNT_EXCEEDED_HINT,
+  KEYWORD_MAX_COUNT,
+  truncateKeyword,
+} from '@/lib/keyword-limits'
 import { isSyncCollectionPlatform } from '@/lib/sync-collection-platforms'
 
 import BasicInfoSection from '@/views/TaskCreateForm/components/BasicInfoSection.vue'
@@ -38,7 +44,9 @@ import FilterSettingsSection from '@/views/TaskCreateForm/components/FilterSetti
 import CrawlScheduleSection from '@/views/TaskCreateForm/components/CrawlScheduleSection.vue'
 import SourceSelectionSection from '@/views/TaskCreateForm/components/SourceSelectionSection.vue'
 import DataRetentionSection from '@/views/TaskCreateForm/components/DataRetentionSection.vue'
+import CustomerServiceQrDialog from '@/components/CustomerServiceQrDialog.vue'
 import TaskConfigConfirmDialog from '@/views/TaskCreateForm/components/TaskConfigConfirmDialog.vue'
+import { isPointsInsufficient, POINTS_INSUFFICIENT_MSG } from '@/lib/insufficient-balance'
 import {
   buildTaskConfigConfirmRows,
   snapshotForPreview,
@@ -50,8 +58,10 @@ import {
 } from '@/lib/datetime-task-window'
 import {
   dataRangeOptions,
+  DEFAULT_CRAWL_FREQUENCY,
   platformDisplayNames,
   sourcePlatforms,
+  TASK_NAME_MAX_LEN,
 } from '@/views/TaskCreateForm/constants'
 import {
   ensureSourceFieldSelectionForAllSelected,
@@ -111,7 +121,7 @@ function initialForm(): TaskCreateFormModel {
     feishuNotifyEnabled: false,
     feishuWebhookUrl: '',
     taskType: 'scheduled',
-    crawlFrequency: '5',
+    crawlFrequency: DEFAULT_CRAWL_FREQUENCY,
     effectiveAt: '',
     expireAt: '',
     keywords: [],
@@ -162,7 +172,14 @@ const scheduleFieldsLocked = computed(
 
 /** 仅定时任务校验开始/结束时间；单次任务不展示时间字段 */
 const rules = computed<FormRules>(() => ({
-  planName: [{ required: true, message: '请输入任务名称', trigger: 'blur' }],
+  planName: [
+    { required: true, message: '请输入任务名称', trigger: 'blur' },
+    {
+      max: TASK_NAME_MAX_LEN,
+      message: `任务名称不能超过 ${TASK_NAME_MAX_LEN} 个字符`,
+      trigger: 'blur',
+    },
+  ],
   feishuWebhookUrl: [
     {
       validator: (_rule, value, callback) => {
@@ -197,6 +214,8 @@ const internalConfigId = ref<number | null>(null)
 
 /** 保存前确认弹框 */
 const confirmVisible = ref(false)
+/** 积分不足时展示客服二维码 */
+const customerServiceQrVisible = ref(false)
 const confirmDisplayRows = computed(() =>
   buildTaskConfigConfirmRows(snapshotForPreview(snapshotForm() as Record<string, unknown>)),
 )
@@ -221,9 +240,39 @@ function showSaveError(msg: string) {
   saveErrorText.value = msg
 }
 
+function isBalanceInsufficientForEstimate(): boolean {
+  return isPointsInsufficient(
+    pointsEstimate.value.total,
+    accountPoints.currentBalancePoints,
+  )
+}
+
+/** 预估消耗超过余额：关闭确认弹层、页内提示并弹出客服二维码 */
+function handleInsufficientBalance() {
+  confirmVisible.value = false
+  showSaveError(POINTS_INSUFFICIENT_MSG)
+  customerServiceQrVisible.value = true
+}
+
+const PLATFORM_REQUIRED_MSG = '请至少选择一个采集平台'
+
+/** 至少勾选一个采集平台；失败时用页内横幅提示（避免被确认弹层遮挡） */
+function ensurePlatformsSelected(): boolean {
+  const hasPlatform = form.selectedSources.some((id) => isSupportedSourcePlatform(id))
+  if (hasPlatform) return true
+  confirmVisible.value = false
+  showSaveError(PLATFORM_REQUIRED_MSG)
+  if (currentStep.value !== 0) currentStep.value = 0
+  return false
+}
+
 /** 关键词必填：合并草稿后检查，与表格名称等业务校验一致 */
 function ensureKeywordsFilled(): boolean {
   flushKeywordDraftsToForm()
+  if (form.keywords.length > KEYWORD_MAX_COUNT) {
+    ElMessage.warning(KEYWORD_COUNT_EXCEEDED_HINT)
+    return false
+  }
   if (form.keywords.length > 0) return true
   ElMessage.warning('请至少添加一个关键词')
   return false
@@ -284,6 +333,7 @@ async function goNextStep() {
   if (currentStep.value >= LAST_STEP) return
   if (currentStep.value === 0) {
     if (!ensureKeywordsFilled()) return
+    if (!ensurePlatformsSelected()) return
     if (formRef.value) {
       const fields: string[] = ['planName']
       if (form.taskType === 'scheduled') {
@@ -304,6 +354,20 @@ async function goNextStep() {
  * 将服务端 `config` 合并进表单；对 `sourceFieldSelection` 做白名单字段过滤。
  */
 /** 兼容旧版 `excludeKeywords` 为整段字符串的配置 */
+function normalizeKeywords(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const item of raw) {
+    if (typeof item !== 'string') continue
+    const { value } = truncateKeyword(item)
+    if (!value || seen.has(value)) continue
+    seen.add(value)
+    out.push(value)
+  }
+  return out.slice(0, KEYWORD_MAX_COUNT)
+}
+
 function normalizeExcludeKeywords(raw: unknown): string[] {
   if (Array.isArray(raw)) {
     return raw
@@ -367,7 +431,11 @@ function mergeConfigIntoForm(raw: Record<string, unknown>) {
   ) {
     globalSettings.authCode = savedAuth.trim()
   }
-  form.excludeKeywords = normalizeExcludeKeywords(raw.excludeKeywords)
+  form.keywords = normalizeKeywords(raw.keywords ?? form.keywords)
+  const keywordSet = new Set(form.keywords)
+  form.excludeKeywords = normalizeExcludeKeywords(raw.excludeKeywords).filter(
+    (ex) => !keywordSet.has(ex),
+  )
   form.runStatus = normalizeRunStatus(raw.runStatus)
   form.taskPaused = coerceTaskPausedFlag(raw)
   form.taskAbnormal = typeof raw.taskAbnormal === 'boolean' ? raw.taskAbnormal : false
@@ -465,14 +533,14 @@ watch(
 /** 深拷贝为普通对象便于 `JSON.stringify` 提交；授权码来自全局配置写入 `config_json`。 */
 /** 将输入框未按回车提交的草稿合并进表单数组 */
 function flushKeywordDraftsToForm() {
-  const kw = keywordDraft.value.trim()
-  if (kw && !form.keywords.includes(kw)) {
+  const { value: kw } = truncateKeyword(keywordDraft.value)
+  if (kw && !form.keywords.includes(kw) && form.keywords.length < KEYWORD_MAX_COUNT) {
     form.keywords.push(kw)
   }
   keywordDraft.value = ''
 
   const ex = excludeKeywordDraft.value.trim()
-  if (ex && !form.excludeKeywords.includes(ex)) {
+  if (ex && !form.excludeKeywords.includes(ex) && !form.keywords.includes(ex)) {
     form.excludeKeywords.push(ex)
   }
   excludeKeywordDraft.value = ''
@@ -494,6 +562,7 @@ async function openSaveConfirm() {
     return
   }
   if (!ensureKeywordsFilled()) return
+  if (!ensurePlatformsSelected()) return
   try {
     await validateFormForSave()
   } catch (invalidFields) {
@@ -507,6 +576,11 @@ async function openSaveConfirm() {
         return
       }
     }
+  }
+  await refreshYddmUserBalance()
+  if (isBalanceInsufficientForEstimate()) {
+    handleInsufficientBalance()
+    return
   }
   confirmVisible.value = true
 }
@@ -596,6 +670,10 @@ async function executeRealtimeFromConfirm(
 
 async function persistFromConfirmDialog() {
   if (!formRef.value || saving.value) return
+  if (isBalanceInsufficientForEstimate()) {
+    handleInsufficientBalance()
+    return
+  }
   const globalSettings = useGlobalSettingsStore()
   if (!String(globalSettings.authCode ?? '').trim()) {
     showSaveError('请先在顶部填写 API-Key（授权码）')
@@ -606,6 +684,7 @@ async function persistFromConfirmDialog() {
     confirmVisible.value = false
     return
   }
+  if (!ensurePlatformsSelected()) return
   try {
     await validateFormForSave()
   } catch (invalidFields) {
@@ -678,7 +757,12 @@ async function persistFromConfirmDialog() {
     saveErrorText.value = ''
     emit('saved', targetId, existingId != null, savedAsRealtime)
   } catch (e) {
-    showSaveError(e instanceof Error ? e.message : '保存任务失败')
+    confirmVisible.value = false
+    const msg = e instanceof Error ? e.message : '保存任务失败'
+    if (msg === PLATFORM_REQUIRED_MSG && currentStep.value !== 0) {
+      currentStep.value = 0
+    }
+    showSaveError(msg)
   } finally {
     saving.value = false
   }
@@ -693,9 +777,11 @@ async function persistFromConfirmDialog() {
       :title="saveErrorText"
       show-icon
       closable
-      class="save-banner sticky top-0 z-20 mb-3 w-full min-w-0 shadow-sm"
+      class="save-banner sticky top-0 z-[2100] mb-3 w-full min-w-0 shadow-sm"
       @close="saveBanner = null"
     />
+
+    <CustomerServiceQrDialog v-model="customerServiceQrVisible" />
 
     <TaskConfigConfirmDialog
       v-model="confirmVisible"
@@ -708,6 +794,7 @@ async function persistFromConfirmDialog() {
       :confirming="saving"
       :is-realtime-task="form.taskType === 'realtime'"
       @confirm="persistFromConfirmDialog"
+      @recharge="handleInsufficientBalance"
     />
 
     <div
@@ -731,13 +818,17 @@ async function persistFromConfirmDialog() {
       <div v-show="currentStep === 0">
         <BasicInfoSection :form="form" />
         <CrawlScheduleSection :form="form" :schedule-locked="scheduleFieldsLocked" />
-        <p class="task-form-field-title mb-2 mt-6">采集平台</p>
+        <p class="task-form-field-title mb-2 mt-6">
+          采集平台<span class="task-form-field-required" aria-hidden="true">*</span>
+        </p>
         <SourceSelectionSection
           mode="platforms"
           :form="form"
           :ordered-platforms="orderedSelectedPlatforms"
         />
-        <p class="task-form-field-title mb-2 mt-6">关键词</p>
+        <p class="task-form-field-title mb-2 mt-6">
+          关键词监控<span class="task-form-field-required" aria-hidden="true">*</span>
+        </p>
         <KeywordsSection
           :form="form"
           :keyword-draft="keywordDraft"
@@ -873,5 +964,13 @@ async function persistFromConfirmDialog() {
   margin-left: 4px;
   font-weight: 400;
   color: #86909c;
+}
+
+.task-create-form .task-form-field-required {
+  margin-left: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  color: #f54a45;
 }
 </style>

@@ -3,11 +3,12 @@
  * 保存前「确认任务配置」：配置摘要、预估积分与当前积分；单次为「立即执行」，定时为「开始执行」。
  */
 import { Close } from '@element-plus/icons-vue'
+import { computed } from 'vue'
 import type { TaskConfigConfirmRow } from '@/views/TaskCreateForm/build-preview-rows'
 
 defineOptions({ name: 'TaskConfigConfirmDialog' })
 
-defineProps<{
+const props = defineProps<{
   rows: TaskConfigConfirmRow[]
   estimatedPoints: number
   balancePoints: number
@@ -18,10 +19,17 @@ defineProps<{
   isRealtimeTask?: boolean
 }>()
 
+/** 当前积分低于预估消耗上限时不允许提交 */
+const pointsInsufficient = computed(
+  () => props.estimatedPoints > 0 && props.balancePoints < props.estimatedPoints,
+)
+
 const visible = defineModel<boolean>({ required: true })
 
 const emit = defineEmits<{
   confirm: []
+  /** 积分不足时联系客服充值 */
+  recharge: []
 }>()
 
 function handleClose() {
@@ -81,11 +89,24 @@ function handleClose() {
       <div class="task-config-confirm-dialog__points-row">
         <span class="task-config-confirm-dialog__points-label">当前积分</span>
         <span class="task-config-confirm-dialog__points-value">
-          <span class="task-config-confirm-dialog__points-num">{{
+          <span
+            class="task-config-confirm-dialog__points-num"
+            :class="{ 'task-config-confirm-dialog__points-num--warn': pointsInsufficient }"
+          >{{
             balancePoints.toLocaleString('zh-CN')
           }}</span>
           <span class="task-config-confirm-dialog__points-unit">积分</span>
         </span>
+      </div>
+      <div v-if="pointsInsufficient" class="task-config-confirm-dialog__insufficient">
+        <p class="task-config-confirm-dialog__points-warn" role="alert">点数不足，请先充值</p>
+        <button
+          type="button"
+          class="task-config-confirm-dialog__recharge-link"
+          @click="emit('recharge')"
+        >
+          联系客服充值
+        </button>
       </div>
     </div>
 
@@ -102,7 +123,8 @@ function handleClose() {
         <button
           type="button"
           class="task-config-confirm-dialog__btn task-config-confirm-dialog__btn--primary"
-          :disabled="confirming"
+          :disabled="confirming || pointsInsufficient"
+          :title="pointsInsufficient ? '点数不足，请先充值' : undefined"
           @click="emit('confirm')"
         >
           {{
@@ -234,6 +256,42 @@ function handleClose() {
   font-weight: 500;
   line-height: 1.5;
   color: #1f22f6;
+}
+
+.task-config-confirm-dialog__points-num--warn {
+  color: #d83931;
+}
+
+.task-config-confirm-dialog__insufficient {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.task-config-confirm-dialog__points-warn {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #d83931;
+}
+
+.task-config-confirm-dialog__recharge-link {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: #1f22f6;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.task-config-confirm-dialog__recharge-link:hover {
+  color: #1456f0;
 }
 
 .task-config-confirm-dialog__points-unit {
