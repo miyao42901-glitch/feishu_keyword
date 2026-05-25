@@ -18,6 +18,7 @@ import {
   type AsyncTaskResultsMeta,
   type SyncFetchContext,
 } from '@/lib/sync-api-common'
+import { expectedApiPageRows } from '@/lib/sync-platform-page-size'
 import { buildDouyinSearchPageBody } from '@/lib/sync-search-page'
 import {
   getSyncApiJson,
@@ -982,18 +983,24 @@ function resolvePlatformFromResultsMeta(meta: AsyncTaskResultsMeta): SyncCollect
   return mapYddmPlatformToSyncId(meta.platform ?? meta.source)
 }
 
-/** 拉取单任务全部结果页（`GET .../results`，按需翻 `page`；保留 `data.meta`） */
+/** 拉取单任务全部结果页（`GET .../results?page=`；抖音约 10 条/页，需翻页凑满 fetch_count） */
 export async function fetchAllAsyncTaskResults(
   ctx: SyncFetchContext,
   taskId: string,
+  options?: { maxItems?: number },
 ): Promise<AsyncTaskResultsBatch> {
   const collected: Record<string, unknown>[] = []
   let meta: AsyncTaskResultsMeta = {}
-  let page: string | undefined
   const maxPages = 50
+  const maxItems =
+    options?.maxItems != null && options.maxItems > 0 ? Math.floor(options.maxItems) : undefined
 
-  for (let i = 0; i < maxPages; i++) {
-    const parsed = await fetchAsyncTaskResultsPage(ctx, taskId, page ? { page } : {})
+  for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+    const parsed = await fetchAsyncTaskResultsPage(
+      ctx,
+      taskId,
+      pageNum > 1 ? { page: String(pageNum) } : {},
+    )
     if (!meta.platform && !meta.resultTable) {
       meta = extractAsyncTaskResultsMeta(parsed)
     }
@@ -1004,18 +1011,35 @@ export async function fetchAllAsyncTaskResults(
     if (pageMeta.insufficientBalance) {
       throw new Error('账户积分不足，无法继续采集')
     }
-    if (!pageMeta.hasMore) break
-
-    const next =
-      pageMeta.nextCursor != null && String(pageMeta.nextCursor).trim()
-        ? String(pageMeta.nextCursor).trim()
-        : String(i + 2)
-    page = next
+    if (maxItems != null && collected.length >= maxItems) break
     if (!batch.length) break
+
+    const platform = resolvePlatformFromResultsMeta(meta)
+    const rowsPerPage = expectedApiPageRows(platform ?? 'douyin')
+
+    /*
+     * 结果接口用 `?page=` 翻页（非 cursor）。抖音约 10 条/页：
+     * 本页满页则继续请求下一页，直至凑满 maxItems 或遇到不足一页的末页。
+     * 不依赖 `has_more`（首屏常误报 false，导致只写入 10 条）。
+     */
+    const needMore = maxItems == null || collected.length < maxItems
+    if (needMore && batch.length >= rowsPerPage) continue
+    if (batch.length < rowsPerPage) break
+  }
+
+  if (import.meta.env.DEV && maxItems != null && collected.length > 0 && collected.length < maxItems) {
+    console.warn('[async-task] results 未凑满选择条数', {
+      taskId,
+      collected: collected.length,
+      maxItems,
+      platform: resolvePlatformFromResultsMeta(meta),
+    })
   }
 
   const platform = resolvePlatformFromResultsMeta(meta)
-  return { items: collected, meta, platform }
+  const items =
+    maxItems != null && collected.length > maxItems ? collected.slice(0, maxItems) : collected
+  return { items, meta, platform }
 }
 
 /** @deprecated 使用 `fetchAllAsyncTaskResults` */
@@ -1032,6 +1056,7 @@ export async function fetchAsyncTaskResultsMap(
   ctx: SyncFetchContext,
   taskIds: string[],
   statusMap?: Map<string, AsyncTaskStatusResult>,
+  options?: { maxItemsPerTask?: number },
 ): Promise<Map<string, AsyncTaskResultsBatch>> {
   const wanted = [...new Set(taskIds.map((x) => x.trim()).filter(Boolean))]
   const map = new Map<string, AsyncTaskResultsBatch>()
@@ -1051,7 +1076,7 @@ export async function fetchAsyncTaskResultsMap(
         return
       }
       try {
-        map.set(id, await fetchAllAsyncTaskResults(ctx, id))
+        map.set(id, await fetchAllAsyncTaskResults(ctx, id, { maxItems: options?.maxItemsPerTask }))
       } catch {
         map.set(id, emptyBatch())
       }
@@ -1145,6 +1170,8 @@ export async function fetchAsyncTaskStatusAndResultsMaps(
     skipAcceptance?: boolean
     /** 列表已确认为 running 的子任务 id，跳过 `GET .../tasks/{id}` */
     skipStatusFetchForIds?: Iterable<string>
+    /** 对应表单「选择条数」，拉 results 时翻页上限 */
+    maxItemsPerTask?: number
   },
 ): Promise<{
   statusMap: Map<string, AsyncTaskStatusResult>
@@ -1167,7 +1194,9 @@ export async function fetchAsyncTaskStatusAndResultsMaps(
     const fetched = await fetchAsyncTaskStatusMap(ctx, needFetch)
     for (const [id, st] of fetched) statusMap.set(id, st)
   }
-  const resultsMap = await fetchAsyncTaskResultsMap(ctx, taskIds, statusMap)
+  const resultsMap = await fetchAsyncTaskResultsMap(ctx, taskIds, statusMap, {
+    maxItemsPerTask: options?.maxItemsPerTask,
+  })
   if (!options?.skipAcceptance && options?.refs?.length) {
     await postResultsAcceptanceAfterAsyncFetch(ctx, options.refs, resultsMap)
   }

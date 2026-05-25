@@ -243,47 +243,64 @@ export function extractSyncResultBalance(payload: unknown): number | null {
   return typeof bal === 'number' && Number.isFinite(bal) ? bal : null
 }
 
+/** 翻页 token（`cursor` / `log_id` 等）统一转为请求用字符串 */
+export function normalizePaginationToken(value: unknown): string | undefined {
+  if (value == null) return undefined
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return undefined
+    return String(Math.trunc(value))
+  }
+  if (typeof value === 'string') {
+    const s = value.trim()
+    return s || undefined
+  }
+  const s = String(value).trim()
+  return s || undefined
+}
+
+function readSyncResultEnvelope(payload: unknown): Record<string, unknown> | null {
+  if (!payload || typeof payload !== 'object') return null
+  const data = (payload as Record<string, unknown>).data
+  if (!data || typeof data !== 'object') return null
+  const result = (data as Record<string, unknown>).result
+  if (!result || typeof result !== 'object') return null
+  return result as Record<string, unknown>
+}
+
+/** 仅解析接口显式 `has_more`（不含 cursor/log_id 推断，供 async results 翻页） */
+export function readExplicitSyncHasMore(payload: unknown): boolean | null {
+  const r = readSyncResultEnvelope(payload)
+  if (!r) return null
+  const hasMoreFlag = r.has_more ?? r.hasMore
+  if (hasMoreFlag === true || hasMoreFlag === 1 || hasMoreFlag === '1') return true
+  if (hasMoreFlag === false || hasMoreFlag === 0 || hasMoreFlag === '0') return false
+  return null
+}
+
 export type SyncResultPageMeta = {
-  nextCursor?: number | string
+  nextCursor?: string
   nextLogid?: string
   insufficientBalance?: boolean
   hasMore: boolean
 }
 
 export function extractSyncResultPageMeta(payload: unknown): SyncResultPageMeta {
-  if (!payload || typeof payload !== 'object') {
-    return { hasMore: false }
-  }
-  const data = (payload as Record<string, unknown>).data
-  if (!data || typeof data !== 'object') return { hasMore: false }
-  const result = (data as Record<string, unknown>).result
-  if (!result || typeof result !== 'object') return { hasMore: false }
-  const r = result as Record<string, unknown>
-  const nextCursor = r.next_cursor ?? r.nextCursor
-  const nextLogid =
-    typeof r.next_logid === 'string'
-      ? r.next_logid
-      : typeof r.next_log_id === 'string'
-        ? r.next_log_id
-        : typeof r.nextLogid === 'string'
-          ? r.nextLogid
-          : undefined
+  const r = readSyncResultEnvelope(payload)
+  if (!r) return { hasMore: false }
+
+  const nextCursor = normalizePaginationToken(r.next_cursor ?? r.nextCursor)
+  const nextLogid = normalizePaginationToken(r.next_logid ?? r.next_log_id ?? r.nextLogid)
   const insufficient =
     r.insufficient_balance === true || r.insufficientBalance === true
   const hasMoreFlag = r.has_more ?? r.hasMore
-  const hasCursor =
-    nextCursor != null &&
-    nextCursor !== '' &&
-    !(typeof nextCursor === 'number' && !Number.isFinite(nextCursor))
-  const hasLogId = Boolean(nextLogid?.trim())
   const hasMore =
     hasMoreFlag === true ||
     hasMoreFlag === 1 ||
     hasMoreFlag === '1' ||
-    hasCursor ||
-    hasLogId
+    Boolean(nextCursor) ||
+    Boolean(nextLogid)
   return {
-    nextCursor: nextCursor as number | string | undefined,
+    nextCursor,
     nextLogid,
     insufficientBalance: insufficient,
     hasMore,

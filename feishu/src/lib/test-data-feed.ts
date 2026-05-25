@@ -493,6 +493,7 @@ async function buildTestDataFeedFromAsyncResults(params: {
     refs,
     skipAcceptance: true,
     skipStatusFetchForIds: params.skipStatusFetchForTaskIds,
+    maxItemsPerTask: limit,
   })
 
   if (!refs.length) {

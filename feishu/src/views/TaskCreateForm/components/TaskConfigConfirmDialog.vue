@@ -84,7 +84,7 @@ function handleClose() {
         <template v-if="scheduledExecutionRounds != null && scheduledExecutionRounds > 1">
           定时任务预计在监控期内采集 {{ scheduledExecutionRounds }} 轮（自开始后每隔采集频率执行，结束时刻可能补采一轮）；预估积分已按轮次累加。
         </template>
-        按各平台、每轮实采条数扣费：未凑满选择条数时会继续翻页；实采不足时按实际返回条数计费。
+        按各平台每次 search-page 请求计费（翻页凑满选择条数会产生多次请求）；上限按预估请求次数×平台积分档位计算。折扣生效后可能按实采条数折算（约每条 100 积分），低于本预估值。
       </p>
       <div class="task-config-confirm-dialog__points-row">
         <span class="task-config-confirm-dialog__points-label">当前积分</span>

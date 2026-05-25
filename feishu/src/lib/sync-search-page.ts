@@ -6,7 +6,11 @@
  */
 
 import type { SyncFetchContext } from '@/lib/sync-api-common'
-import { extractSyncResultItems, extractSyncResultPageMeta } from '@/lib/sync-api-common'
+import {
+  extractSyncResultItems,
+  extractSyncResultPageMeta,
+  normalizePaginationToken,
+} from '@/lib/sync-api-common'
 import { expectedApiPageRows } from '@/lib/sync-platform-page-size'
 import {
   assertKeywordLength,
@@ -57,7 +61,7 @@ function mapFilterDuration(videoDuration: string): DouyinFilterDuration {
 export function buildDouyinSearchPageBody(
   config: Record<string, unknown>,
   keyword: string,
-  page?: { cursor?: string; logId?: string },
+  page?: { cursor?: string | number; logId?: string | number },
 ): DouyinSearchPageRequestBody {
   const body: DouyinSearchPageRequestBody = {
     keyword: assertKeywordLength(keyword),
@@ -70,10 +74,10 @@ export function buildDouyinSearchPageBody(
     ),
   }
 
-  const cursor = page?.cursor?.trim()
+  const cursor = normalizePaginationToken(page?.cursor)
   if (cursor) body.cursor = cursor
 
-  const logId = page?.logId?.trim()
+  const logId = normalizePaginationToken(page?.logId)
   if (logId) body.log_id = logId
 
   return body
@@ -135,15 +139,10 @@ export async function fetchDouyinSearchItems(
       if (collected.length === before) break
 
       const pageMeta = extractSyncResultPageMeta(payload)
-      const nextCursor =
-        pageMeta.nextCursor != null && String(pageMeta.nextCursor).trim()
-          ? String(pageMeta.nextCursor).trim()
-          : undefined
-      const nextLogId = pageMeta.nextLogid?.trim() || undefined
+      const nextCursor = pageMeta.nextCursor
+      const nextLogId = pageMeta.nextLogid
       const canContinue = pageMeta.hasMore || Boolean(nextCursor || nextLogId)
-
-      if (collected.length >= limit) break
-      if (!canContinue) break
+      const remaining = limit - collected.length
 
       if (import.meta.env.DEV) {
         console.log('[douyin-search-page]', {
@@ -153,9 +152,19 @@ export async function fetchDouyinSearchItems(
           added: collected.length - before,
           total: collected.length,
           limit,
-          canContinue,
+          remaining,
+          hasMore: pageMeta.hasMore,
+          nextCursor,
+          nextLogId,
         })
       }
+
+      if (collected.length >= limit) break
+      if (remaining <= 0) break
+      /* 本页不足一页且无更多 → 不翻页（与小红书/微信逻辑一致） */
+      if (batch.length < rowsPerPage && !pageMeta.hasMore) break
+      if (!pageMeta.hasMore && batch.length < remaining) break
+      if (!canContinue) break
 
       cursor = nextCursor
       logId = nextLogId
