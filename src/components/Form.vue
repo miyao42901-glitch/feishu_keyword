@@ -29,13 +29,15 @@
   import PV2Form from '@/paneForms/v2Form.vue'
   import PKsForm from '@/paneForms/ksForm.vue'
   import PXhsForm from '@/paneForms/xhsForm.vue'
-  import PDyFormCopy from '@/paneForms/dyForm_copy.vue'
+  import PDyFormNew from '@/paneForms/dyForm_new.vue'
 
   import SensitiveText from './sensitiveText.vue'
   import LoginDialog from './LoginDialog.vue'
   import RechargeCard from './RechargeCard.vue'
+  import RechargeDialog from './RechargeDialog.vue'
   import WechatLoginDialog from './WechatLoginDialog.vue'
   import axios from 'axios'
+  import { RefreshRight, Switch } from '@element-plus/icons-vue'
   import '@/assets/form-styles.css'
 
   export default {
@@ -65,12 +67,16 @@
       PV2Form,
       PKsForm,
       PXhsForm,
-      PDyFormCopy,
+      PDyFormNew,
 
       SensitiveText,
       LoginDialog,
       RechargeCard,
+      RechargeDialog,
       WechatLoginDialog,
+
+      RefreshRight,
+      Switch,
     },
     setup() {
       const { t } = useI18n();
@@ -90,6 +96,7 @@
 
       const isLocked = ref(false);
       const loginDialogVisible = ref(false);
+      const rechargeDialogVisible = ref(false);
       const showRechargeCard = ref(false)
       const wechatLoginDialogVisible = ref(false);
 
@@ -207,7 +214,7 @@
           if (res && res.data && res.data.code === 0) {
             formData.value.isLogin = true;
             formData.value.key = res.data.data.key;
-            formData.value.key = 'JZL6f0685390502a6b9';
+            // formData.value.key = 'JZL6f0685390502a6b9';
             formData.value.username = res.data.data.user_name;
             formData.value.remainMoney = res.data.data.remain_money;
             result = true
@@ -255,7 +262,7 @@
             formData.value.messageType = 'error';
           }
           else {
-            showRechargeCard.value = true;
+            rechargeDialogVisible.value = true;
           }
         }
         finally {
@@ -325,6 +332,7 @@
         showRechargeCard,
         loginDialogVisible,
         wechatLoginDialogVisible,
+        rechargeDialogVisible,
         refreshBalance,
         // tenantAuth,
         getRemainMoney,
@@ -342,246 +350,104 @@
 
 <template>
   <div class="form-container">
-    <el-form ref="formRef" :model="formData">
-      <div class="title-section">{{ t('form.title') }}</div>
+    <div class="container">
+        <div class="header">
+            <div class="brand-wrapper">
+                <div class="title-section">
+                    <div class="brand-text">
+                        <div class="brand-title">极致了数​​据助手</div>
+                        <a  class="brand-sub" href="https://www.dajiala.com/main/interface" target="_blank" style="text-decoration: none;">了解更多 ></a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="header-actions">
+                <a class="action-btn" href="https://lcnnrhjmwxym.feishu.cn/wiki/OruzwbB6nigLMek8zxFcbKwmnXg" target="_blank" style="text-decoration: none;">使用指南</a>
+                <span style="color: #d1d5db; font-size: 12px;">|</span>
+                <a class="action-btn" href="https://lcnnrhjmwxym.feishu.cn/wiki/OruzwbB6nigLMek8zxFcbKwmnXg" target="_blank" style="text-decoration: none;">加入交流群</a>
+            </div>
+        </div>
 
-      <el-card class="card-item" shadow="hover">
-        
-        <el-form class="ghForm" label-position="left" label-width="auto">
-          
-          <el-form-item v-if="alertList[0]" label-width="null">
-            <el-alert
-              type="primary"
-              @close="() => alertList[0] = null"
-            >
-              {{ t('form.alert.guide.text') }}<a href="https://lcnnrhjmwxym.feishu.cn/wiki/OruzwbB6nigLMek8zxFcbKwmnXg" target="_blank">{{ t('form.alert.guide.urlText') }}</a> <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=114h49e6-49a7-468a-a225-d141cf7e61c8" target="_blank">加入交流群</a>
-            </el-alert>
-          </el-form-item>
+        <div class="info-panel">
+            <div class="info-left" v-if="formData.isLogin">
+                <div class="info-row">
+                    <span class="info-label">用户:</span>
+                    <span class="info-value">{{ formData.username }}</span>
+                    <el-icon class="info-icon" @click="logout"><Switch /></el-icon>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">余额:</span>
+                    <span class="info-value">{{ formData.remainMoney }}</span>
+                    <el-icon class="info-icon" @click="refreshBalance"><RefreshRight /></el-icon>
+                </div>
+            </div>
 
-          <el-form-item 
-            :label="t('form.fields.username')"
-            v-if="formData.isLogin"
-          >
-            <el-text style="flex: 1;">{{ formData.username }}</el-text>
-          </el-form-item>
-
-          <el-form-item 
-            :label="t('form.fields.balance')"
-            v-if="formData.isLogin"
-          >
-            <el-text style="flex: 1;">{{ formData.remainMoney }}</el-text>
-          </el-form-item>
-
-          <!-- <el-form-item 
-            label="key :"
-            v-if="formData.isLogin"
-          >
-            <SensitiveText
-              :value="formData.key"
-              style="flex: 1;"
-            />
-          </el-form-item> -->
-
-          <el-form-item 
-            label-width="null"
-            v-if="formData.isLogin"
-          >
-            <el-button 
-              type="primary" 
-              @click="refreshBalance"
-              plain
-              style="flex: 1;"
-            >
-              {{ t('form.buttons.refreshBalance') }}
-            </el-button>
-
-            <el-button 
-              type="danger" 
-              @click="logout"
-              plain
-              style="flex: 1;"
-            >
-              {{ t('form.buttons.logout') }}
-            </el-button>
-          </el-form-item>
-
-          <el-form-item 
-            label-width="null"
-            v-if="formData.isLogin"
-          >
-            <el-button
-              type="primary"
-              plain
-              style="flex: 1;"
-              @click="openRechargeDialog"
-            >
-              {{ t('form.buttons.recharge') }}
-            </el-button>
-
-            <el-button
-              tag="a"
-              href="https://www.dajiala.com/main/interface"
-              target="_blank"
-              type="primary"
-              plain
-              style="flex: 1;text-decoration: none;"
-            >
-              {{ t('form.buttons.learnMore') }}
-            </el-button>
-          </el-form-item>
-
-          <!-- <el-form-item 
-            label-width="null"
-            v-if="!formData.isLogin"
-          >
-            <el-button 
-              type="primary" 
-              @click="tenantAuth"
-              plain
-              style="flex: 1;"
-            >飞书账号授权</el-button>
-          </el-form-item> -->
-
-          <el-form-item 
-            label-width="null"
-            v-if="!formData.isLogin"
-          >
-            <el-button 
-              type="primary"
-              @click="openWechatLoginDialog"
-              plain
-              style="flex: 1;"
-            >{{ t('form.buttons.wechatLogin') }}</el-button>
-          </el-form-item>
-
-          <el-form-item 
-            label-width="null"
-            v-if="!formData.isLogin"
-          >
-            <el-button 
-              type="primary" 
-              @click="openLoginDialog"
-              plain
-              style="flex: 1;"
-            >{{ t('form.buttons.passwordLogin') }}</el-button>
-          </el-form-item>
-
-          <el-form-item 
-            label-width="null"
-            v-if="!formData.isLogin"
-          >
-            <el-button
-              tag="a"
-              href="https://www.dajiala.com/main/interface"
-              target="_blank"
-              type="primary"
-              plain
-              style="flex: 1;text-decoration: none;"
-            >
-              {{ t('form.buttons.learnMore') }}
-            </el-button>
-          </el-form-item>
-
-        </el-form>
-      </el-card>
-
-    <!-- 充值卡片 -->
-    <RechargeCard
-      v-if="showRechargeCard"
-      @recharge="handleRecharge"
-      @close="showRechargeCard = false"
-    />
-
-      <!-- <el-card v-show="!showRechargeCard" class="card-item" shadow="hover">
-        <el-tabs :disabled="isLocked">
-          <el-tab-pane :label="t('form.tabs.douyin')">
-            <DyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-          </el-tab-pane>
-          <el-tab-pane :label="t('form.tabs.wechatChannel')">
-            <V2Form :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-          </el-tab-pane>
-          <el-tab-pane :label="t('form.tabs.wechat')">
-            <GhForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-          </el-tab-pane>
-          <el-tab-pane :label="t('form.tabs.kuaishou')">
-            <KsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-          </el-tab-pane>
-        </el-tabs>
-      </el-card> -->
-
-      <!-- <el-card v-show="!showRechargeCard" class="card-item" shadow="hover"> -->
-        <el-tabs :disabled="isLocked">
-          <el-tab-pane :label="'测试'">
-            <PDyFormCopy :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-          </el-tab-pane>
-          <el-tab-pane :label="t('form.tabs.douyin')">
-            <PDyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-          </el-tab-pane>
-          <el-tab-pane :label="'小红书'">
-            <PXhsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-          </el-tab-pane>
-          <el-tab-pane :label="t('form.tabs.wechatChannel')">
-            <PV2Form :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-          </el-tab-pane>
-          <el-tab-pane :label="t('form.tabs.wechat')">
-            <PGhForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-          </el-tab-pane>
-          <el-tab-pane :label="t('form.tabs.kuaishou')">
-            <PKsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-          </el-tab-pane>
-        </el-tabs>
-      <!-- </el-card> -->
-      
-      <!-- <p>{{ formData }}</p>
-      <p>{{ isLocked }}</p> -->
-    </el-form>
-    
-    <!-- 加载遮罩 -->
-    <div class="loading-overlay" v-if="isShow">
-      <div class="loading-content">
-        <div class="loading-spinner"></div>
-        <p>{{ t('form.loading') }}</p>
-      </div>
+            <button class="info-btn" v-if="formData.isLogin" @click="openRechargeDialog">余额充值</button>
+            <button class="info-btn" v-if="!formData.isLogin" @click="openWechatLoginDialog">微信扫码登录/注册</button>
+            <button class="info-btn" v-if="!formData.isLogin" @click="openLoginDialog">账号密码登录</button>
+        </div>
     </div>
 
-    <!-- 登录对话框 -->
-    <LoginDialog
-      v-model:visible="loginDialogVisible"
-      @login-success="handleLoginSuccess"
-    />
-
-
-    <!-- 微信登录对话框 -->
-    <WechatLoginDialog
-      v-model:visible="wechatLoginDialogVisible"
-      @login-success="handleLoginSuccess"
-    />
+    <div class="container-down">
+      <el-tabs :disabled="isLocked" class="my-custom-tabs">
+        <el-tab-pane :label="'抖音测试'">
+          <PDyFormNew :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+        </el-tab-pane>
+        <el-tab-pane :label="t('form.tabs.douyin')">
+          <PDyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+        </el-tab-pane>
+        <el-tab-pane :label="'小红书'">
+          <PXhsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+        </el-tab-pane>
+        <el-tab-pane :label="t('form.tabs.wechatChannel')">
+          <PV2Form :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+        </el-tab-pane>
+        <el-tab-pane :label="t('form.tabs.wechat')">
+          <PGhForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+        </el-tab-pane>
+        <el-tab-pane :label="t('form.tabs.kuaishou')">
+          <PKsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+        </el-tab-pane>
+      </el-tabs>
+    </div>
   </div>
+
+  <!-- 加载遮罩 -->
+  <div class="loading-overlay" v-if="isShow">
+    <div class="loading-content">
+      <div class="loading-spinner"></div>
+      <p>{{ t('form.loading') }}</p>
+    </div>
+  </div>
+
+  <LoginDialog
+    v-model:visible="loginDialogVisible"
+    @login-success="handleLoginSuccess"
+  />
+
+  <WechatLoginDialog
+    v-model:visible="wechatLoginDialogVisible"
+    @login-success="handleLoginSuccess"
+  />
+
+  <RechargeDialog
+    v-model:visible="rechargeDialogVisible"
+    @recharge="handleRecharge"
+  />
+
 </template>
 
 <style scoped>
   .title-section {
-    font-size: 20px;
-    color: var(--el-text-color-primary);
     padding-left: 45px;
+    padding-top: 5px;
     padding-bottom: 10px;
-    margin-bottom: 10px;
-    padding-top: 10px;
     background-image: url('/jzl_icon.png');
     background-repeat: no-repeat;
     background-size: 40px;
   }
-  .card-item {
-    margin: 10px 0px 10px 0px;
-  }
   
   /* 加载遮罩样式 */
-  .form-container {
-    position: relative;
-    min-height: 400px;
-    background-color: var(--el-bg-color);
-  }
-  
   .loading-overlay {
     position: absolute;
     top: 0;
@@ -624,5 +490,21 @@
     margin: 0;
     font-size: 16px;
     color: var(--el-text-color-regular);
+  }
+
+  .my-custom-tabs{
+    height: 100%;
+  }
+  .my-custom-tabs :deep(.el-tabs__item.is-active) {
+    color: #1a2a5f;
+    font-weight: bold;
+  }
+  .my-custom-tabs :deep(.el-tabs__active-bar) {
+    background-color: #1a2a5f;
+  }
+
+  /* 2. 修改鼠标悬停时的颜色 */
+  .my-custom-tabs :deep(.el-tabs__item:hover) {
+    color: #1a2a5f;
   }
 </style>

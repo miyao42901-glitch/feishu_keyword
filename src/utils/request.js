@@ -40,8 +40,15 @@ pluginAPI.interceptors.request.use(
     return config
   },
   error => {
-    console.log(error)
-    return Promise.reject(error)
+    console.error('请求配置错误：', error)
+    return Promise.resolve({
+      data: {
+        code: -1,
+        error_code: -1,
+        msg: NETWORK_ERROR,
+        data: null
+      }
+    })
   }
 )
 
@@ -61,21 +68,17 @@ pluginAPI.interceptors.response.use(
       config._retryCount++
       console.log(`响应不合法(code不为0)，正在进行第 ${config._retryCount} 次重试...`)
       
-      // 延迟重试，使用指数退避
+      // 延迟重试，使用线性退避
       return new Promise(resolve => setTimeout(resolve, RETRY_DELAY * config._retryCount))
         .then(() => pluginAPI.request(config))
     }
     
-    // 重试次数用尽，返回原始响应（由调用方处理）
-    console.error(`请求失败，重试${MAX_RETRY_COUNT}次后仍未成功，响应码不为0`)
+    // 重试次数用尽，非网络错误直接返回最后一次原始响应
+    console.error(`请求失败，重试${MAX_RETRY_COUNT}次后仍未成功，返回最后一次响应`)
     return response
   },
   error => {
-    console.log('请求错误：', error)
-    
-    // 检查是否是超时错误
-    const isTimeout = error.code === 'ECONNABORTED' || 
-                      (error.message && error.message.includes('timeout'))
+    console.error('请求错误：', error)
     
     // 如果是请求错误，尝试重试
     const config = error.config
@@ -86,26 +89,26 @@ pluginAPI.interceptors.response.use(
         config._retryCount++
         console.log(`请求失败，正在进行第 ${config._retryCount} 次重试: ${error.message}`)
         
-        // 延迟重试，使用指数退避
+        // 延迟重试，使用线性退避
         return new Promise(resolve => setTimeout(resolve, RETRY_DELAY * config._retryCount))
           .then(() => pluginAPI.request(config))
       }
     }
     
-    // 如果是超时错误，不抛出异常，返回默认响应
-    if (isTimeout) {
-      console.warn('请求超时，已达到最大重试次数，返回默认响应')
-      return {
-        data: {
-          code: -1,
-          message: '请求超时',
-          data: null
-        }
+    // 获取HTTP响应码，没有则使用-1
+    const httpCode = error.response?.status || -1
+    const errorMsg = error.response?.statusText || NETWORK_ERROR
+    
+    // 网络错误返回统一错误响应
+    console.warn(`网络错误，已达到最大重试次数，HTTP响应码: ${httpCode}，返回默认响应`)
+    return {
+      data: {
+        code: httpCode,
+        error_code: httpCode,
+        msg: errorMsg,
+        data: null
       }
     }
-    
-    // 其他错误继续抛出
-    return Promise.reject(error)
   }
 )
 

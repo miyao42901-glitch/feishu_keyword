@@ -80,6 +80,7 @@ const themeStyles = {
 
 // 设置主题颜色
 const setThemeColor = (themeValue) => {
+  return
   const el = document.documentElement;
   const currentThemeStyles = themeStyles[themeValue];
 

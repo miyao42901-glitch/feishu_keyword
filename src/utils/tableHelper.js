@@ -220,13 +220,6 @@ export const updateTable = async (tableId, dataList, fieldsConfig) => {
       fieldMap[fieldName] = field;
     }
 
-    // 补全表格字段
-    fieldList = await table.getFieldList();
-    
-    for (const field of fieldList) {
-      const fieldName = await field.getName();
-      fieldMap[fieldName] = field;
-    }
 
     // 添加缺失的字段
     for (const fieldConfigValue of Object.values(fieldsConfig)) {

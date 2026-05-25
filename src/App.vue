@@ -14,17 +14,7 @@ useTheme()
 </template>
 
 <style scoped>
-  main {
-    padding: 1rem;
-    background-color: var(--el-bg-color);
-  }
-  h4 {
-    font-size: calc(1.275rem + 0.3vw);
-    margin-bottom: 1rem;
-  }
-  code {
-    font-size: 0.875em;
-    color: var(--el-color-primary);
-    word-wrap: break-word;
-  }
+  /* main {
+    min-height: 100vh
+  } */
 </style>

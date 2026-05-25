@@ -59,6 +59,7 @@
 import { ref, defineProps, defineEmits, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
+import pluginAPI from '@/utils/request'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n();
