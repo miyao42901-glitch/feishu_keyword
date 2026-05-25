@@ -281,33 +281,44 @@
           }
         })
 
+        // 默认失败返回
+        let result = {
+          success: false,
+          data: null,
+          error: '未知错误'
+        }
+
         if (res && res.data && res.data.code === 0) {
           const res_sec_id = res.data.data.user.sec_uid
           const [record, fieldMap] = await getFirstRecordByField(writeTableId, tmpUserFields.sec_uid.label, res_sec_id)
+          const upsertDate = {
+            sec_uid: res.data.data.user.sec_uid, 
+            nickname: res.data.data.user.nickname,
+            signature: res.data.data.user.signature,
+
+            follower_count: res.data.data.user.follower_count,
+            aweme_count: res.data.data.user.aweme_count,
+            total_favorited: res.data.data.user.total_favorited,
+
+            following_count: res.data.data.user.following_count,
+            max_follower_count: res.data.data.user.max_follower_count,
+          }
           if (record) {
             const last_get_time = record.fields[fieldMap[tmpUserFields.current_get_time.label]?.id] || null
             const last_follower_count = record.fields[fieldMap[tmpUserFields.follower_count.label]?.id] || 0
             const last_aweme_count = record.fields[fieldMap[tmpUserFields.aweme_count.label]?.id] || 0
             const last_total_favorited = record.fields[fieldMap[tmpUserFields.total_favorited.label]?.id] || 0
-            const result = await updateTable(
+            result = await updateTable(
               writeTableId,
               [{
                 recordId: record.recordId,
                 data: {
-                  sec_uid: res.data.data.user.sec_uid, 
-                  nickname: res.data.data.user.nickname,
-                  signature: res.data.data.user.signature,
-
-                  follower_count: res.data.data.user.follower_count,
-                  aweme_count: res.data.data.user.aweme_count,
-                  total_favorited: res.data.data.user.total_favorited,
+                  ...upsertDate,
 
                   follower_count_diff: res.data.data.user.follower_count - last_follower_count,
                   aweme_count_diff: res.data.data.user.aweme_count - last_aweme_count,
                   total_favorited_diff: res.data.data.user.total_favorited - last_total_favorited,
 
-                  following_count: res.data.data.user.following_count,
-                  max_follower_count: res.data.data.user.max_follower_count,
                   current_get_time: get_time,
                   last_get_time: last_get_time,
                 }
@@ -316,18 +327,11 @@
             );
           }
           else{
-            const result = await writeToTable(
+            result = await writeToTable(
               writeTableId,
-              [{sec_uid: res.data.data.user.sec_uid, 
-                nickname: res.data.data.user.nickname,
-                signature: res.data.data.user.signature,
+              [{
+                ...upsertDate,
 
-                follower_count: res.data.data.user.follower_count,
-                aweme_count: res.data.data.user.aweme_count,
-                total_favorited: res.data.data.user.total_favorited,
-
-                following_count: res.data.data.user.following_count,
-                max_follower_count: res.data.data.user.max_follower_count,
                 current_get_time: get_time,
                 get_work_flag: 'unknow',
               }],
@@ -335,6 +339,10 @@
             );
           }
         }
+        else{
+          result.error = res.data?.msg || '未知错误'
+        }
+        return result
       }
 
 
@@ -578,17 +586,33 @@
         }
 
         if (writeTableId){
-          for (const item of post_data_list){
-            if (collectionType === 'blogger'){
-              await upsertUserData(item, writeTableId)
+          if (collectionType === 'blogger'){
+            let successCount = 0
+            let failmsg = ''
+            for (const item of post_data_list){
+              const result = await upsertUserData(item, writeTableId)
+              if(result.success){
+                successCount++
+              }
+              else{
+                failmsg = result.error
+              }
             }
-            else if (collectionType === 'post'){
-              await upsertUserPost(item, writeTableId, fetchRange)
+            let returnMessage = '采集完成，尝试采集'+post_data_list.length+'条数据，成功采集'+successCount+'条数据';
+            if (post_data_list.length > successCount){
+              returnMessage += '，失败数据原因：'+failmsg
+            }
+            let returnType = post_data_list.length === successCount ? 'success' : 'warning'
+            return [returnMessage, returnType]
+          }
+          else if (collectionType === 'post'){
+            for (const item of post_data_list){
+              const result = await upsertUserPost(item, writeTableId, fetchRange)
             }
           }
         }
 
-        return ['操作完成', 'success']
+        return ['采集完成', 'success']
       }
 
       const executeCollect = async (collect) => {
