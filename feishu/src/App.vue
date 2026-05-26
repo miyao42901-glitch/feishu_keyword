@@ -8,6 +8,7 @@ import YddmLoginDialog from '@/components/YddmLoginDialog.vue'
 import TasksView from '@/views/TasksView.vue'
 import YddmAuthView from '@/views/YddmAuthView.vue'
 import { formatPointsBadge } from '@/lib/account-balance'
+import { getCustomerServiceQrUrl } from '@/lib/insufficient-balance'
 import { homeHeroAccountPointsIconImgAttrs } from '@/lib/home-hero-media'
 import { useAccountPointsStore } from '@/stores/accountPoints'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
@@ -41,7 +42,13 @@ function onHeaderNavClick() {
   }
 }
 
-const operationsDocUrl = (import.meta.env.VITE_OPERATIONS_DOC_URL as string | undefined)?.trim()
+/** 首页「操作文档」默认飞书 Wiki（可用 `VITE_OPERATIONS_DOC_URL` 覆盖） */
+const DEFAULT_OPERATIONS_DOC_URL =
+  'https://lcnnrhjmwxym.feishu.cn/wiki/Hnstw1DDgi3sswkMwh6cyn2lnlc'
+
+const operationsDocUrl =
+  (import.meta.env.VITE_OPERATIONS_DOC_URL as string | undefined)?.trim() ||
+  DEFAULT_OPERATIONS_DOC_URL
 
 /** 首页「加入用户群」默认飞书 applink（可用 `VITE_USER_GROUP_URL` 覆盖） */
 const DEFAULT_USER_GROUP_URL =
@@ -52,13 +59,15 @@ const userGroupUrl =
 const userGroupQrUrl = (import.meta.env.VITE_CUSTOMER_SERVICE_QR_URL as string | undefined)?.trim()
 
 const userGroupDialogVisible = ref(false)
+const balanceDialogVisible = ref(false)
+const balanceQrUrl = getCustomerServiceQrUrl()
+
+function openBalanceDialog() {
+  balanceDialogVisible.value = true
+}
 
 function openOperationsDoc() {
-  if (operationsDocUrl) {
-    window.open(operationsDocUrl, '_blank', 'noopener,noreferrer')
-    return
-  }
-  ElMessage.info('请在环境变量 VITE_OPERATIONS_DOC_URL 中配置操作文档链接')
+  window.open(operationsDocUrl, '_blank', 'noopener,noreferrer')
 }
 
 function openUserGroup() {
@@ -123,6 +132,22 @@ onMounted(() => {
         alt="用户群二维码"
       />
     </el-dialog>
+    <el-dialog
+      v-model="balanceDialogVisible"
+      width="min(360px, 92vw)"
+      align-center
+      append-to-body
+      :show-header="false"
+      class="balance-qr-dialog"
+    >
+      <img
+        class="balance-qr-dialog__qr"
+        :src="balanceQrUrl"
+        alt="客服二维码"
+        loading="lazy"
+        decoding="async"
+      />
+    </el-dialog>
     <div class="home-hero">
       <div class="home-hero__bg" aria-hidden="true" />
       <div class="home-hero__inner">
@@ -153,16 +178,24 @@ onMounted(() => {
             </button>
           </div>
         </div>
-        <div class="home-hero__balance" role="status" aria-label="剩余积分">
-          <img
-            class="home-hero__balance-icon"
-            v-bind="homeHeroAccountPointsIconImgAttrs()"
-            width="14"
-            height="14"
-            alt=""
-            decoding="async"
-          />
-          <span class="home-hero__balance-text">{{ heroBalanceBadgeText }}</span>
+        <div class="home-hero__balance-wrap">
+          <button
+            type="button"
+            class="home-hero__balance"
+            aria-label="剩余积分，点击查看充值"
+            @click="openBalanceDialog"
+          >
+            <img
+              class="home-hero__balance-icon"
+              v-bind="homeHeroAccountPointsIconImgAttrs()"
+              width="14"
+              height="14"
+              alt=""
+              decoding="async"
+            />
+            <span class="home-hero__balance-text">{{ heroBalanceBadgeText }}</span>
+          </button>
+          <p class="home-hero__balance-hint">充值请联系客服</p>
         </div>
       </div>
     </div>
@@ -286,14 +319,25 @@ onMounted(() => {
   gap: 0.75rem;
 }
 
+.home-hero__balance-wrap {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+  margin-left: auto;
+  margin-top: 0.125rem;
+}
+
 .home-hero__balance {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
   gap: 0.25rem;
-  margin-left: auto;
-  margin-top: 0.125rem;
+  margin-left: 0;
+  margin-top: 0;
   padding: 0.375rem 0.625rem;
+  border: none;
   border-radius: 0.375rem;
   background: linear-gradient(135deg, #3370ff 0%, #1f22f6 100%);
   color: #ffffff;
@@ -301,6 +345,18 @@ onMounted(() => {
   font-weight: 600;
   line-height: 1.2;
   box-shadow: 0 2px 6px rgba(31, 34, 246, 0.22);
+  cursor: pointer;
+  transition: filter 0.15s ease, box-shadow 0.15s ease;
+}
+
+.home-hero__balance:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 3px 8px rgba(31, 34, 246, 0.28);
+}
+
+.home-hero__balance:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 2px;
 }
 
 .home-hero__balance-icon {
@@ -311,6 +367,14 @@ onMounted(() => {
 }
 
 .home-hero__balance-text {
+  white-space: nowrap;
+}
+
+.home-hero__balance-hint {
+  margin: 0;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  color: #000000;
   white-space: nowrap;
 }
 
@@ -410,6 +474,13 @@ onMounted(() => {
 }
 
 .user-group-dialog__qr {
+  display: block;
+  width: min(240px, 100%);
+  margin: 0 auto;
+  border-radius: 8px;
+}
+
+.balance-qr-dialog__qr {
   display: block;
   width: min(240px, 100%);
   margin: 0 auto;

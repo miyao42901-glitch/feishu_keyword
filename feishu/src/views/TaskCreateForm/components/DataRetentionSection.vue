@@ -162,7 +162,9 @@ function toggleAdvanced() {
       >
         <div class="platform-table-mapping__header">
           <span class="platform-table-mapping__title">平台-表格映射</span>
-          <span class="platform-table-mapping__hint">*为每个平台指定数据写入的目标表格</span>
+          <span class="platform-table-mapping__hint">
+            *为每个平台指定数据写入的目标表格；自动新建时若表名已存在，将写入该已有表
+          </span>
         </div>
 
         <div class="platform-table-mapping__rows">
