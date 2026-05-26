@@ -45,7 +45,7 @@ const operationsDocUrl = (import.meta.env.VITE_OPERATIONS_DOC_URL as string | un
 
 /** 首页「加入用户群」默认飞书 applink（可用 `VITE_USER_GROUP_URL` 覆盖） */
 const DEFAULT_USER_GROUP_URL =
-  'https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=c93s0321-4e82-4ae4-80a4-98fdc32e89d7'
+  'https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=b40ked6d-3390-421e-b94a-446cce2b2271'
 
 const userGroupUrl =
   (import.meta.env.VITE_USER_GROUP_URL as string | undefined)?.trim() || DEFAULT_USER_GROUP_URL

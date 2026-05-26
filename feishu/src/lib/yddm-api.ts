@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 /**
  * YDDM 计费 / 登录 HTTP 封装，与 `lib/api.ts`（飞书插件后端）分离。
  * 响应体兼容 `message` 或 `msg` 字段。
