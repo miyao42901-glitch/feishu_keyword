@@ -300,6 +300,12 @@ def build_async_router() -> APIRouter:
         except YddmCallError as e:
             return respond_yddm_error(e.api_code, e.message, http_status=e.http_status)
 
+        from social_platform.services.async_dispatch_tick import (
+            try_coalesced_dispatch_tick_from_api,
+        )
+
+        try_coalesced_dispatch_tick_from_api()
+
         data = task_service.list_async_tasks_for_user(
             db,  # type: ignore[arg-type]
             uid,

@@ -1,7 +1,7 @@
 /**
  * 异步采集任务：
  * - `POST /api/v1/async/tasks` 提交
- * - `GET /api/v1/async/tasks` 列表（任务列表页定时轮询，见 `TasksView`：仅 running/pending 轮询，默认 5–8 分钟/次）
+ * - `GET /api/v1/async/tasks` 列表（任务列表页定时轮询，见 `TasksView`：有 pending/running 时约 15s/次，并触发后端调度 tick）
  * - `GET /api/v1/async/tasks/{task_id}` 查看单条任务（Header：`x-api-key`、`X-User-Id`；Query 可选 `X-API-KEY`）
  * - `GET /api/v1/async/tasks/{task_id}/results` 查询采集结果（先 `GET` 状态，`running`/`completed` 时拉结果）
  * - `POST /api/v1/async/tasks/{task_id}/delete` 删除任务

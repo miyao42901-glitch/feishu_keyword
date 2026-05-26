@@ -82,6 +82,7 @@ export function taskCardFromLocalConfig(
     notificationCount: 0,
     effectiveAtRaw: eff != null && String(eff).trim() ? String(eff).trim() : null,
     expireAtRaw: exp != null && String(exp).trim() ? String(exp).trim() : null,
+    nextRunAtRaw: null,
     stoppedKind: status === 'stopped' && config.taskPaused === true ? 'paused_in_window' : 'neutral',
   }
 }
@@ -267,6 +268,7 @@ function taskCardFromRef(
     notificationCount: 0,
     effectiveAtRaw: null,
     expireAtRaw: null,
+    nextRunAtRaw: null,
     stoppedKind: 'neutral',
   }
 }
