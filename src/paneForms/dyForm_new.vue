@@ -18,6 +18,7 @@
   import TableSelect from '@/components/TableSelect.vue'
   import { Plus, ArrowDown, CircleClose, Remove, CirclePlus, QuestionFilled } from '@element-plus/icons-vue'
   import generalSelect from '@/toolComponents/generalSelect.vue'
+  import douyinTip from '@/tipDialogs/douyinTip.vue'
   import '@/assets/form-styles.css'
 
   export default {
@@ -28,7 +29,6 @@
       ElOption,
       ElInput,
       ElButton,
-      TableSelect,
       ElTooltip,
       ElAlert,
       ElTabs,
@@ -40,6 +40,7 @@
       CirclePlus,
       QuestionFilled,
       generalSelect,
+      douyinTip
     },
     props: {
       formData: {
@@ -132,14 +133,15 @@
         getDataType: 0,
         getWorksType: 1,
       })
-
-      // 改为字典管理多个输入项
+      
       const searchValues = ref({
         0: {
           dataType: 'input',
           data: {inputValue: ''}
         }
       });
+
+      const tipVisible = ref(false)
 
 
       
@@ -263,7 +265,8 @@
         if (updateRes && updateRes.success) {
           resultCount += updateRes.data.recordIds.length
         }
-        return resultCount
+        const failmsg = insertRes.error || updateRes.error || ''
+        return [resultCount, failmsg]
       }
 
 
@@ -342,15 +345,18 @@
         else{
           result.error = res.data?.msg || '未知错误'
         }
-        return result
+        return {...result, cost: res.data?.price || 0}
       }
 
 
       const upsertUserPost = async(post_data, writeTableId, fetchRange) => {
         console.log(post_data)
         const tmpUserFields = userFields()
+        let totalPostCount = 0
         let totalCost = 0
+        let totalWriteCount = 0
         let workSuccessCount = 0
+        let failmsg = ''
         let max_cursor = ""
         let i = 0
         while(true){
@@ -367,8 +373,11 @@
               key: props.formData.key,
             }
           })
+          totalPostCount++
+          totalCost += res.data?.price || 0
 
           if (!(res && res.data && res.data.code === 0)) {
+            failmsg = res.data?.msg || '未知错误'
             if (post_data.itemType && post_data.tableId && post_data.recordId){
               await updateTable(
                 post_data.tableId,
@@ -397,12 +406,15 @@
           const items = []
           for (const item of preFilteringData){
             if (ranges.value[fetchRange].type !== 'date' || item.create_time * 1000 > min_time){
-              workAccordCount += 1
+              workAccordCount++
+              totalWriteCount++
               items.push(item)
             }
           }
           if (items.length > 0){
-            workSuccessCount += await upsertWorks(items, get_time, writeTableId)
+            const [successConut, upsertFailMsg] = await upsertWorks(items, get_time, writeTableId)
+            workSuccessCount += successConut
+            failmsg = upsertFailMsg
           }
           
           if (post_data.itemType && post_data.tableId && post_data.recordId){
@@ -430,6 +442,7 @@
             if (preFilteringData.length === 0) break;
           }
         }
+        return [totalPostCount, totalCost, totalWriteCount, workSuccessCount, failmsg]
       }
 
 
@@ -443,8 +456,8 @@
 
         let successCount = 0
         let totalCost = 0
+        let failmsg = ''
 
-        console.log('updateWorks')
 
         const writeTableId = paneData.value.selectedTableId
 
@@ -478,9 +491,9 @@
               key: props.formData.key,
             }
           })
+          totalCost += res.data?.price || 0
 
           if (res && res.data && res.data.code === 0) {
-            totalCost += res.data.price
             const last_get_time = workRecord.fields[fieldMap[tmpWorkFields.current_get_time.label].id]
             const last_digg_count = workRecord.fields[fieldMap[tmpWorkFields.digg_count.label].id] || 0
             const last_comment_count = workRecord.fields[fieldMap[tmpWorkFields.comment_count.label].id] || 0
@@ -518,10 +531,21 @@
             if(result.success){
               successCount++
             }
+            else{
+              failmsg = result.error || failmsg
+            }
+          }
+          else{
+            failmsg = res.data?.msg || failmsg
           }
         }
 
-        return ['操作完成', 'success']
+        let returnMessage = '批量更新完成，尝试更新'+recordIdList.length+'条作品数据，成功更新'+successCount+'条数据，共消耗'+totalCost+'元';
+        if (failmsg){
+          returnMessage += '，失败数据原因：'+failmsg
+        }
+        let returnType = failmsg ? 'warning' : 'success'
+        return [returnMessage, returnType]
       }
 
 
@@ -588,32 +612,52 @@
         if (writeTableId){
           if (collectionType === 'blogger'){
             let successCount = 0
+            let totalCost = 0
             let failmsg = ''
             for (const item of post_data_list){
               const result = await upsertUserData(item, writeTableId)
+              totalCost += result.cost || 0
               if(result.success){
                 successCount++
               }
               else{
-                failmsg = result.error
+                failmsg = result.error || failmsg
               }
             }
-            let returnMessage = '采集完成，尝试采集'+post_data_list.length+'条数据，成功采集'+successCount+'条数据';
-            if (post_data_list.length > successCount){
+            let returnMessage = '采集博主数据完成，\n尝试采集'+post_data_list.length+'条博主数据，成功采集'+successCount+'条数据，共消耗'+totalCost+'元';
+            if (failmsg){
               returnMessage += '，失败数据原因：'+failmsg
             }
-            let returnType = post_data_list.length === successCount ? 'success' : 'warning'
+            let returnType = failmsg ? 'warning' : 'success'
             return [returnMessage, returnType]
           }
           else if (collectionType === 'post'){
+            let totalPostCount = 0
+            let totalCost = 0
+            let totalWriteCount = 0
+            let totalSuccessCount = 0
+            let failmsg = ''
             for (const item of post_data_list){
-              const result = await upsertUserPost(item, writeTableId, fetchRange)
+              const [postCount, cost, writeCount, successCount, upsertFailMsg] = await upsertUserPost(item, writeTableId, fetchRange)
+              totalPostCount += postCount || 0
+              totalCost += cost || 0
+              totalWriteCount += writeCount || 0
+              totalSuccessCount += successCount || 0
+              failmsg = upsertFailMsg || failmsg
             }
+            let returnMessage = '采集博主作品完成，尝试采集'+post_data_list.length+'位博主作品数据'+
+            '，共尝试获取'+totalPostCount+'页作品数据，成功采集'+totalSuccessCount+'条作品数据，共消耗'+totalCost+'元';
+            if (failmsg){
+              returnMessage += '，失败数据原因：'+failmsg
+            }
+            let returnType = failmsg ? 'warning' : 'success'
+            return [returnMessage, returnType]
           }
         }
 
         return ['采集完成', 'success']
       }
+
 
       const executeCollect = async (collect) => {
         if (props.isLocked) return;
@@ -630,16 +674,22 @@
       }
 
 
+      const openTip = () => {
+        tipVisible.value = true
+      }
+
       return {
         paneData,
         ranges,
         searchValues,
+        tipVisible,
         changecollectionType,
         addSearchRow,
         removeSearchRow,
         updateWorks,
         collectData,
         executeCollect,
+        openTip,
       };
     },
   };
@@ -675,9 +725,7 @@
 
     <div class="section-title">
       采集账号
-      <el-tooltip content="请输入主页链接，或从已有表中选择博主" placement="top">
-        <el-icon class="icon-hint"><QuestionFilled /></el-icon>
-      </el-tooltip>
+      <el-icon class="icon-hint" @click="openTip"><QuestionFilled /></el-icon>
     </div>
 
     <div class="collect-sub-panel">
@@ -736,6 +784,9 @@
       </div>
     </div>
   </div>
+
+  <douyinTip v-model:visible="tipVisible" />
+
   <!-- <p>{{ searchValues }}</p>
   <p>{{ paneData }}</p> -->
 </template>

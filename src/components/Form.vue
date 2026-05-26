@@ -36,6 +36,7 @@
   import RechargeCard from './RechargeCard.vue'
   import RechargeDialog from './RechargeDialog.vue'
   import WechatLoginDialog from './WechatLoginDialog.vue'
+  import PostConfirm from '@/tipDialogs/postConfirm.vue'
   import axios from 'axios'
   import { RefreshRight, Switch } from '@element-plus/icons-vue'
   import '@/assets/form-styles.css'
@@ -77,6 +78,8 @@
 
       RefreshRight,
       Switch,
+
+      PostConfirm,
     },
     setup() {
       const { t } = useI18n();
@@ -97,10 +100,18 @@
       const isLocked = ref(false);
       const loginDialogVisible = ref(false);
       const rechargeDialogVisible = ref(false);
-      const showRechargeCard = ref(false)
+      const showRechargeCard = ref(false);
       const wechatLoginDialogVisible = ref(false);
 
       const isShow = ref(false);
+
+      const postConfirmVisible = ref(false);
+
+      const postConfirmProps = ref({
+        resultTableId: '',
+        displayInfo: '',
+        resultType: 'success',
+      })
 
       watch(isLocked, async (newVal, oldVal) => {
         if (newVal === false) {
@@ -110,6 +121,9 @@
           isShow.value = false;
           if (formData.value.message) {
             await ElMessageBox.confirm(formData.value.message, '提示',{type: formData.value.messageType})
+            postConfirmProps.value.displayInfo = formData.value.message;
+            postConfirmProps.value.resultType = formData.value.messageType;
+            postConfirmVisible.value = true;
             // 清空提示信息
             formData.value.message = null;
             formData.value.messageType = 'success';
@@ -123,27 +137,6 @@
       onMounted(async () => {
         isLocked.value = true;
         try{
-          // // 从URL中获取state
-          // const urlParams = new URLSearchParams(window.location.search);
-          // const callback = urlParams.get('callback');
-          
-          // // 从地址中去除callback
-          // if (callback) {
-          //   const newUrl = new URL(window.location.href);
-          //   newUrl.searchParams.delete('callback');
-          //   window.history.replaceState({}, '', newUrl.toString());
-          // }
-
-          // const storedState = sessionStorage.getItem('state');
-          // sessionStorage.removeItem('state');
-
-          // if (storedState && callback) {
-          //   if (!(await handleAuthorization(storedState))) {
-          //     formData.value.message = '授权失败，请重试或联系管理员';
-          //     formData.value.messageType = 'error';
-          //   }
-          // }
-          // else 
           if (localStorage.getItem('user_access_token')) {
             if (!(await getUserDetail(localStorage.getItem('user_access_token')))) {
               localStorage.removeItem('user_access_token');
@@ -157,51 +150,6 @@
         }
       });
 
-      // async function tenantAuth() {
-      //   isLocked.value = true;
-      //   const redirect_uri = encodeURIComponent("https://feishu.jzl.com/api/v1/auth/feishu/plugin/callback");
-      //   const state = crypto.randomUUID();
-      //   sessionStorage.setItem('state', state);
-      //   let authUrl = '';
-      //   try {
-      //     const frontendUrl = new URL(window.location.href);
-      //     frontendUrl.searchParams.append('callback', 1);
-      //     const res = await axios.post('https://feishu.jzl.com/api/v1/auth/feishu/plugin/save_url', {
-      //       state: state,
-      //       frontend_url: frontendUrl.toString(),
-      //     })
-      //     authUrl = `https://accounts.feishu.cn/open-apis/authen/v1/authorize?client_id=${app_id}&response_type=code&redirect_uri=${redirect_uri}&state=${state}`;
-      //   } catch (error) {
-      //     console.error('授权失败:', error);
-      //     formData.value.message = '授权失败，请重试或联系管理员';
-      //     formData.value.messageType = 'error';
-      //   }
-      //   finally {
-      //     if (authUrl) {
-      //       window.location.href = authUrl;
-      //     }
-      //     else{
-      //       isLocked.value = false;
-      //     }
-      //   }
-      // }
-
-      // async function handleAuthorization(state) {
-      //   let result = false;
-      //   try {
-      //     const res = await axios.post('https://feishu.jzl.com/api/v1/auth/feishu/plugin/get_key', {
-      //       state: state,
-      //     })
-      //     formData.value.key = res.data.data.key;
-      //     formData.value.username = res.data.data.username;
-      //     formData.value.isLogin = true;
-      //     localStorage.setItem('user_access_token', res.data.data.user_access_token);
-      //     result = true;
-      //   } catch (error) {
-      //     console.error('授权失败:', error);
-      //   }
-      //   return result;
-      // }
 
       async function getUserDetail(user_access_token) {
         let result = false;
@@ -243,7 +191,15 @@
         return result;
       }
 
-      function logout() {
+      async function logout() {
+        const confirm = await ElMessageBox.confirm('确定退出登录吗？', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+        if (!confirm) {
+          return;
+        }
         localStorage.removeItem('user_access_token');
         formData.value.isLogin = false;
         formData.value.key = null;
@@ -333,6 +289,8 @@
         loginDialogVisible,
         wechatLoginDialogVisible,
         rechargeDialogVisible,
+        postConfirmVisible,
+        postConfirmProps,
         refreshBalance,
         // tenantAuth,
         getRemainMoney,
@@ -373,12 +331,16 @@
                 <div class="info-row">
                     <span class="info-label">用户:</span>
                     <span class="info-value">{{ formData.username }}</span>
-                    <el-icon class="info-icon" @click="logout"><Switch /></el-icon>
+                    <el-tooltip effect="dark" content="退出登录" placement="top" :enterable="false" :hide-after="0">
+                        <el-icon class="info-icon" @click="logout"><Switch /></el-icon>
+                    </el-tooltip>
                 </div>
                 <div class="info-row">
                     <span class="info-label">余额:</span>
                     <span class="info-value">{{ formData.remainMoney }}</span>
-                    <el-icon class="info-icon" @click="refreshBalance"><RefreshRight /></el-icon>
+                    <el-tooltip effect="dark" content="刷新余额" placement="top" :enterable="false" :hide-after="0">
+                        <el-icon class="info-icon" @click="refreshBalance"><RefreshRight /></el-icon>
+                    </el-tooltip>
                 </div>
             </div>
 
@@ -393,7 +355,10 @@
         <el-tab-pane :label="'抖音测试'">
           <PDyFormNew :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
         </el-tab-pane>
-        <el-tab-pane :label="t('form.tabs.douyin')">
+        <el-tab-pane :label="'抖音测试1'">
+          <PDyFormNew :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+        </el-tab-pane>
+        <!-- <el-tab-pane :label="t('form.tabs.douyin')">
           <PDyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
         </el-tab-pane>
         <el-tab-pane :label="'小红书'">
@@ -407,7 +372,7 @@
         </el-tab-pane>
         <el-tab-pane :label="t('form.tabs.kuaishou')">
           <PKsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-        </el-tab-pane>
+        </el-tab-pane> -->
       </el-tabs>
     </div>
   </div>
@@ -433,6 +398,13 @@
   <RechargeDialog
     v-model:visible="rechargeDialogVisible"
     @recharge="handleRecharge"
+  />
+
+  <PostConfirm
+    v-model:visible="postConfirmVisible"
+    :resultTableId="postConfirmProps.resultTableId"
+    :displayInfo="postConfirmProps.displayInfo"
+    :resultType="postConfirmProps.resultType"
   />
 
 </template>

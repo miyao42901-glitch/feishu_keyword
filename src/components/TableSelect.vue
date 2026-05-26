@@ -41,7 +41,7 @@
 
       // 监听父组件数据变化
       watch(() => props.modelValue, async (newValue) => {
-        await loadTableList();
+        await loadTableList(true);
         selectedTableId.value = newValue;
       });
 

@@ -6,7 +6,7 @@ const pluginAPI = axios.create({
   // baseURL: 'https://api.yddm.com', // 设置baseURL
   baseURL: 'https://feishu.jzl.com/api/v1/public',
   // baseURL: 'http://192.168.1.151:8181/public',
-  timeout: 15 * 1000, // 请求超时时间
+  timeout: 20 * 1000, // 请求超时时间
 })
 
 // 网络错误消息

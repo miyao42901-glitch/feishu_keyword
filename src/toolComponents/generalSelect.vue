@@ -1,11 +1,12 @@
 <script>
   import { ref, watch } from 'vue';
   import { bitable } from '@lark-base-open/js-sdk';
-  import { CircleClose } from '@element-plus/icons-vue';
+  import { CircleClose, ArrowDown } from '@element-plus/icons-vue';
 
   export default {
     components: {
-      CircleClose
+      CircleClose,
+      ArrowDown
     },
     props: {
       modelValue: {
@@ -101,6 +102,11 @@
         @click.stop="clearSelected"
       >
         <CircleClose />
+      </el-icon>
+      <el-icon 
+        v-else
+      >
+        <ArrowDown />
       </el-icon>
     </template>
     <template #default="{ item }">
