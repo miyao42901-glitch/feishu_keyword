@@ -176,6 +176,8 @@ export function asyncListItemToTaskCard(rec: Record<string, unknown>): TaskCardM
 
   const end = readTimeField(rec, 'task_end_time', 'taskEndTime')
 
+  const nextRunAt = readTimeField(rec, 'next_run_at', 'nextRunAt')
+
   const hasSchedule = Boolean(start || end || rec.interval_minutes != null)
 
 
@@ -197,6 +199,8 @@ export function asyncListItemToTaskCard(rec: Record<string, unknown>): TaskCardM
     status: asyncRecordToCardStatus(rec, taskId),
 
     notificationCount: 0,
+
+    nextRunAtRaw: nextRunAt,
 
     effectiveAtRaw: start,
 

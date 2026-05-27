@@ -17,6 +17,8 @@ export interface TaskCardModel {
   status: TaskRunStatus
   /** 角标未读数；0 表示不展示 */
   notificationCount: number
+  /** 后端下一次调度时间；pending 定时任务用于判断何时拉 results */
+  nextRunAtRaw: string | null
   /** 用于主操作：重选时间 / 区分启动场景 */
   effectiveAtRaw: string | null
   expireAtRaw: string | null

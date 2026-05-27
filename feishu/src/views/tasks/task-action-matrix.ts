@@ -8,7 +8,7 @@ export type TaskActionKey = 'view' | 'edit' | 'stop' | 'delete' | 'retry'
  * | 操作 | 运行中 | 已完成 | 已停止 | 失败 | 待运行 |
  * |------|--------|--------|--------|------|--------|
  * | 查看 | ✓      | ✓      | ✓      | ✓    | ✓      |
- * | 编辑 | ✓      | ✓      | ✓      | ✓    | ✓      |
+ * | 编辑 | ✓      | —      | ✓      | ✓    | ✓      |
  * | 停止 | ✓      | —      | —      | —    | —      |
  * | 删除 | ✓      | ✓      | ✓      | ✓    | ✓      |
  * | 重试 | —      | —      | —      | ✓    | —      |
@@ -23,7 +23,7 @@ const ACTION_MATRIX: Record<TaskActionKey, Record<TaskRunStatus, boolean>> = {
   },
   edit: {
     running: true,
-    completed: true,
+    completed: false,
     stopped: true,
     failed: true,
     pending_run: true,

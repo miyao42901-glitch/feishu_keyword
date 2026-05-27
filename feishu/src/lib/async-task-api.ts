@@ -1,7 +1,7 @@
 /**
  * 异步采集任务：
  * - `POST /api/v1/async/tasks` 提交
- * - `GET /api/v1/async/tasks` 列表（任务列表页定时轮询，见 `TasksView`：仅 running/pending 轮询，默认 5–8 分钟/次）
+ * - `GET /api/v1/async/tasks` 列表（任务列表页定时轮询，见 `TasksView`：有 pending/running 时约 15s/次，并触发后端调度 tick）
  * - `GET /api/v1/async/tasks/{task_id}` 查看单条任务（Header：`x-api-key`、`X-User-Id`；Query 可选 `X-API-KEY`）
  * - `GET /api/v1/async/tasks/{task_id}/results` 查询采集结果（先 `GET` 状态，`running`/`completed` 时拉结果）
  * - `POST /api/v1/async/tasks/{task_id}/delete` 删除任务
@@ -18,6 +18,7 @@ import {
   type AsyncTaskResultsMeta,
   type SyncFetchContext,
 } from '@/lib/sync-api-common'
+import { expectedApiPageRows } from '@/lib/sync-platform-page-size'
 import { buildDouyinSearchPageBody } from '@/lib/sync-search-page'
 import {
   getSyncApiJson,
@@ -49,7 +50,11 @@ import { fetchXhsSearchItems } from '@/lib/xhs-sync-api'
 import { buildXhsSearchPageBody } from '@/lib/xhs-sync-api'
 import type { SyncItemsByPlatform } from '@/lib/sync-collection-cache'
 import { setSyncCollectionCache } from '@/lib/sync-collection-cache'
-import { platformDisplayNames } from '@/views/TaskCreateForm/constants'
+import {
+  DEFAULT_CRAWL_FREQUENCY,
+  platformDisplayNames,
+  TASK_NAME_MAX_LEN,
+} from '@/views/TaskCreateForm/constants'
 
 const ASYNC_TASK_PATH = '/api/v1/async/tasks'
 /** `GET /api/v1/async/tasks` 每页条数（列表页轮询默认只拉第 1 页，见 `listTaskCardsFromAsync`） */
@@ -82,7 +87,7 @@ export type AsyncTaskBody = {
  * 定时任务 `POST /api/v1/async/tasks` 入参。
  * `task_start_time` / `task_end_time` 对应表单「开始/结束时间」；
  * `interval_minutes` 对应「采集频率」；`fetch_count` 对应「选择条数」；
- * `task_name` 对应表单「任务名称」（1～100 字符）。
+ * `task_name` 对应表单「任务名称」（1～30 字符）。
  *
  * 采集节奏由 YDDM 按上述窗口与频率调度：首轮在 `task_start_time`，之后每隔 `interval_minutes`；
  * 前端每平台×关键词提交一条异步任务。预估轮次见 `countScheduledExecutionRounds`
@@ -271,10 +276,11 @@ export function readAsyncTaskSchedule(config: Record<string, unknown>): {
   }
   const task_start_time = String(config.effectiveAt ?? config.effective_at ?? '').trim()
   const task_end_time = String(config.expireAt ?? config.expire_at ?? '').trim()
-  const freqRaw = config.crawlFrequency ?? config.crawl_frequency ?? '10'
+  const freqRaw = config.crawlFrequency ?? config.crawl_frequency ?? DEFAULT_CRAWL_FREQUENCY
   const interval = typeof freqRaw === 'number' ? freqRaw : Number(String(freqRaw).trim())
+  const fallbackMins = Number(DEFAULT_CRAWL_FREQUENCY)
   const interval_minutes =
-    Number.isFinite(interval) && interval > 0 ? Math.floor(interval) : 10
+    Number.isFinite(interval) && interval > 0 ? Math.floor(interval) : fallbackMins
   const fetch_count = readDataRange(config)
 
   if (!task_start_time) {
@@ -291,7 +297,9 @@ export function readAsyncTaskSchedule(config: Record<string, unknown>): {
 export function readAsyncTaskName(config: Record<string, unknown>): string {
   const name = String(config.planName ?? config.plan_name ?? config.task_name ?? '').trim()
   if (!name) throw new Error('请填写任务名称')
-  if (name.length > 100) throw new Error('任务名称不能超过 100 个字符')
+  if (name.length > TASK_NAME_MAX_LEN) {
+    throw new Error(`任务名称不能超过 ${TASK_NAME_MAX_LEN} 个字符`)
+  }
   return name
 }
 
@@ -815,7 +823,9 @@ export function buildAsyncTaskEditRequest(
 
   const name = String(input.planName ?? input.plan_name ?? input.task_name ?? '').trim()
   if (name) {
-    if (name.length > 100) throw new Error('任务名称不能超过 100 个字符')
+    if (name.length > TASK_NAME_MAX_LEN) {
+      throw new Error(`任务名称不能超过 ${TASK_NAME_MAX_LEN} 个字符`)
+    }
     body.task_name = name
   }
 
@@ -973,18 +983,24 @@ function resolvePlatformFromResultsMeta(meta: AsyncTaskResultsMeta): SyncCollect
   return mapYddmPlatformToSyncId(meta.platform ?? meta.source)
 }
 
-/** 拉取单任务全部结果页（`GET .../results`，按需翻 `page`；保留 `data.meta`） */
+/** 拉取单任务全部结果页（`GET .../results?page=`；抖音约 10 条/页，需翻页凑满 fetch_count） */
 export async function fetchAllAsyncTaskResults(
   ctx: SyncFetchContext,
   taskId: string,
+  options?: { maxItems?: number },
 ): Promise<AsyncTaskResultsBatch> {
   const collected: Record<string, unknown>[] = []
   let meta: AsyncTaskResultsMeta = {}
-  let page: string | undefined
   const maxPages = 50
+  const maxItems =
+    options?.maxItems != null && options.maxItems > 0 ? Math.floor(options.maxItems) : undefined
 
-  for (let i = 0; i < maxPages; i++) {
-    const parsed = await fetchAsyncTaskResultsPage(ctx, taskId, page ? { page } : {})
+  for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+    const parsed = await fetchAsyncTaskResultsPage(
+      ctx,
+      taskId,
+      pageNum > 1 ? { page: String(pageNum) } : {},
+    )
     if (!meta.platform && !meta.resultTable) {
       meta = extractAsyncTaskResultsMeta(parsed)
     }
@@ -995,18 +1011,35 @@ export async function fetchAllAsyncTaskResults(
     if (pageMeta.insufficientBalance) {
       throw new Error('账户积分不足，无法继续采集')
     }
-    if (!pageMeta.hasMore) break
-
-    const next =
-      pageMeta.nextCursor != null && String(pageMeta.nextCursor).trim()
-        ? String(pageMeta.nextCursor).trim()
-        : String(i + 2)
-    page = next
+    if (maxItems != null && collected.length >= maxItems) break
     if (!batch.length) break
+
+    const platform = resolvePlatformFromResultsMeta(meta)
+    const rowsPerPage = expectedApiPageRows(platform ?? 'douyin')
+
+    /*
+     * 结果接口用 `?page=` 翻页（非 cursor）。抖音约 10 条/页：
+     * 本页满页则继续请求下一页，直至凑满 maxItems 或遇到不足一页的末页。
+     * 不依赖 `has_more`（首屏常误报 false，导致只写入 10 条）。
+     */
+    const needMore = maxItems == null || collected.length < maxItems
+    if (needMore && batch.length >= rowsPerPage) continue
+    if (batch.length < rowsPerPage) break
+  }
+
+  if (import.meta.env.DEV && maxItems != null && collected.length > 0 && collected.length < maxItems) {
+    console.warn('[async-task] results 未凑满选择条数', {
+      taskId,
+      collected: collected.length,
+      maxItems,
+      platform: resolvePlatformFromResultsMeta(meta),
+    })
   }
 
   const platform = resolvePlatformFromResultsMeta(meta)
-  return { items: collected, meta, platform }
+  const items =
+    maxItems != null && collected.length > maxItems ? collected.slice(0, maxItems) : collected
+  return { items, meta, platform }
 }
 
 /** @deprecated 使用 `fetchAllAsyncTaskResults` */
@@ -1023,6 +1056,7 @@ export async function fetchAsyncTaskResultsMap(
   ctx: SyncFetchContext,
   taskIds: string[],
   statusMap?: Map<string, AsyncTaskStatusResult>,
+  options?: { maxItemsPerTask?: number },
 ): Promise<Map<string, AsyncTaskResultsBatch>> {
   const wanted = [...new Set(taskIds.map((x) => x.trim()).filter(Boolean))]
   const map = new Map<string, AsyncTaskResultsBatch>()
@@ -1042,7 +1076,7 @@ export async function fetchAsyncTaskResultsMap(
         return
       }
       try {
-        map.set(id, await fetchAllAsyncTaskResults(ctx, id))
+        map.set(id, await fetchAllAsyncTaskResults(ctx, id, { maxItems: options?.maxItemsPerTask }))
       } catch {
         map.set(id, emptyBatch())
       }
@@ -1136,6 +1170,8 @@ export async function fetchAsyncTaskStatusAndResultsMaps(
     skipAcceptance?: boolean
     /** 列表已确认为 running 的子任务 id，跳过 `GET .../tasks/{id}` */
     skipStatusFetchForIds?: Iterable<string>
+    /** 对应表单「选择条数」，拉 results 时翻页上限 */
+    maxItemsPerTask?: number
   },
 ): Promise<{
   statusMap: Map<string, AsyncTaskStatusResult>
@@ -1158,7 +1194,9 @@ export async function fetchAsyncTaskStatusAndResultsMaps(
     const fetched = await fetchAsyncTaskStatusMap(ctx, needFetch)
     for (const [id, st] of fetched) statusMap.set(id, st)
   }
-  const resultsMap = await fetchAsyncTaskResultsMap(ctx, taskIds, statusMap)
+  const resultsMap = await fetchAsyncTaskResultsMap(ctx, taskIds, statusMap, {
+    maxItemsPerTask: options?.maxItemsPerTask,
+  })
   if (!options?.skipAcceptance && options?.refs?.length) {
     await postResultsAcceptanceAfterAsyncFetch(ctx, options.refs, resultsMap)
   }

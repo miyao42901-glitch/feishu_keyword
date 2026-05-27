@@ -84,11 +84,12 @@ const { authCode } = storeToRefs(globalSettings)
 let testFeedDebounce: ReturnType<typeof setTimeout> | null = null
 /** 运行中任务按采集频率调度下一次同步（列表页） */
 let testFeedPollTimeout: ReturnType<typeof setTimeout> | null = null
-/** 列表 `GET /api/v1/async/tasks?page=1&limit=100` 定时轮询间隔 */
-const ASYNC_TASK_LIST_POLL_RUNNING_MS = 300_000
-const ASYNC_TASK_LIST_POLL_PENDING_MS = 480_000
-/** 任意两次列表请求（含 force）最短间隔，避免保存/筛选/轮询叠加连发 */
-const ASYNC_TASK_LIST_MIN_FETCH_MS = 60_000
+/** 列表 `GET /api/v1/async/tasks` 定时轮询（与后端 `ASYNC_DISPATCH_POLL_SECONDS` 默认 15s 对齐） */
+const ASYNC_TASK_LIST_POLL_RUNNING_MS = 30_000
+const ASYNC_TASK_LIST_POLL_PENDING_MS = 15_000
+const ASYNC_TASK_LIST_POLL_PENDING_MIN_MS = 5_000
+/** force 刷新最短间隔；定时轮询走 `listPollIntervalMs()` 不受此限制 */
+const ASYNC_TASK_LIST_MIN_FETCH_MS = 15_000
 let lastTaskListFetchedAt = 0
 let listSyncBlockedUntil = 0
 let lastListSyncErrorToastAt = 0
@@ -112,9 +113,20 @@ const testFeedBitableDeps = createTestFeedBitableDeps()
 
 /** 仅 `running` 卡片拉 results 的最小间隔 */
 const RUNNING_FEED_POLL_MS = 120_000
+/** pending 定时任务仅在 next_run_at 之后延迟 3 分钟再拉 results */
+const PENDING_RESULTS_AFTER_NEXT_RUN_MS = 3 * 60_000
 let syncPollTimerDebounce: ReturnType<typeof setTimeout> | null = null
 let refreshTestDataFeedInFlight: Promise<void> | null = null
 let runningFeedWatchDebounce: ReturnType<typeof setTimeout> | null = null
+
+function isPendingTaskResultsDue(row: TaskCardModel, now = Date.now()): boolean {
+  if (row.status !== 'pending_run' || row.taskTypeLabel === '单次任务') return false
+  const raw = row.nextRunAtRaw?.trim()
+  if (!raw) return false
+  const nextRunAtMs = Date.parse(raw.replace(' ', 'T'))
+  if (!Number.isFinite(nextRunAtMs)) return false
+  return now >= nextRunAtMs + PENDING_RESULTS_AFTER_NEXT_RUN_MS
+}
 
 function listRunningFeedTargets(): TaskCardModel[] {
   return tasks.value.filter(
@@ -125,11 +137,12 @@ function listRunningFeedTargets(): TaskCardModel[] {
 }
 
 function listActiveRunningFeedTargets(): TaskCardModel[] {
+  const now = Date.now()
   return tasks.value.filter(
     (t) =>
-      t.status === 'running' &&
       t.taskTypeLabel !== '单次任务' &&
-      taskUsesOnlyTestDataPlatforms(t.platformKeys),
+      taskUsesOnlyTestDataPlatforms(t.platformKeys) &&
+      (t.status === 'running' || isPendingTaskResultsDue(t, now)),
   )
 }
 
@@ -160,6 +173,10 @@ function computeMsUntilNextFeedPoll(): number {
   const now = Date.now()
   let minWait = Number.POSITIVE_INFINITY
   for (const t of targets) {
+    if (t.status === 'pending_run') {
+      minWait = Math.min(minWait, 0)
+      continue
+    }
     if (t.status === 'running') {
       const last =
         lastRealtimeFeedPollAtByTaskId.get(t.id) ?? lastScheduledRunPolledAtByTaskId.get(t.id)
@@ -195,6 +212,7 @@ function computeMsUntilNextFeedPoll(): number {
 }
 
 function isFeedPollDueForTask(t: TaskCardModel, cfg: Record<string, unknown>, now: number): boolean {
+  if (t.status === 'pending_run') return isPendingTaskResultsDue(t, now)
   if (t.status === 'running') {
     const last =
       lastRealtimeFeedPollAtByTaskId.get(t.id) ?? lastScheduledRunPolledAtByTaskId.get(t.id)
@@ -280,14 +298,31 @@ function scheduleNextTestFeedPoll(): void {
   }, delay)
 }
 
-/** 仅存在运行中/待运行任务时需要定时刷新 YDDM 列表状态 */
+/** 存在未结束活动任务时需定时拉列表（含 summary.pending，避免筛选「已完成」后停轮询） */
 function shouldPollAsyncTaskList(): boolean {
+  const s = asyncListSummary.value
+  if (s && (s.pending > 0 || s.running > 0 || s.active > 0)) return true
   return tasks.value.some((t) => t.status === 'running' || t.status === 'pending_run')
 }
 
 function listPollIntervalMs(): number {
   if (tasks.value.some((t) => t.status === 'running')) return ASYNC_TASK_LIST_POLL_RUNNING_MS
-  if (tasks.value.some((t) => t.status === 'pending_run')) return ASYNC_TASK_LIST_POLL_PENDING_MS
+  const pendingCards = tasks.value.filter((t) => t.status === 'pending_run')
+  if (pendingCards.length) {
+    const now = Date.now()
+    let wait = ASYNC_TASK_LIST_POLL_PENDING_MS
+    for (const t of pendingCards) {
+      const raw = t.nextRunAtRaw
+      if (!raw) continue
+      const due = Date.parse(raw.replace(' ', 'T'))
+      if (!Number.isFinite(due)) continue
+      const delta = due - now
+      if (delta <= 0) wait = Math.min(wait, ASYNC_TASK_LIST_POLL_PENDING_MIN_MS)
+      else wait = Math.min(wait, Math.max(ASYNC_TASK_LIST_POLL_PENDING_MIN_MS, delta + 2_000))
+    }
+    return wait
+  }
+  if ((asyncListSummary.value?.pending ?? 0) > 0) return ASYNC_TASK_LIST_POLL_PENDING_MS
   return ASYNC_TASK_LIST_POLL_PENDING_MS
 }
 
@@ -365,7 +400,7 @@ async function refreshTestDataFeed(options?: RefreshTestDataFeedOptions) {
 async function refreshTestDataFeedInner(options?: RefreshTestDataFeedOptions) {
   if (screen.value !== 'list') return
   const scopeTargets = listRunningFeedTargets()
-  /** 仅 `running` 拉 status/results（`pending_run` 只参与列表轮询，不请求 results） */
+  /** `running` 立即拉 results；`pending_run` 仅在 next_run_at + 3 分钟后拉 results */
   const resultsTargets = listActiveRunningFeedTargets()
   pruneTestFeedAppendState(new Set(scopeTargets.map((t) => t.id)))
   pruneFeedPollState(new Set(scopeTargets.map((t) => t.id)))
@@ -694,11 +729,12 @@ function goToNextListPage() {
   goToListPage(listCurrentPage.value + 1)
 }
 
-/** 切换统计维度：立即请求 `GET /api/v1/async/tasks?page=1&limit=100`，再本地筛选展示 */
+/** 切换统计维度（重复点击同一项也会刷新列表，触发后端调度补偿） */
 function selectListFilter(next: 'all' | 'running' | 'completed') {
-  if (listFilter.value === next) return
-  listFilter.value = next
-  listCurrentPage.value = 1
+  if (listFilter.value !== next) {
+    listFilter.value = next
+    listCurrentPage.value = 1
+  }
   void loadTaskList({ force: true, bypassMinGap: true })
 }
 
@@ -843,6 +879,20 @@ watch(
       runningFeedWatchDebounce = null
       void refreshTestDataFeed({ forceAll: true })
     }, 1500)
+  },
+)
+
+watch(
+  () =>
+    [
+      asyncListSummary.value?.pending,
+      asyncListSummary.value?.running,
+      asyncListSummary.value?.active,
+    ].join(','),
+  () => {
+    if (screen.value === 'list' && authCode.value.trim() && shouldPollAsyncTaskList()) {
+      ensureActiveTaskListPolling()
+    }
   },
 )
 
