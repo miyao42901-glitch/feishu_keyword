@@ -500,7 +500,22 @@ def apply_celery_run_at(
     if countdown > 0:
         kwargs["countdown"] = countdown
     try:
-        async_result = run_social_async_task.apply_async(**kwargs)
+        from social_platform.celery_broker import (
+            CeleryWorkerOfflineError,
+            safe_apply_async,
+        )
+
+        async_result = safe_apply_async(
+            run_social_async_task,
+            task_id=int(task_id),
+            apply_kwargs=kwargs,
+        )
+    except CeleryWorkerOfflineError:
+        logger.error(
+            "celery_apply_async_blocked task_id=%s: Celery worker offline",
+            int(task_id),
+        )
+        return None
     except Exception as exc:
         broker_errors: tuple[type[BaseException], ...]
         try:

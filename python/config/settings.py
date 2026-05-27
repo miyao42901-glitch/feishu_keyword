@@ -27,6 +27,17 @@ class Settings(BaseSettings):
     celery_result_backend: str = Field(
         default="", validation_alias="CELERY_RESULT_BACKEND"
     )
+    celery_require_worker_online: bool = Field(
+        default=True,
+        validation_alias="CELERY_REQUIRE_WORKER_ONLINE",
+        description="派发前 control.ping；无 worker 时阻止 apply_async",
+    )
+    celery_apply_async_max_retries: int = Field(
+        default=3, validation_alias="CELERY_APPLY_ASYNC_MAX_RETRIES"
+    )
+    celery_apply_async_backoff_base: float = Field(
+        default=1.0, validation_alias="CELERY_APPLY_ASYNC_BACKOFF_BASE"
+    )
     celery_task_eager: bool = Field(
         default=False, validation_alias="CELERY_TASK_ALWAYS_EAGER"
     )
@@ -111,10 +122,16 @@ class Settings(BaseSettings):
     )
 
     def resolved_celery_broker(self) -> str:
-        return (self.celery_broker_url or self.redis_url).strip()
+        from social_platform.celery_broker import require_redis_celery_url
+
+        return require_redis_celery_url(self.celery_broker_url, "CELERY_BROKER_URL")
 
     def resolved_celery_backend(self) -> str:
-        return (self.celery_result_backend or self.redis_url).strip()
+        from social_platform.celery_broker import require_redis_celery_url
+
+        return require_redis_celery_url(
+            self.celery_result_backend, "CELERY_RESULT_BACKEND"
+        )
 
 
 @lru_cache

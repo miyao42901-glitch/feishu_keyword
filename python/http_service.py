@@ -49,6 +49,10 @@ async def _lifespan(app: FastAPI):
             from social_platform.database.db_migrate import apply_pending_migrations
 
             apply_pending_migrations(get_engine())
+        if s.async_dispatch_http_enabled or s.async_schedule_beat_enabled:
+            from social_platform.celery_broker import ensure_celery_startup_health
+
+            ensure_celery_startup_health(logger)
     from social_platform.services.async_dispatch_loop import start_async_dispatch_loop
 
     start_async_dispatch_loop()
