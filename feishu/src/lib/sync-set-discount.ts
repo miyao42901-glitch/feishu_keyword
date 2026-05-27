@@ -123,10 +123,7 @@ export function resolveDiscountForSyncPath(
     }
   }
   if (p.includes('/wxvideo/') || p.includes('/wx/')) {
-    return {
-      endpoint: WX_SOUSOU_DISCOUNT_ENDPOINT,
-      discount_rate: WX_SOUSOU_DISCOUNT_RATE,
-    }
+    return null
   }
   return null
 }
@@ -225,10 +222,6 @@ export async function ensureSyncEndpointDiscountForPlatform(
     return
   }
   if (platform === 'shipinhao' || platform === 'gzh') {
-    await ensureSyncEndpointDiscount({
-      endpoint: WX_SOUSOU_DISCOUNT_ENDPOINT,
-      discountRate: WX_SOUSOU_DISCOUNT_RATE,
-      ctx,
-    })
+    return
   }
 }

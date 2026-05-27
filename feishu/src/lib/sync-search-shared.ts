@@ -20,6 +20,8 @@ import { primeSyncEndpointDiscountAfterSuccess } from '@/lib/sync-set-discount'
 export const SYNC_SEARCH_PAGE_MAX_ATTEMPTS = 3
 
 const SYNC_SEARCH_RETRY_DELAY_MS = 400
+const KEYWORD_MAX_LEN = 100
+const KEYWORD_TOO_LONG_HINT = `搜索关键词不能超过 ${KEYWORD_MAX_LEN} 个字`
 
 function isRetryableSyncHttpStatus(status: number): boolean {
   return status === 500 || status === 502 || status === 503 || status === 504
@@ -142,8 +144,8 @@ export function mapNoteTime(publishTime: string): string {
 
 export function assertKeywordLength(keyword: string): string {
   const kw = keyword.trim()
-  if (kw.length > 100) {
-    throw new Error('搜索关键词不能超过 100 个字')
+  if (kw.length > KEYWORD_MAX_LEN) {
+    throw new Error(KEYWORD_TOO_LONG_HINT)
   }
   return kw
 }
