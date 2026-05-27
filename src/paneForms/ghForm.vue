@@ -13,7 +13,7 @@
     ElTabs,
     ElTabPane,
   } from 'element-plus';
-  import pluginAPI from '@/utils/request'
+  import pluginAPI, { directAPI } from '@/utils/request'
   import { writeToTable, updateTable, getFirstRecordByField} from '@/utils/tableHelper'
   import TableSelect from '@/components/TableSelect.vue'
   import '@/assets/form-styles.css'
@@ -68,6 +68,7 @@
         return {
           mid: { label: '文章id', fieldType: FieldType.Text, isPrimary: true, },
           title: { label: '文章标题', fieldType: FieldType.Text, },
+          gh_name: { label: '公众号名称', fieldType: FieldType.Text, },
           biz: { label: '公众号biz', fieldType: FieldType.Text, },
           url: { label: '文章链接', fieldType: FieldType.Url, },
           post_time: { label: '发文时间', fieldType: FieldType.DateTime, property: {dateFormat: DateFormatter.DATE_TIME },},
@@ -265,6 +266,47 @@
 
 
 
+      const isNormalArticle = (item) => {
+        return String(item?.is_deleted) === '0' && Number(item?.msg_status) === 2
+      }
+
+      const fetchArticleDetail = async(url) => {
+        if (!url) return { detail: null, cost: 0 }
+        const res = await directAPI.get('/fbmain/monitor/v3/article_detail', {
+          params: {
+            key: props.formData.key,
+            mode: '2',
+            url,
+          },
+        })
+
+        if (!(res && res.data && res.data.code === 0)) {
+          throw new Error(res?.data?.msg || '获取文章详情失败')
+        }
+
+        return {
+          detail: res.data,
+          cost: Number(res.data.cost_money || res.data.price || 0),
+        }
+      }
+
+      const mergeArticleDetail = (item, detail) => {
+        if (!detail) return item
+        const detailData = detail.article || detail.detail || detail
+        return {
+          ...item,
+          ...detailData,
+          appmsgid: item.appmsgid,
+          mid: item.mid,
+          biz: item.biz,
+          gh_name: detailData.nick_name || item.nick_name,
+          url: item.url,
+          post_time: item.post_time,
+          is_deleted: item.is_deleted,
+          msg_status: item.msg_status,
+        }
+      }
+
       const upsertWork = async(items, get_time, userInfo) => {
         const tmpWorkFields = workFields()
         const insertData = []
@@ -279,6 +321,7 @@
               data: {
                 mid: mid,
                 title: item.title,
+                gh_name: item.gh_name || item.nick_name,
                 biz: userInfo.biz,
                 url: item.url,
                 post_time: item.post_time * 1000,
@@ -292,6 +335,7 @@
             insertData.push({
               mid: mid.toString(),
               title: item.title,
+              gh_name: item.gh_name || item.nick_name,
               biz: userInfo.biz,
               url: item.url,
               post_time: item.post_time * 1000,
@@ -386,9 +430,10 @@
           }
           
           for (const userInfo of userInfoList){
-            let max_cursor = ""
             let i = 0
             const mid_set = {}
+            const onlyFirstNormalArticle = getWorksType !== 0
+            let foundFirstNormalArticle = false
             while(true){
               i += 1
               const get_time = Date.now()
@@ -424,18 +469,29 @@
 
               totalCost += res.data.cost_money
 
-              // 过滤
               const preFilteringData = res.data.data.filter(item => !mid_set[item.appmsgid])
               let workAccordCount = 0
               const items = []
               for (const item of preFilteringData){
                 mid_set[item.appmsgid] = true
+                if (onlyFirstNormalArticle && !isNormalArticle(item)) {
+                  continue
+                }
                 if (range.type !== 'date' || item.post_time * 1000 > min_time){
                   workAccordCount += 1  
                   items.push(item)
+                  if (onlyFirstNormalArticle) {
+                    break
+                  }
                 }
               }
               if (items.length > 0){
+                  if (onlyFirstNormalArticle) {
+                    const detailRes = await fetchArticleDetail(items[0].url)
+                    totalCost += detailRes.cost
+                    items[0] = mergeArticleDetail(items[0], detailRes.detail)
+                    foundFirstNormalArticle = true
+                  }
                   workSuccessCount += await upsertWork(items, get_time,{biz: userInfo.biz})
               }
               
@@ -450,6 +506,12 @@
                 };
               }
               
+              if (onlyFirstNormalArticle && foundFirstNormalArticle) break;
+              if (onlyFirstNormalArticle) {
+                if (range.type === 'page' && i >= range.value) break;
+                if (preFilteringData.length === 0 || res.data.now_page >= res.data.total_page) break;
+                continue;
+              }
               if (range.type === 'date'){
                 if (workAccordCount === 0 || workAccordCount < preFilteringData.length) break;
               }
@@ -462,11 +524,13 @@
             }
           }
 
-          await updateTable(
-            paneData.value.userTableId,
-            Object.values(totalLastTime),
-            tmpUserFields
-          )
+          if (getWorksType === 0 && paneData.value.userTableId) {
+            await updateTable(
+              paneData.value.userTableId,
+              Object.values(totalLastTime),
+              tmpUserFields
+            )
+          }
 
           if(userInfoList.length > 0){
             let userSuccessCount = singleUserSuccess

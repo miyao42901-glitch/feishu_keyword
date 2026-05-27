@@ -1,6 +1,6 @@
 import { useI18n } from 'vue-i18n';
 import { FieldType, NumberFormatter, DateFormatter } from '@lark-base-open/js-sdk';
-import pluginAPI from '@/utils/request';
+import pluginAPI, { directAPI } from '@/utils/request';
 import { getMaxCreateTimeByUser } from '@/utils/tableHelper';
 
 export const dyPlatformConfig = (t) => ({
@@ -254,6 +254,7 @@ export const ghPlatformConfig = (t) => ({
 
   workFields: (linkTableId = '') => ({
     title: { label: t('ghForm.articleFields.title'), fieldType: FieldType.Text, isPrimary: true },
+    gh_name: { label: t('ghForm.userFields.name'), fieldType: FieldType.Text },
     user_link: {
       label: t('ghForm.articleFields.gh_link'),
       fieldType: FieldType.SingleLink,
@@ -318,17 +319,48 @@ export const ghPlatformConfig = (t) => ({
   async fetchWorks(identifier, user_cut_time, searchDays, key, t, i18nPrefix) {
     let totalCost = 0;
     const dataList = [];
+    const isNormalArticle = (item) => String(item?.is_deleted) === '0' && Number(item?.msg_status) === 2;
+    const fetchArticleDetail = async (url) => {
+      const res = await directAPI.get('/fbmain/monitor/v3/article_detail', {
+        params: { key, mode: '2', url }
+      });
+      if (!(res && res.data && res.data.code === 0)) {
+        return { detail: null, cost: res?.data?.cost_money || 0 };
+      }
+      return {
+        detail: res.data,
+        cost: Number(res.data.cost_money || res.data.price || 0)
+      };
+    };
+    const mergeArticleDetail = (item, detail) => {
+      if (!detail) return item;
+      const detailData = detail.article || detail.detail || detail;
+      return {
+        ...item,
+        ...detailData,
+        appmsgid: item.appmsgid,
+        mid: item.mid,
+        biz: item.biz,
+        gh_name: detailData.nick_name || item.nick_name,
+        url: item.url,
+        post_time: item.post_time,
+        is_deleted: item.is_deleted,
+        msg_status: item.msg_status,
+      };
+    };
 
-    if (searchDays === 1) {
+    let i = 0;
+    while (true) {
+      i++;
       const res = await pluginAPI.post('/plugin_forward', {
-        url: '/fbmain/monitor/v3/post_condition',
-        body: { biz: identifier, key }
+        url: '/fbmain/monitor/v3/post_history',
+        body: { biz: identifier, key, page: i }
       });
 
       if (!(res && res.data && res.data.code === 0)) {
         return {
           dataList,
-          totalCost: res.data?.cost_money || 0,
+          totalCost,
           statusData: {
             get_work_flag: 'fail',
             fail_reason: res.data.msg || t(`${i18nPrefix}.messages.unknownError`)
@@ -337,46 +369,21 @@ export const ghPlatformConfig = (t) => ({
       }
 
       totalCost += res.data.cost_money;
-      const filteredData = res.data.data
-        .filter(item => item.post_time * 1000 > user_cut_time)
-        .map(item => ({
-          ...item,
-          post_time: item.post_time * 1000,
+      const firstNormalArticle = res.data.data
+        .filter(isNormalArticle)
+        .find(item => item.post_time * 1000 > user_cut_time);
+      if (firstNormalArticle) {
+        const detailRes = await fetchArticleDetail(firstNormalArticle.url);
+        totalCost += detailRes.cost;
+        dataList.push({
+          ...mergeArticleDetail(firstNormalArticle, detailRes.detail),
+          post_time: firstNormalArticle.post_time * 1000,
           get_interaction_flag: 'unknow'
-        }));
-      dataList.push(...filteredData);
-    } else {
-      let i = 0;
-      while (true) {
-        i++;
-        const res = await pluginAPI.post('/plugin_forward', {
-          url: '/fbmain/monitor/v3/post_history',
-          body: { biz: identifier, key, page: i }
         });
-
-        if (!(res && res.data && res.data.code === 0)) {
-          return {
-            dataList,
-            totalCost,
-            statusData: {
-              get_work_flag: 'fail',
-              fail_reason: res.data.msg || t(`${i18nPrefix}.messages.unknownError`)
-            }
-          };
-        }
-
-        totalCost += res.data.cost_money;
-        const filteredData = res.data.data
-          .filter(item => item.post_time * 1000 > user_cut_time)
-          .map(item => ({
-            ...item,
-            post_time: item.post_time * 1000,
-            get_interaction_flag: 'unknow'
-          }));
-        dataList.push(...filteredData);
-
-        if (filteredData.length === 0 || filteredData.length < res.data.data.length || res.data.now_page >= res.data.total_page) break;
+        break;
       }
+
+      if (res.data.data.length === 0 || res.data.now_page >= res.data.total_page) break;
     }
 
     return {

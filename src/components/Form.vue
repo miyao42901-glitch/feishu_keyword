@@ -352,13 +352,13 @@
 
     <div class="container-down">
       <el-tabs :disabled="isLocked" class="my-custom-tabs">
-        <el-tab-pane :label="'抖音测试'">
+        <!-- <el-tab-pane :label="'抖音测试'">
           <PDyFormNew :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
         </el-tab-pane>
         <el-tab-pane :label="'抖音测试1'">
           <PDyFormNew :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-        </el-tab-pane>
-        <!-- <el-tab-pane :label="t('form.tabs.douyin')">
+        </el-tab-pane> -->
+        <el-tab-pane :label="t('form.tabs.douyin')">
           <PDyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
         </el-tab-pane>
         <el-tab-pane :label="'小红书'">
@@ -372,7 +372,7 @@
         </el-tab-pane>
         <el-tab-pane :label="t('form.tabs.kuaishou')">
           <PKsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
-        </el-tab-pane> -->
+        </el-tab-pane>
       </el-tabs>
     </div>
   </div>

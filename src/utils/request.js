@@ -1,12 +1,22 @@
 import axios from 'axios'
 
+const API_BASE_URL = import.meta.env.DEV
+  ? '/api/v1/public'
+  : 'https://feishu.jzl.com/api/v1/public'
+
+const DIRECT_API_BASE_URL = import.meta.env.DEV
+  ? '/direct-api'
+  : 'https://www.dajiala.com'
+
 // 创建axios实例
 const pluginAPI = axios.create({
-  // baseURL: 'api',
-  // baseURL: 'https://api.yddm.com', // 设置baseURL
-  baseURL: 'https://feishu.jzl.com/api/v1/public',
-  // baseURL: 'http://192.168.1.151:8181/public',
+  baseURL: API_BASE_URL,
   timeout: 20 * 1000, // 请求超时时间
+})
+
+export const directAPI = axios.create({
+  baseURL: DIRECT_API_BASE_URL,
+  timeout: 20 * 1000,
 })
 
 // 网络错误消息
