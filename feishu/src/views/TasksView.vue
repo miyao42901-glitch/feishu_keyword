@@ -114,9 +114,20 @@ const testFeedBitableDeps = createTestFeedBitableDeps()
 
 /** 仅 `running` 卡片拉 results 的最小间隔 */
 const RUNNING_FEED_POLL_MS = 120_000
+/** pending 定时任务仅在 next_run_at 之后延迟 3 分钟再拉 results */
+const PENDING_RESULTS_AFTER_NEXT_RUN_MS = 3 * 60_000
 let syncPollTimerDebounce: ReturnType<typeof setTimeout> | null = null
 let refreshTestDataFeedInFlight: Promise<void> | null = null
 let runningFeedWatchDebounce: ReturnType<typeof setTimeout> | null = null
+
+function isPendingTaskResultsDue(row: TaskCardModel, now = Date.now()): boolean {
+  if (row.status !== 'pending_run' || row.taskTypeLabel === '单次任务') return false
+  const raw = row.nextRunAtRaw?.trim()
+  if (!raw) return false
+  const nextRunAtMs = Date.parse(raw.replace(' ', 'T'))
+  if (!Number.isFinite(nextRunAtMs)) return false
+  return now >= nextRunAtMs + PENDING_RESULTS_AFTER_NEXT_RUN_MS
+}
 
 function listRunningFeedTargets(): TaskCardModel[] {
   return tasks.value.filter(
@@ -127,11 +138,12 @@ function listRunningFeedTargets(): TaskCardModel[] {
 }
 
 function listActiveRunningFeedTargets(): TaskCardModel[] {
+  const now = Date.now()
   return tasks.value.filter(
     (t) =>
-      t.status === 'running' &&
       t.taskTypeLabel !== '单次任务' &&
-      taskUsesOnlyTestDataPlatforms(t.platformKeys),
+      taskUsesOnlyTestDataPlatforms(t.platformKeys) &&
+      (t.status === 'running' || isPendingTaskResultsDue(t, now)),
   )
 }
 
@@ -162,6 +174,10 @@ function computeMsUntilNextFeedPoll(): number {
   const now = Date.now()
   let minWait = Number.POSITIVE_INFINITY
   for (const t of targets) {
+    if (t.status === 'pending_run') {
+      minWait = Math.min(minWait, 0)
+      continue
+    }
     if (t.status === 'running') {
       const last =
         lastRealtimeFeedPollAtByTaskId.get(t.id) ?? lastScheduledRunPolledAtByTaskId.get(t.id)
@@ -197,6 +213,7 @@ function computeMsUntilNextFeedPoll(): number {
 }
 
 function isFeedPollDueForTask(t: TaskCardModel, cfg: Record<string, unknown>, now: number): boolean {
+  if (t.status === 'pending_run') return isPendingTaskResultsDue(t, now)
   if (t.status === 'running') {
     const last =
       lastRealtimeFeedPollAtByTaskId.get(t.id) ?? lastScheduledRunPolledAtByTaskId.get(t.id)
@@ -384,7 +401,7 @@ async function refreshTestDataFeed(options?: RefreshTestDataFeedOptions) {
 async function refreshTestDataFeedInner(options?: RefreshTestDataFeedOptions) {
   if (screen.value !== 'list') return
   const scopeTargets = listRunningFeedTargets()
-  /** 仅 `running` 拉 status/results（`pending_run` 只参与列表轮询，不请求 results） */
+  /** `running` 立即拉 results；`pending_run` 仅在 next_run_at + 3 分钟后拉 results */
   const resultsTargets = listActiveRunningFeedTargets()
   pruneTestFeedAppendState(new Set(scopeTargets.map((t) => t.id)))
   pruneFeedPollState(new Set(scopeTargets.map((t) => t.id)))

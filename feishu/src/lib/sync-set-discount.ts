@@ -57,8 +57,8 @@ export function discountRateForPackage(
 export const DOUYIN_DISCOUNT_RATE = discountRateForPackage(DOUYIN_POINTS_PACKAGE)
 /** 小红书：2000 积分档 → discount_rate 20 */
 export const XHS_DISCOUNT_RATE = discountRateForPackage(XHS_POINTS_PACKAGE)
-/** 视频号 / 公众号：1500 积分档 → discount_rate 15 */
-export const WX_SOUSOU_DISCOUNT_RATE = discountRateForPackage(WX_SOUSOU_POINTS_PACKAGE)
+/** 视频号 / 公众号：按需求固定 discount_rate 1 */
+export const WX_SOUSOU_DISCOUNT_RATE = 1
 
 /** 按积分档位与 discount_rate，折算每条积分（应等于 {@link TARGET_POINTS_PER_ROW}） */
 export function pointsPerRowFromDiscountPackage(
@@ -123,10 +123,7 @@ export function resolveDiscountForSyncPath(
     }
   }
   if (p.includes('/wxvideo/') || p.includes('/wx/')) {
-    return {
-      endpoint: WX_SOUSOU_DISCOUNT_ENDPOINT,
-      discount_rate: WX_SOUSOU_DISCOUNT_RATE,
-    }
+    return null
   }
   return null
 }
@@ -225,10 +222,6 @@ export async function ensureSyncEndpointDiscountForPlatform(
     return
   }
   if (platform === 'shipinhao' || platform === 'gzh') {
-    await ensureSyncEndpointDiscount({
-      endpoint: WX_SOUSOU_DISCOUNT_ENDPOINT,
-      discountRate: WX_SOUSOU_DISCOUNT_RATE,
-      ctx,
-    })
+    return
   }
 }
