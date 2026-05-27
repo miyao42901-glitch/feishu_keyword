@@ -1,8 +1,9 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
 
-rem 将 feishu 构建产物同步到 public\feishu，并在该目录内手动 git push（GitHub 飞书发布，不走 CI）
+rem 将 feishu 构建产物同步到 public\feishu\dist（GitHub 仓结构：dist/ + package.json），再手动 git push
 rem 首次：git clone <GitHub空仓> public\feishu
+rem Docker 扁平目录请用 feishu 目录下 npm run build:public:test
 
 set "ROOT=%~dp0"
 if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
@@ -17,12 +18,12 @@ if not exist "%TARGET%\.git" (
 
 pushd "%ROOT%\feishu" || exit /b 1
 if /i "%~1"=="prod" (
-  call npm run build:public:prod
+  call npm run build:github:prod
 ) else (
-  call npm run build:public:test
+  call npm run build:github:test
 )
 if errorlevel 1 popd & exit /b 1
 popd
 
-echo [OK] 已写入 public\feishu ，请在 public\feishu 目录内手动 git add/commit/push
+echo [OK] 已写入 public\feishu\dist ，请在 public\feishu 目录内手动 git add/commit/push
 exit /b 0

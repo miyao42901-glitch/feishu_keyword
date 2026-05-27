@@ -43,25 +43,24 @@ VITE_API_BASE_URL=http://192.168.1.24
 1. **仅 Vite**（默认）：访问 `http://IP:5173`，Vite 内置代理，无需 Nginx。
 2. **Nginx + Vite**：访问 `http://IP`（80），Nginx 把 `/` 转到 `5173`，`/api/v1` 转到 `8765`。
 
-## 生产静态部署
+## 生产静态部署（`feishu-web` / `fskw-feishu.tbpf.com`）
+
+Docker 使用 `deploy/feishu-static/default.conf`：除静态资源外，**同源反代** `/api/v1/`、`/api/`、`/yddm-api/`，浏览器无需跨域。
 
 ```powershell
 cd feishu
-npm run build
+npm run build:public:prod   # VITE_API_BASE_URL=https://fskw-feishu.tbpf.com
 ```
 
-将 `location /` 改为：
+打包脚本请使用 **飞书前端域名**（`fskw-feishu.tbpf.com` / `test-fskw-feishu.tbpf.com`），**不要**写 `fskw.tbpf.com`（API 域），否则 `GET /api/v1/async/tasks` 会跨域。
 
-```nginx
-root /path/to/feishu_keyword/feishu/dist;
-index index.html;
-try_files $uri $uri/ /index.html;
-```
+栈内需同时启动 **`api`** 与 **`worker`（含 sync-api）** profile，否则 `/api/v1` 反代会 502。
 
-并删除对 `5173` 的 `proxy_pass`。
+自建 Nginx 可参考 `deploy/feishu-static/default.conf`；勿再单独写 `VITE_SYNC_API_BASE` 指向 `8765`。
 
 ## 常见问题
 
+- **仍跨域 / CORS on `fskw.tbpf.com/api/v1`**：多为前端打包把 `VITE_API_BASE_URL` 设成 API 域、页面却在 `fskw-feishu.*` 打开。应改为飞书域打包，或去掉 `VITE_SYNC_API_BASE` 让采集走同源 `/api/v1`。
 - **仍跨域**：检查是否仍配置了 `VITE_SYNC_API_BASE` 指向 `8765`；应去掉后重建前端。
-- **404 on /api/v1**：确认 `location /api/v1/` 在 `location /api/` **之前**（示例已按此顺序）。
-- **OPTIONS 失败**：走 Nginx 同源后一般无 CORS；若仍有，检查 8765 是否被错误直连。
+- **404 on /api/v1**（无 `Access-Control-Allow-Origin`）：Traefik 未挂上 sync-api（正式域需 `docker compose --profile worker up`），或 `location /api/v1/` 未在 `location /api/` **之前**。
+- **OPTIONS 失败**：走飞书静态 Nginx 同源后一般无 CORS；若直连 `fskw.tbpf.com` 且返回 404，浏览器也会报 CORS。

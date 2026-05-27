@@ -350,16 +350,67 @@ function rowToFields(
 
 const tableCreateLocks = new Map<string, Promise<string>>()
 
+/** 与多维表格标签页展示名对齐，避免首尾空格导致「已存在表」匹配失败 */
+function normalizeTableDisplayName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ')
+}
+
+function tableDisplayNamesMatch(a: string, b: string): boolean {
+  const left = normalizeTableDisplayName(a)
+  const right = normalizeTableDisplayName(b)
+  return left.length > 0 && left === right
+}
+
 async function findTableIdByDisplayName(name: string): Promise<string> {
-  const want = name.trim()
+  const want = normalizeTableDisplayName(name)
   if (!want) return ''
   try {
     const list = await fetchBitableTableMetaList()
-    const hit = list.find((t) => t.name === want)
+    const hit = list.find((t) => tableDisplayNamesMatch(t.name, want))
     return hit?.id?.trim() ?? ''
   } catch {
     return ''
   }
+}
+
+/** 飞书不支持同名新建；建表失败或空 tableId 时按展示名回查已有表（含短暂重试） */
+async function findTableIdByDisplayNameWithRetry(
+  name: string,
+  options?: { attempts?: number; delayMs?: number },
+): Promise<string> {
+  const attempts = Math.max(1, options?.attempts ?? 3)
+  const delayMs = options?.delayMs ?? 150
+  for (let i = 0; i < attempts; i++) {
+    const id = await findTableIdByDisplayName(name)
+    if (id) return id
+    if (i < attempts - 1) {
+      await new Promise((r) => setTimeout(r, delayMs))
+    }
+  }
+  return ''
+}
+
+async function createOrReuseTableByDisplayName(name: string): Promise<string> {
+  const displayName = normalizeTableDisplayName(name)
+  if (!displayName) return ''
+
+  let tableId = await findTableIdByDisplayNameWithRetry(displayName, { attempts: 1 })
+  if (tableId) return tableId
+
+  try {
+    const res = await bitable.base.addTable({ name: displayName } as IAddTableConfig)
+    tableId = typeof res?.tableId === 'string' ? res.tableId.trim() : ''
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e)
+    const reused = await findTableIdByDisplayNameWithRetry(displayName)
+    if (reused) return reused
+    throw new Error(`新建数据表「${displayName}」失败：${detail}`)
+  }
+
+  if (!tableId) {
+    tableId = await findTableIdByDisplayNameWithRetry(displayName)
+  }
+  return tableId
 }
 
 async function resolveOrCreateTableId(
@@ -399,23 +450,9 @@ async function resolveOrCreateTableId(
     }
 
     const name = readPlatformNewTableName(cfg, platform)
-    let tableId = await findTableIdByDisplayName(name)
+    const tableId = await createOrReuseTableByDisplayName(name)
     if (!tableId) {
-      try {
-        const res = await bitable.base.addTable({ name } as IAddTableConfig)
-        tableId = typeof res?.tableId === 'string' ? res.tableId.trim() : ''
-      } catch (e) {
-        const detail = e instanceof Error ? e.message : String(e)
-        const reused = await findTableIdByDisplayName(name)
-        if (reused) {
-          tableId = reused
-        } else {
-          throw new Error(`新建数据表「${name}」失败：${detail}`)
-        }
-      }
-    }
-    if (!tableId) {
-      throw new Error(`新建数据表「${name}」失败：未返回 tableId`)
+      throw new Error(`新建数据表「${normalizeTableDisplayName(name)}」失败：未找到或创建数据表`)
     }
 
     let table: BitableTable
