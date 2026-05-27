@@ -37,6 +37,7 @@ import {
   deleteAsyncTask,
   isRealtimeTaskConfig,
   resetAsyncTaskLifecycleCache,
+  restartAsyncTask,
   submitCollectionFromConfig,
   type AsyncTaskStatusResult,
 } from '@/lib/async-task-api'

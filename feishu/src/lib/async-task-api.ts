@@ -786,6 +786,27 @@ export async function deleteAsyncTask(
 /** @deprecated 使用 {@link deleteAsyncTask} */
 export const cancelAsyncTask = deleteAsyncTask
 
+/**
+ * `POST /api/v1/async/tasks/{task_id}/restart` 重启/立即执行异步任务。
+ * 适用场景：
+ * - 已结束的任务（success/failed/cancelled）重新开始
+ * - pending_run 状态的定时任务立即执行（不等到 task_start_time）
+ * Path：`task_id`；Header：`x-api-key`、`X-User-Id`（由 `SyncFetchContext` 注入）。
+ */
+export async function restartAsyncTask(
+  ctx: SyncFetchContext,
+  taskId: string,
+): Promise<unknown> {
+  const id = taskId.trim()
+  if (!id) throw new Error('缺少 task_id')
+  return postSyncApiJson({
+    path: `${ASYNC_TASK_PATH}/${encodeURIComponent(id)}/restart`,
+    platformLabel: '重启异步任务',
+    body: {},
+    ctx,
+  })
+}
+
 /** YDDM `pending` 对应列表 `pending_run`；仅此时可改调度字段 */
 export function canEditAsyncScheduleFields(
   status: TaskRunStatus | AsyncTaskLifecycle | null | undefined,

@@ -70,6 +70,10 @@ export function taskPrimaryActionKind(
   ) {
     return 'execute'
   }
+  // 定时任务在 pending_run 状态也可以立即执行
+  if (status === 'pending_run' && options?.taskTypeLabel === '定时任务') {
+    return 'execute'
+  }
   return null
 }
 
