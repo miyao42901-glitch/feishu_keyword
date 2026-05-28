@@ -133,24 +133,22 @@ deploy-test:
         cp -f .env.test .env && chmod 600 .env
         docker compose $COMPOSE_PROFILES down --remove-orphans 2>/dev/null || true
         docker compose $COMPOSE_PROFILES up -d --build
-        echo '==> 等待 sync-api 启动...'
-        ok=0
-        for i in \$(seq 1 45); do
-          state=\$(docker compose $COMPOSE_PROFILES ps sync-api --format '{{.State}}' 2>/dev/null | head -1)
-          if [ \"\$state\" = running ]; then ok=1; break; fi
-          sleep 2
-        done
         docker compose $COMPOSE_PROFILES ps
-        if [ \"\$ok\" -ne 1 ]; then
-          echo 'ERROR: sync-api 未 running，feishu 域 /api/v1 将 502'
-          docker compose $COMPOSE_PROFILES logs sync-api --tail 60 || true
-          exit 1
-        fi
-        echo '==> feishu-web -> sync-api 健康检查'
-        if ! docker compose $COMPOSE_PROFILES exec -T feishu-web wget -qO- --timeout=15 http://sync-api:8765/api/v1/health >/dev/null; then
-          echo 'ERROR: feishu-web 无法访问 sync-api:8765'
+        echo '==> 等待 sync-api HTTP 就绪（feishu-web -> /api/v1/health，容器 running 后 Uvicorn 可能仍需数秒）...'
+        health_ok=0
+        for i in \$(seq 1 40); do
+          if docker compose $COMPOSE_PROFILES exec -T feishu-web wget -qO- --timeout=5 http://sync-api:8765/api/v1/health >/dev/null 2>&1; then
+            health_ok=1
+            echo \"sync-api health ok (attempt \$i)\"
+            break
+          fi
+          echo \"等待 sync-api... (\$i/40)\"
+          sleep 3
+        done
+        if [ \"\$health_ok\" -ne 1 ]; then
+          echo 'ERROR: feishu-web 无法访问 sync-api:8765/api/v1/health'
           docker compose $COMPOSE_PROFILES logs feishu-web --tail 30 || true
-          docker compose $COMPOSE_PROFILES logs sync-api --tail 40 || true
+          docker compose $COMPOSE_PROFILES logs sync-api --tail 80 || true
           exit 1
         fi
         docker compose $COMPOSE_PROFILES exec -T feishu-web wget -qO- http://sync-api:8765/api/v1/health | head -c 400
@@ -230,24 +228,22 @@ deploy-prod:
         cp -f .env.master .env && chmod 600 .env
         docker compose $COMPOSE_PROFILES down --remove-orphans 2>/dev/null || true
         docker compose $COMPOSE_PROFILES up -d --build
-        echo '==> 等待 sync-api 启动...'
-        ok=0
-        for i in \$(seq 1 45); do
-          state=\$(docker compose $COMPOSE_PROFILES ps sync-api --format '{{.State}}' 2>/dev/null | head -1)
-          if [ \"\$state\" = running ]; then ok=1; break; fi
-          sleep 2
-        done
         docker compose $COMPOSE_PROFILES ps
-        if [ \"\$ok\" -ne 1 ]; then
-          echo 'ERROR: sync-api 未 running，feishu 域 /api/v1 将 502'
-          docker compose $COMPOSE_PROFILES logs sync-api --tail 60 || true
-          exit 1
-        fi
-        echo '==> feishu-web -> sync-api 健康检查'
-        if ! docker compose $COMPOSE_PROFILES exec -T feishu-web wget -qO- --timeout=15 http://sync-api:8765/api/v1/health >/dev/null; then
-          echo 'ERROR: feishu-web 无法访问 sync-api:8765'
+        echo '==> 等待 sync-api HTTP 就绪（feishu-web -> /api/v1/health，容器 running 后 Uvicorn 可能仍需数秒）...'
+        health_ok=0
+        for i in \$(seq 1 40); do
+          if docker compose $COMPOSE_PROFILES exec -T feishu-web wget -qO- --timeout=5 http://sync-api:8765/api/v1/health >/dev/null 2>&1; then
+            health_ok=1
+            echo \"sync-api health ok (attempt \$i)\"
+            break
+          fi
+          echo \"等待 sync-api... (\$i/40)\"
+          sleep 3
+        done
+        if [ \"\$health_ok\" -ne 1 ]; then
+          echo 'ERROR: feishu-web 无法访问 sync-api:8765/api/v1/health'
           docker compose $COMPOSE_PROFILES logs feishu-web --tail 30 || true
-          docker compose $COMPOSE_PROFILES logs sync-api --tail 40 || true
+          docker compose $COMPOSE_PROFILES logs sync-api --tail 80 || true
           exit 1
         fi
         docker compose $COMPOSE_PROFILES exec -T feishu-web wget -qO- http://sync-api:8765/api/v1/health | head -c 400
