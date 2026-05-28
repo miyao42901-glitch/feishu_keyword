@@ -12,6 +12,8 @@ variables:
   PROD_DIR: "/docker/feishu_keyword/server"
   TEST_DIR: "/docker/feishu_keyword-test/server"
   COMPOSE_FILES: "-f docker-compose.yml"
+  # 飞书静态 Nginx 反代 /api/v1 -> sync-api:8765，必须同时起 worker（sync-api + celery-worker）
+  COMPOSE_PROFILES: "--profile admin --profile feishu --profile worker"
 
 stages:
   - deploy
@@ -118,9 +120,35 @@ deploy-test:
         cp -f .env.test .env && chmod 600 .env
         cd $TEST_ROOT
         cp -f server/.env .env && chmod 600 .env
-        if [ -f python/.env.test ]; then cp -f python/.env.test python/.env && chmod 600 python/.env; fi
-        docker compose --profile admin --profile feishu --profile worker down --remove-orphans 2>/dev/null || true
-        docker compose --profile admin --profile feishu --profile worker up -d --build
+        if [ ! -f python/.env.test ]; then
+          echo 'ERROR: 远端缺少 python/.env.test（sync-api/celery 必需）。请在 $TEST_ROOT/python/ 配置 DATABASE_URL、REDIS_URL（勿提交 Git，见 python/.env.example）'
+          exit 1
+        fi
+        cp -f python/.env.test python/.env && chmod 600 python/.env
+        docker compose $COMPOSE_PROFILES down --remove-orphans 2>/dev/null || true
+        docker compose $COMPOSE_PROFILES up -d --build
+        echo '==> 等待 sync-api 启动...'
+        ok=0
+        for i in \$(seq 1 45); do
+          state=\$(docker compose $COMPOSE_PROFILES ps sync-api --format '{{.State}}' 2>/dev/null | head -1)
+          if [ \"\$state\" = running ]; then ok=1; break; fi
+          sleep 2
+        done
+        docker compose $COMPOSE_PROFILES ps
+        if [ \"\$ok\" -ne 1 ]; then
+          echo 'ERROR: sync-api 未 running，feishu 域 /api/v1 将 502'
+          docker compose $COMPOSE_PROFILES logs sync-api --tail 60 || true
+          exit 1
+        fi
+        echo '==> feishu-web -> sync-api 健康检查'
+        if ! docker compose $COMPOSE_PROFILES exec -T feishu-web wget -qO- --timeout=15 http://sync-api:8765/api/v1/health >/dev/null; then
+          echo 'ERROR: feishu-web 无法访问 sync-api:8765'
+          docker compose $COMPOSE_PROFILES logs feishu-web --tail 30 || true
+          docker compose $COMPOSE_PROFILES logs sync-api --tail 40 || true
+          exit 1
+        fi
+        docker compose $COMPOSE_PROFILES exec -T feishu-web wget -qO- http://sync-api:8765/api/v1/health | head -c 400
+        echo ''
         echo '测试环境部署完成'
       "
   rules:
@@ -179,9 +207,35 @@ deploy-prod:
         cp -f .env.master .env && chmod 600 .env
         cd $PROD_ROOT
         cp -f server/.env .env && chmod 600 .env
-        if [ -f python/.env.master ]; then cp -f python/.env.master python/.env && chmod 600 python/.env; fi
-        docker compose --profile admin --profile feishu --profile worker down --remove-orphans 2>/dev/null || true
-        docker compose --profile admin --profile feishu --profile worker up -d --build
+        if [ ! -f python/.env.master ]; then
+          echo 'ERROR: 远端缺少 python/.env.master（sync-api/celery 必需）'
+          exit 1
+        fi
+        cp -f python/.env.master python/.env && chmod 600 python/.env
+        docker compose $COMPOSE_PROFILES down --remove-orphans 2>/dev/null || true
+        docker compose $COMPOSE_PROFILES up -d --build
+        echo '==> 等待 sync-api 启动...'
+        ok=0
+        for i in \$(seq 1 45); do
+          state=\$(docker compose $COMPOSE_PROFILES ps sync-api --format '{{.State}}' 2>/dev/null | head -1)
+          if [ \"\$state\" = running ]; then ok=1; break; fi
+          sleep 2
+        done
+        docker compose $COMPOSE_PROFILES ps
+        if [ \"\$ok\" -ne 1 ]; then
+          echo 'ERROR: sync-api 未 running，feishu 域 /api/v1 将 502'
+          docker compose $COMPOSE_PROFILES logs sync-api --tail 60 || true
+          exit 1
+        fi
+        echo '==> feishu-web -> sync-api 健康检查'
+        if ! docker compose $COMPOSE_PROFILES exec -T feishu-web wget -qO- --timeout=15 http://sync-api:8765/api/v1/health >/dev/null; then
+          echo 'ERROR: feishu-web 无法访问 sync-api:8765'
+          docker compose $COMPOSE_PROFILES logs feishu-web --tail 30 || true
+          docker compose $COMPOSE_PROFILES logs sync-api --tail 40 || true
+          exit 1
+        fi
+        docker compose $COMPOSE_PROFILES exec -T feishu-web wget -qO- http://sync-api:8765/api/v1/health | head -c 400
+        echo ''
         echo '正式环境部署完成'
       "
   rules:
