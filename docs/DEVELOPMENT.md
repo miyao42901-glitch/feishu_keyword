@@ -55,8 +55,8 @@
 
 ## 5. 环境与密钥
 
-- `server/.env` 配置 `DATABASE_URL`，详见 [DATABASE.md](./DATABASE.md)。
-- 勿提交 `.env`；模板见 `server/.env.example`。
+- 仓根 `.env` 配置 `DATABASE_URL`（`cp .env.test .env` 或 `.env.local.example` → `.env.local`），详见 [DATABASE.md](./DATABASE.md)。
+- 勿提交 `.env`；模板见 `.env.example`。
 
 ## 6. 运行（后端）
 

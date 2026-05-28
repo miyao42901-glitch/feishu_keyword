@@ -16,8 +16,8 @@
 | 配置项 | 位置 | 说明 |
 |--------|------|------|
 | 逻辑库名 | MySQL | **`feishu_keyword`**（创建库、建表、连接串中库名一致） |
-| 连接串 | `server/.env` | 变量 **`DATABASE_URL`**，应用启动时由 `app.db` 读取 |
-| 模板 | `server/.env.example` | 仅含占位符，**可提交**；真实密码写在 `.env` |
+| 连接串 | 仓根 `.env` | 变量 **`DATABASE_URL`**，应用启动时由 `app.db` 读取 |
+| 模板 | `.env.example` / `.env.test` / `.env.master` | 占位符可提交；真实密码写在栈根 `.env` |
 
 **`DATABASE_URL` 格式**（SQLAlchemy + PyMySQL）：
 
@@ -32,7 +32,7 @@ mysql+pymysql://root:@127.0.0.1:3306/feishu_keyword?charset=utf8mb4
 ```
 
 - 密码中含 `@`、`#`、`%` 等字符时需做 **URL 编码**（如 `@` → `%40`）。
-- **禁止**将 `server/.env` 提交到 Git；详见仓库根目录 `.gitignore`。
+- **禁止**将仓根 `.env`（含真实口令）提交到 Git；详见仓库根目录 `.gitignore`。
 
 **字符集**：库/表建议使用 **`utf8mb4`**，与连接串 `charset=utf8mb4` 一致。
 

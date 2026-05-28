@@ -39,7 +39,7 @@ _RUN_STATUSES = frozenset({"running", "completed", "stopped", "failed"})
 _DB_HINT = (
     "数据库操作失败：请确认已在 MySQL 创建表 feishu_task_configs。"
     " 可在 server 目录执行：python scripts/ensure_feishu_task_configs_table.py"
-    "（需配置 server/.env 中 DATABASE_URL）；或手动执行 server/scripts/create_feishu_task_configs.sql。"
+    "（需配置仓根 .env 中 DATABASE_URL）；或手动执行 server/scripts/create_feishu_task_configs.sql。"
     " 并检查 DATABASE_URL 能否连接库 feishu_keyword。"
 )
 

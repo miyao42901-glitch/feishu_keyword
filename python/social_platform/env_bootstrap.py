@@ -1,4 +1,4 @@
-"""Worker 进程启动时加载 python/.env（不依赖 config 包）。"""
+"""Worker 进程启动时加载仓库根 .env（不依赖 config 包）。"""
 
 from __future__ import annotations
 
@@ -18,11 +18,12 @@ def ensure_dotenv_loaded() -> None:
         return
 
     here = Path(__file__).resolve().parent  # .../python/social_platform
-    py_root = here.parent  # .../python（.env 所在目录）
-    env_file = py_root / ".env"
+    py_root = here.parent  # .../python
+    repo_root = py_root.parent
+    env_file = repo_root / ".env"
     if env_file.is_file():
         load_dotenv(env_file, override=False)
-    local_file = py_root / ".env.local"
+    local_file = repo_root / ".env.local"
     if local_file.is_file():
         load_dotenv(local_file, override=True)
     elif not env_file.is_file():

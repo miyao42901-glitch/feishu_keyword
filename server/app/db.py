@@ -2,7 +2,7 @@
 数据库访问层：引擎与会话工厂。
 
 职责：
-- 从 `server/.env` 加载 `DATABASE_URL`，创建 SQLAlchemy `Engine` 与 `sessionmaker`；
+- 从仓根 `.env` 加载 `DATABASE_URL`，创建 SQLAlchemy `Engine` 与 `sessionmaker`；
 - 不承载业务 SQL，业务查询放在 `app.services` 或路由调用的服务函数中。
 
 环境变量：

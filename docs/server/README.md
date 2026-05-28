@@ -20,7 +20,7 @@
 | ASGI 服务器 | Uvicorn | 开发：`uvicorn app.main:app` |
 | ORM | SQLAlchemy 2.x | 模型见 `app/models/` |
 | 数据库驱动 | PyMySQL | 经连接串 `mysql+pymysql://...` |
-| 配置 | python-dotenv | 从 `server/.env` 加载 `DATABASE_URL` |
+| 配置 | python-dotenv | 从仓根 `.env` 加载 `DATABASE_URL` |
 | HTTP 客户端 | httpx | 调用外部 API（飞书、采集服务等） |
 
 ---

@@ -5,6 +5,13 @@ rem 正式环境 API 预编译 admin + feishu
 set "ROOT=%~dp0"
 if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 
+echo [0/2] 使用仓根 .env.master 作为 Vite 环境变量
+copy /Y "%ROOT%\.env.master" "%ROOT%\.env" >nul
+if errorlevel 1 (
+  echo ERROR: 缺少 %ROOT%\.env.master
+  exit /b 1
+)
+
 echo [1/2] admin -^> public\admin
 pushd "%ROOT%\admin" || exit /b 1
 call npm run build:public:prod

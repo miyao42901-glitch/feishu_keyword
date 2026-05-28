@@ -65,7 +65,9 @@ pip install -r requirements-http.txt
 ### 2.3 配置文件
 
 ```bash
+# 在仓库根目录
 cp .env.example .env
+# 或 cp .env.test .env
 # 编辑 .env，至少配置：
 #   DATABASE_URL=mysql+pymysql://user:pass@127.0.0.1:3306/db?charset=utf8mb4
 #   REDIS_URL=redis://127.0.0.1:6379/0
@@ -249,7 +251,7 @@ After=network.target mysql.service redis.service
 Type=simple
 User=www-data
 WorkingDirectory=/opt/feishu_keyword/python
-EnvironmentFile=/opt/feishu_keyword/python/.env
+EnvironmentFile=/opt/feishu_keyword/.env
 Environment=HTTP_WORKERS=4
 ExecStart=/opt/feishu_keyword/python/.venv/bin/gunicorn http_service:app \
   -k uvicorn.workers.UvicornWorker \
@@ -278,7 +280,7 @@ After=network.target redis.service mysql.service
 Type=simple
 User=www-data
 WorkingDirectory=/opt/feishu_keyword/python
-EnvironmentFile=/opt/feishu_keyword/python/.env
+EnvironmentFile=/opt/feishu_keyword/.env
 ExecStart=/opt/feishu_keyword/python/.venv/bin/celery \
   -A social_platform.tasks.celery_app worker \
   -l info -P gevent -c 4 --prefetch-multiplier=1
@@ -353,7 +355,7 @@ server {
 | `ASYNC_SCHEDULE_BEAT_ENABLED` | `0` | 无 HTTP 时用 Beat |
 | `ASYNC_TASK_MAX_ACTIVE_PER_USER` | `10` | 单用户活跃任务上限 |
 
-完整列表见 **`.env.example`**。
+完整列表见仓根 **`.env.example`**。
 
 ---
 

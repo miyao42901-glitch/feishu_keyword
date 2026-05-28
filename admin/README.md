@@ -2,7 +2,7 @@
 
 独立 **Vite + Vue 3 + TypeScript + Element Plus**。生产部署在站点路径 **`/admin`**（Traefik `StripPrefix` 后由 nginx 提供静态资源）；API 前缀为 **`/api`**。
 
-- 默认 API 基址：`https://test-fskw.tbpf.com`（见 `src/config/adminApiOrigin.ts`；测试打包用 `npm run build:public:test`，正式用 `build:public:prod` → `https://fskw.tbpf.com`）。
+- API 基址由仓根 `.env` 的 `VITE_ADMIN_API_ORIGIN` 注入（`vite.config.ts` 的 `envDir` 指向仓库根）；测试/正式见 `.env.test` / `.env.master`，打包用仓根 `build-public-*.bat`。
 - 开发时 Vite 将 `/api` 代理到本机 `http://127.0.0.1:8000`，避免浏览器跨域。
 
 ## 本地运行
@@ -11,7 +11,7 @@
 cd admin
 npm ci
 npm run dev:local    # 本机 127.0.0.1:8000
-npm run dev:lan      # 局域网：先 cp .env.local.example .env.local
+npm run dev:lan      # 局域网：仓根 cp .env.test .env 与 cp .env.local.example .env.local
 ```
 
 浏览器打开 `http://localhost:5101/admin/`（注意末尾斜杠与 `base: '/admin/'` 一致）。

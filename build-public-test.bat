@@ -6,6 +6,13 @@ rem 测试环境一键构建；正式环境用 build-public-prod.bat
 set "ROOT=%~dp0"
 if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 
+echo [0/2] 使用仓根 .env.test 作为 Vite 环境变量
+copy /Y "%ROOT%\.env.test" "%ROOT%\.env" >nul
+if errorlevel 1 (
+  echo ERROR: 缺少 %ROOT%\.env.test
+  exit /b 1
+)
+
 echo [1/2] admin -^> public\admin
 pushd "%ROOT%\admin" || exit /b 1
 call npm run build:public:test

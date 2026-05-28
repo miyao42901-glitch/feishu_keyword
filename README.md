@@ -26,14 +26,14 @@
 
 基础设施在 `/docker/traefik`：`tbpf-mysql`、`tbpf-redis`（`proxy` 网络）。phpMyAdmin：https://pma.tbpf.com
 
-**本项目独立库 `feishu_keyword`**；应用与运维均用 **root**（与 traefik `MYSQL_ROOT_PASSWORD` 一致，便于跨库）。真实口令写在各环境**栈根** `.env`（见 [.env.stack.example](.env.stack.example)），勿提交 Git。
+**本项目独立库 `feishu_keyword`**；应用与运维均用 **root**（与 traefik `MYSQL_ROOT_PASSWORD` 一致，便于跨库）。真实口令写在各环境**栈根** `.env`（由 [.env.test](.env.test) / [.env.master](.env.master) 复制，见 [.env.example](.env.example)），勿提交 Git。
 
 | 用途 | 主机 | 账号 | 库名 |
 |------|------|------|------|
 | 应用 `DATABASE_URL` / 运维 | `tbpf-mysql:3306` | `root` | **`feishu_keyword`**（默认；可跨库查询） |
 | Redis | `tbpf-redis:6379` | 无密码 | 测试 DB `2`、正式 DB `3` |
 
-连接串示例（远端 `server/.env`）：
+连接串示例（远端栈根 `.env`）：
 
 `mysql+pymysql://root:***@tbpf-mysql:3306/feishu_keyword?charset=utf8mb4`
 
@@ -76,7 +76,8 @@ cd feishu && cp .env.local.example .env.local && npm run dev:lan
 ```
 feishu_keyword/
 ├── docker-compose.yml      # 唯一编排真源（测试/正式靠栈目录 .env 区分）
-├── .env.stack.example      # 栈根 .env 字段说明
+├── .env.example            # 统一环境变量模板
+├── .env.test / .env.master  # 测试/正式占位（可提交 PASSWORD 版）
 ├── build-public-test.bat
 ├── admin/
 ├── feishu/

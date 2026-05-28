@@ -113,19 +113,12 @@ deploy-test:
           echo 'WARN: tbpf-mysql 未运行，请先: cd /docker/traefik && docker compose up -d mysql redis'
         fi
         set -e
-        cd $TEST_DIR
+        cd $TEST_ROOT
         if [ ! -f .env.test ]; then
-          echo 'ERROR: 远端缺少 server/.env.test，请配置栈根/server .env（见 .env.stack.example、docs/DEPLOY.md）'
+          echo 'ERROR: 远端缺少栈根 .env.test（见仓根 .env.example、docs/DEPLOY.md）'
           exit 1
         fi
         cp -f .env.test .env && chmod 600 .env
-        cd $TEST_ROOT
-        cp -f server/.env .env && chmod 600 .env
-        if [ ! -f python/.env.test ]; then
-          echo 'ERROR: 远端缺少 python/.env.test（sync-api/celery 必需）。请在 $TEST_ROOT/python/ 配置 DATABASE_URL、REDIS_URL（勿提交 Git，见 python/.env.example）'
-          exit 1
-        fi
-        cp -f python/.env.test python/.env && chmod 600 python/.env
         docker compose $COMPOSE_PROFILES down --remove-orphans 2>/dev/null || true
         docker compose $COMPOSE_PROFILES up -d --build
         echo '==> 等待 sync-api 启动...'
@@ -205,19 +198,12 @@ deploy-prod:
     - |
       ssh -p $SSH_PORT $SSH_USER@$HOST_IP "
         set -e
-        cd $PROD_DIR
+        cd $PROD_ROOT
         if [ ! -f .env.master ]; then
-          echo 'ERROR: 远端缺少 .env.master'
+          echo 'ERROR: 远端缺少栈根 .env.master（见仓根 .env.example）'
           exit 1
         fi
         cp -f .env.master .env && chmod 600 .env
-        cd $PROD_ROOT
-        cp -f server/.env .env && chmod 600 .env
-        if [ ! -f python/.env.master ]; then
-          echo 'ERROR: 远端缺少 python/.env.master（sync-api/celery 必需）'
-          exit 1
-        fi
-        cp -f python/.env.master python/.env && chmod 600 python/.env
         docker compose $COMPOSE_PROFILES down --remove-orphans 2>/dev/null || true
         docker compose $COMPOSE_PROFILES up -d --build
         echo '==> 等待 sync-api 启动...'
