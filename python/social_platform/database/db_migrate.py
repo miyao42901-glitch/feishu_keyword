@@ -11,8 +11,9 @@ from sqlalchemy.engine import Engine
 
 logger = logging.getLogger(__name__)
 
-_MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
-_SCHEMA_SQL = Path(__file__).resolve().parent / "schema.sql"
+_PY_ROOT = Path(__file__).resolve().parents[2]
+_MIGRATIONS_DIR = _PY_ROOT / "migrations"
+_SCHEMA_SQL = _MIGRATIONS_DIR / "schema.sql"
 _BASELINE_TABLE = "feishu_async_tasks"
 
 

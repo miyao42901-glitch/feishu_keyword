@@ -1,5 +1,5 @@
 -- 存量库：feishu_async_tasks 去掉 platform / params_json，改为 body_json(JSON)，action 单独存。
--- 新库请直接使用 social_platform/database/schema.sql 全量建表，无需执行本脚本。
+-- 新库请直接使用 python/migrations/schema.sql 全量建表，无需执行本脚本。
 --
 -- 执行前备份；在从库或副本上验证后再上生产。
 -- 需要 MySQL 8.0.29+（使用 DROP COLUMN IF EXISTS）；更低版本请手工删列。

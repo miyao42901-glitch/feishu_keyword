@@ -42,4 +42,5 @@ Runner **不安装 Node**；须在本地构建 `public/admin`、`public/feishu` 
 | [feishu/component-style.md](./feishu/component-style.md) | 组件命名与注释 |
 | [../admin/README.md](../admin/README.md) | 管理端 `admin/` |
 | [../python/DEPLOYMENT.md](../python/DEPLOYMENT.md) | 采集 HTTP + Celery 部署 |
+| [../python/migrations/README.md](../python/migrations/README.md) | 采集库 `schema.sql` 与增量 SQL（001–011） |
 | [../AGENTS.md](../AGENTS.md) | AI / 新成员入口 |
