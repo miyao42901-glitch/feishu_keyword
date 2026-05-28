@@ -1,0 +1,2 @@
+-- 已废弃：应用已改用 root 连接 tbpf-mysql，无需单独 GRANT lanlang_v1。
+-- 建库请使用 scripts/create_feishu_db.sql

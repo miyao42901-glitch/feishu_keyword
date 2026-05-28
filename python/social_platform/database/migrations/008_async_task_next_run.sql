@@ -1,0 +1,2 @@
+ALTER TABLE feishu_async_tasks
+ADD COLUMN next_run_at DATETIME NULL DEFAULT NULL;
