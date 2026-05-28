@@ -16,13 +16,13 @@
 | 测试 | https://test-fskw.tbpf.com | https://test-fskw-admin.tbpf.com | https://test-fskw-feishu.tbpf.com |
 | 正式 | https://fskw.tbpf.com | https://fskw-admin.tbpf.com | https://fskw-feishu.tbpf.com |
 
-对应 `server/.env.test` 中 `API_PUBLIC_HOST`、`ADMIN_PUBLIC_HOST`、`FEISHU_PUBLIC_HOST` 及 `TRAEFIK_*_ROUTER_NAME`。
+对应仓根 [`.env.test`](../.env.test) / [`.env.master`](../.env.master) 中 `API_PUBLIC_HOST`、`ADMIN_PUBLIC_HOST`、`FEISHU_PUBLIC_HOST` 及 `TRAEFIK_*_ROUTER_NAME`。
 
 **DNS**：改域名后须：
 
-1. 远端更新 `/docker/feishu_keyword-test/server/.env.test` 并 `cp` 为 `server/.env`、栈根 `.env`（CI **不** rsync `.env.test`）
-2. 本地 `build-public-test.bat` 后提交 `public/admin`、`public/feishu`
-3. 推送 `test` 触发流水线
+1. 在栈根维护 `.env.test` 或 `.env.master`（含真实口令）；**每次部署**执行 `cp -f .env.test .env`（正式用 `.env.master`）。勿长期手改 `.env`，它会被覆盖。
+2. 测试：`build-public-test.bat` → 提交 `public/*` → 推送 `test`（自动 `deploy-test`）
+3. 正式：`build-public-prod.bat` → 提交 `public/*` → **MR 合并 `master`** → 流水线中手动 `deploy-prod`
 
 探活：`GET https://test-fskw.tbpf.com/ci-test`
 
@@ -37,36 +37,40 @@
 | `celery-worker` | 异步采集 **必须** 常驻 |
 | `admin-web` / `feishu-web` | 静态 nginx |
 
-**仓库仅一份** [`docker-compose.yml`](../docker-compose.yml)；测试/正式靠主机目录与 **栈根 `.env`** 区分（`cp -f server/.env .env`）。
+**仓库仅一份** [`docker-compose.yml`](../docker-compose.yml)；测试/正式靠主机目录与 **栈根 `.env`** 区分（`cp -f .env.test .env` 或 `cp -f .env.master .env`）。
 
 MySQL/Redis 由 **traefik 栈**（`/docker/traefik`）提供：`tbpf-mysql`、`tbpf-redis`，业务容器加入 `proxy` 网络即可访问。
 
 ```bash
 # 测试
 cd /docker/feishu_keyword-test
-cp -f server/.env.test server/.env && chmod 600 server/.env
-cp -f server/.env .env && chmod 600 .env
-cp -f python/.env.test python/.env 2>/dev/null || true
+cp -f .env.test .env && chmod 600 .env
 docker compose --profile admin --profile feishu --profile worker up -d --build
 
 # 正式
 cd /docker/feishu_keyword
-cp -f server/.env.master server/.env && chmod 600 server/.env
-cp -f server/.env .env && chmod 600 .env
-cp -f python/.env.master python/.env 2>/dev/null || true
+cp -f .env.master .env && chmod 600 .env
 docker compose --profile admin --profile feishu --profile worker up -d --build
 ```
 
 ## 环境变量
 
-| 机制 | 文件 | 用途 |
-|------|------|------|
-| Compose 插值 | 栈根 `/docker/feishu_keyword-test/.env` | `API_PUBLIC_HOST`、`TRAEFIK_*`、`PYTHON_IMAGE`、`DATABASE_URL` 等 |
-| 容器业务 | `server/.env`、`python/.env` | 与栈根一致或复制自 `server/.env` |
+| 文件 | 用途 |
+|------|------|
+| [`.env.example`](../.env.example) | 全量变量说明（可提交） |
+| `.env.test` / `.env.master` | 测试/正式**源文件**（改配置只改这里） |
+| `.env` | 生效文件（gitignore）；由上一行 **覆盖** 得到，CI 与 `docker compose` 只读此文件 |
 
-模板：`server/.env.test` / `server/.env.master`、`python/.env.*`（仓内 `PASSWORD` 占位）；栈根字段见 [`.env.stack.example`](../.env.stack.example)。
+```bash
+# 测试栈每次部署前/CI 内均会执行：
+cp -f .env.test .env && chmod 600 .env
+# 正式：
+cp -f .env.master .env && chmod 600 .env
+```
 
-**真实口令**写在服务器栈根 `.env` 或 `server/.env`（与 `/docker/traefik/.env` 中 `MYSQL_ROOT_PASSWORD` 一致），勿提交 Git。
+Compose 插值与 `api` / `sync-api` / `celery-worker` **均只读栈根 `./.env`**。本地/打包构建：`build-public-*.bat` 会先把对应 `.env.test` 或 `.env.master` 复制为 `.env`。
+
+**真实口令**写在服务器栈根 `.env`（与 `/docker/traefik/.env` 中 `MYSQL_ROOT_PASSWORD` 一致），勿提交 Git。
 
 一键写入远端（在部署机执行）：
 
@@ -83,11 +87,15 @@ bash scripts/remote-setup-env.sh
 |------|------|------|
 | 应用 `DATABASE_URL`、`python` | **root** | 默认库 **`feishu_keyword`**；root 可跨库，**勿在 `jzl_editor` 建本项目表或改稿轻松数据** |
 
-连接串（远端 `server/.env`）：
+连接串（远端栈根 `.env`）：
 
 `mysql+pymysql://root:<MYSQL_ROOT_PASSWORD>@tbpf-mysql:3306/feishu_keyword?charset=utf8mb4`
 
 **勿**对运行中 `tbpf-mysql` 使用 `skip-grant-tables` 热改配置。
+
+### 从旧版多文件 env 迁移（一次性）
+
+若服务器仍有 `server/.env*`、`python/.env*`，请合并到栈根 `.env.test` / `.env.master` 后删除子目录 env 文件，再 `cp -f .env.test .env`（或 `.env.master`）。
 
 ## 数据库与种子
 
@@ -111,14 +119,21 @@ docker exec feishu_keyword-test-api-1 python scripts/seed_demo.py
 
 管理端登录：`admin` / `Admin123a`
 
-python 业务表：sync-api 启动时 `DATABASE_RUN_MIGRATIONS=1` 会迁移；或执行 `python/social_platform/database/schema.sql`
+python 业务表：`sync-api` 启动且 `DATABASE_RUN_MIGRATIONS=1` 时，若库中无 `feishu_async_tasks` 会先执行 `schema.sql` 基线建表，再跑列/索引迁移；`server` 侧表仍用 `api` 容器 `init_schema.py`
 
 ## GitLab CI
 
-- `test` 分支：自动 `deploy-test`（rsync 后先 `docker compose down --remove-orphans` 再 `up`）
+| 分支 | 触发方式 | 部署任务 |
+|------|----------|----------|
+| `test` | 推送后**自动**执行 | `deploy-test` → 测试栈 `/docker/feishu_keyword-test` |
+| `master` | **MR 合并进 master** 后产生流水线 | 在流水线中**手动**运行 `deploy-prod` → 正式栈 `/docker/feishu_keyword` |
+
+推荐发布流程：开发分支 → 合并/推 `test` → 验收测试环境 → `build-public-prod.bat` 并提交 `public/*` → MR 合并 `master` → 手动 `deploy-prod`。
+
+- `deploy-prod` / `deploy-test` 均使用 `--profile admin --profile feishu --profile worker`，部署后校验 `feishu-web` → `sync-api:8765/api/v1/health`（避免 `/api/v1` 502）
+- 远端须有栈根 `.env.test`（测试）或 `.env.master`（正式）；CI 每次部署 **`cp -f` 覆盖 `.env`**
 - 部署前会检查 `tbpf-mysql` 是否运行；未运行则 WARN，需 `cd /docker/traefik && docker compose up -d mysql redis`
-- `master`：`deploy-prod` 手动/变更触发
-- 本地先 `build-public-test.bat` 并提交 `public/admin`、`public/feishu`
+- 测试：`build-public-test.bat`；**正式**：`build-public-prod.bat` 后再提交 `public/admin`、`public/feishu`
 
 ## 验收 curl
 
@@ -134,23 +149,18 @@ curl -sS -X POST https://test-fskw.tbpf.com/api/admin/v1/system/login \
 
 ### 局域网联调（不用 Docker）
 
-| 目录 | 模板 | 本地文件（勿提交） | 启动 |
-|------|------|-------------------|------|
-| `server/` | `.env.local.example` | `.env.local` | `uvicorn app.main:app --reload --host 0.0.0.0 --port 8000` |
-| `python/` | `.env.local.example` | `.env.local` | `python run.py`（:8765） |
-| `admin/` | `.env.local.example` | `.env.local` | `npm run dev:lan` |
-| `feishu/` | `.env.local.example` | `.env.local` | `npm run dev:lan` |
-
-加载顺序：**`.env` → `.env.local`**（仅本地存在 `.env.local` 时覆盖）。前端 `dev:lan` 由 Vite 自动读取 `.env.local`。
-
-仅本机浏览器访问可用 `npm run dev:local`（API `127.0.0.1`）。
-
-### 其它
-
 ```bash
-# 需要对照 Docker 变量时，可看 .env.example / .env.test，勿与 .env.local 混用提交
-cd server && cp .env.local.example .env.local
-cd python && cp .env.local.example .env.local
+cp .env.test .env
+cp .env.local.example .env.local   # 可选，覆盖为 127.0.0.1
+cd server && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+cd python && python run.py
+cd admin && npm run dev:lan
+cd feishu && npm run dev:lan
 ```
 
-推送 test 前：`.\build-public-test.bat` → `git push origin test`
+加载顺序（server/python/Vite）：**仓根 `.env` → `.env.local`**。
+
+| 阶段 | 命令 |
+|------|------|
+| 测栈 | `.\build-public-test.bat` → `git push origin test`（自动 `deploy-test`） |
+| 正式 | `.\build-public-prod.bat` → 提交 `public/*` → MR 合并 `master` → 流水线手动 `deploy-prod` |

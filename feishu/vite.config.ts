@@ -1,3 +1,4 @@
+import path from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
@@ -30,10 +31,11 @@ const yddmApiProxy = {
   },
 } as const
 
-/** 抖音/小红书同步采集服务（默认内网 8765） */
+/** 抖音/小红书同步采集服务（仓根 SYNC_PROXY_TARGET 或 VITE_SYNC_API_BASE） */
 const syncApiProxyTarget =
+  process.env.SYNC_PROXY_TARGET?.trim().replace(/\/$/, '') ||
   (process.env.VITE_SYNC_API_BASE as string | undefined)?.trim().replace(/\/$/, '') ||
-  'http://192.168.1.11:8765'
+  'http://127.0.0.1:8765'
 
 /** 采集服务 API：`/api/v1/*` → 8765（YDDM 登录/计费等走 `/yddm-api`） */
 const syncApiProxy = {
@@ -43,8 +45,11 @@ const syncApiProxy = {
   },
 } as const
 
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+
 // https://vite.dev/config/
 export default defineConfig({
+  envDir: repoRoot,
   // 飞书自定义插件 / 扩展从非根路径加载静态资源时需要相对路径
   base: './',
   server: {

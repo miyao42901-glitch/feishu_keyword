@@ -4,8 +4,10 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const repoRoot = path.resolve(__dirname, '..')
 
 export default defineConfig({
+  envDir: repoRoot,
   base: '/',
   plugins: [vue()],
   resolve: {

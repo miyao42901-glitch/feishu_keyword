@@ -4,7 +4,7 @@
 在 `server/` 目录执行：
     .\\.venv\\Scripts\\python scripts\\ensure_feishu_task_configs_table.py
 
-依赖 `server/.env` / `server/.env.local` 中的 `DATABASE_URL`。
+依赖仓根 `.env` / `.env.local` 中的 `DATABASE_URL`。
 """
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ def main() -> None:
 
     url = os.getenv("DATABASE_URL")
     if not url or not url.strip():
-        print("错误：未设置 DATABASE_URL，请配置 server/.env.local", file=sys.stderr)
+        print("错误：未设置 DATABASE_URL，请配置仓根 .env 或 .env.local", file=sys.stderr)
         sys.exit(1)
 
     engine = create_engine(url, pool_pre_ping=True)

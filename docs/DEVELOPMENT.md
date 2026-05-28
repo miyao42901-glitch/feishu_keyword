@@ -55,8 +55,9 @@
 
 ## 5. 环境与密钥
 
-- `server/.env` 配置 `DATABASE_URL`，详见 [DATABASE.md](./DATABASE.md)。
-- 勿提交 `.env`；模板见 `server/.env.example`。
+- 环境变量**真源在仓库根**：`.env.example`、`.env.test`、`.env.master`、`.env.local.example`；本地 `cp .env.test .env`，可选 `cp .env.local.example .env.local` 覆盖。
+- `server/`、`python/`、`admin/`、`feishu/` 均加载仓根 `.env` → `.env.local`（Vite `envDir` 指向仓根）。
+- 勿提交 `.env` / `.env.local`；详见 [DATABASE.md](./DATABASE.md)。
 
 ## 6. 运行（后端）
 
@@ -72,18 +73,19 @@ cd server
 ## 8. 构建与验证
 
 - **不要求**在每次完成开发任务后固定执行前端生产构建；以任务说明、提测、CI 或协作方明确要求为准。
-- **GitLab 部署（`test` / `master`）**：Runner **不安装 Node**；须在本地把 **admin** 与 **feishu** 都编译进 `public/admin`、`public/feishu` 后 **提交主仓**（CI 只 rsync）。
+- **GitLab CI**：推送 **`test`** 自动 `deploy-test`；**MR 合并 `master`** 后在流水线**手动** `deploy-prod`。Runner **不安装 Node**；须本地构建并提交 `public/admin`、`public/feishu`（CI 只 rsync）。详见 [DEPLOY.md](./DEPLOY.md)。
 
 ```powershell
-# 测试环境（推荐：仓根一键脚本）
+# 测试（推 test 前）
 .\build-public-test.bat
 
 # 或分别执行
 cd admin  && npm run build:public:test   # -> public/admin/
 cd feishu && npm run build:public:test   # -> public/feishu/
-```
 
-正式环境将 `test` 换为 `prod`，或使用 `.\build-public-prod.bat`。详见 [DEPLOY.md](./DEPLOY.md)。
+# 正式（合并 master 前）
+.\build-public-prod.bat
+```
 
 - 需要确认产物、排查构建错误时，再执行上述构建或测试命令。
 

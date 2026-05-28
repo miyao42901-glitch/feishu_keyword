@@ -63,17 +63,26 @@
 
 ## 本地运行
 
-前端直连后端时，复制 **`feishu/.env.example`** 为 **`feishu/.env`**，按需设置 **`VITE_API_BASE_URL`**（如 `http://127.0.0.1:8000`，不含 `/api`）。**本地 `npm run dev` 未配置时**，前端默认请求 `http://127.0.0.1:8000`。打包部署到其它域名前请在 `.env` 中写入真实后端地址后再执行 `npm run build`。接口约定见 **[API.md](../API.md)**（第五节统一响应、第八节任务配置）。
+环境变量在**仓库根**（`vite.config.ts` 的 `envDir` 指向仓根）：
 
 ```powershell
+# 仓根
+cp .env.test .env
+cp .env.local.example .env.local   # 可选，改 VITE_API_BASE_URL、SYNC_PROXY_TARGET 等
+
 cd feishu
 npm install
-npm run dev
+npm run dev          # 默认 127.0.0.1:8000
+npm run dev:lan      # 局域网联调（读仓根 .env.local）
 ```
 
-构建与预览：
+**`npm run dev` 未配置 `VITE_API_BASE_URL` 时**默认 `http://127.0.0.1:8000`。线上打包用仓根 `build-public-test.bat` / `build-public-prod.bat`（会先 `cp .env.test|.env.master → .env`）。接口约定见 **[API.md](../API.md)**。
+
+构建与预览（单独调试构建时）：
 
 ```powershell
 npm run build
 npm run preview
 ```
+
+同源反代与 `VITE_*` 说明见 **[NGINX.md](./NGINX.md)**。

@@ -8,16 +8,17 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# python/config/settings.py -> python/（含 .env、.env.local）
+# python/config/settings.py -> 环境变量在仓库根 .env、.env.local
 _PY_ROOT = Path(__file__).resolve().parent.parent
+_REPO_ROOT = _PY_ROOT.parent
 
 
 def _settings_env_files() -> tuple[str, ...]:
     files: list[str] = []
-    env_path = _PY_ROOT / ".env"
+    env_path = _REPO_ROOT / ".env"
     if env_path.is_file():
         files.append(str(env_path))
-    local_path = _PY_ROOT / ".env.local"
+    local_path = _REPO_ROOT / ".env.local"
     if local_path.is_file():
         files.append(str(local_path))
     return tuple(files) if files else (str(env_path),)

@@ -1,27 +1,36 @@
-# 鏈湴娈嬬暀鐩綍锛堝嬁鎻愪氦锛?/web/
-
-# public锛歛dmin / feishu 棰勭紪璇戜骇鐗╅殢涓讳粨鎻愪氦锛圕I 浠?rsync锛孯unner 鏃犻渶 Node锛?/public/*
-!/public/admin/
-!/public/admin/**
-!/public/feishu/
-!/public/feishu/**
-# 鑻?public/feishu 鍐呭祵 GitHub 鍙戝竷鐢?.git锛屽嬁杩涗富浠?/public/feishu/.git/
-
-# Docker 鏈湴鏁版嵁鍗?/data/
-
-# 鍙傝€冭祫鏂欑洰褰曪紙浠呮湰鍦版煡鐪嬶紝鍕挎彁浜わ級
-/references/
-
-# ------------------------------------------------------------------
-# 鏈湴璁块棶 / 绉佸瘑閰嶇疆锛堟暟鎹簱杩炴帴銆佹湰鏈?API銆佷釜浜?token 绛夛紝鍕挎彁浜わ級
-# ------------------------------------------------------------------
-.env
-.env.local
-.env.*.local
-.env.development
-.env.production
-# 浠绘剰瀛愮洰褰曚笅鐨勭幆澧冩枃浠讹紙淇濈暀 *.example / *.sample 妯℃澘锛?**/.env
+# 鏈湴娈嬬暀鐩綍锛堝嬁鎻愪氦锛?/web/
+
+# public锛歛dmin / feishu 棰勭紪璇戜骇鐗╅殢涓讳粨鎻愪氦锛圕I 浠?rsync锛孯unner 鏃犻渶 Node锛?/public/*
+!/public/admin/
+!/public/admin/**
+!/public/feishu/
+!/public/feishu/**
+# 鑻?public/feishu 鍐呭祵 GitHub 鍙戝竷鐢?.git锛屽嬁杩涗富浠?/public/feishu/.git/
+
+# Docker 鏈湴鏁版嵁鍗?/data/
+
+# 鍙傝€冭祫鏂欑洰褰曪紙浠呮湰鍦版煡鐪嬶紝鍕挎彁浜わ級
+/references/
+
+# Python 字节码缓存（勿提交）
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ------------------------------------------------------------------
+# 鏈湴璁块棶 / 绉佸瘑閰嶇疆锛堟暟鎹簱杩炴帴銆佹湰鏈?API銆佷釜浜?token 绛夛紝鍕挎彁浜わ級
+# ------------------------------------------------------------------
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+# 仓根与任意子目录下的 .env（保留模板与 test/master 占位版）
+**/.env
+!.env.example
+!.env.test
+!.env.master
+!.env.local.example
 !**/.env.example
-!**/.env.local.example
 !**/.env.sample
 scripts/reset-root.sql

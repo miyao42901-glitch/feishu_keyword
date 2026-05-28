@@ -64,26 +64,32 @@ pip install -r requirements-http.txt
 
 ### 2.3 配置文件
 
+环境变量与 `server/`、Vite 前端**共用仓库根**（`social_platform/env_bootstrap.py`、`config/settings.py` 加载 `.env` → `.env.local`）：
+
 ```bash
-cp .env.example .env
+# 在仓库根目录
+cp .env.test .env
+# 可选：cp .env.local.example .env.local
 # 编辑 .env，至少配置：
-#   DATABASE_URL=mysql+pymysql://user:pass@127.0.0.1:3306/db?charset=utf8mb4
+#   DATABASE_URL=mysql+pymysql://user:pass@127.0.0.1:3306/feishu_keyword?charset=utf8mb4
 #   REDIS_URL=redis://127.0.0.1:6379/0
 #   CELERY_BROKER_URL=   # 留空则与 REDIS_URL 相同（推荐）
 ```
+
+完整字段见仓根 **`.env.example`**；Docker / GitLab 部署见 **`docs/DEPLOY.md`**。
 
 **常见错误**：`CELERY_BROKER_URL` 指向未启动的 RabbitMQ（`amqp://...`）会导致 `WinError 10061`。本地请留空或显式设为 Redis URL。
 
 ### 2.4 数据库
 
-- 生产：用迁移脚本 / DBA 流程建表（`social_platform/database/schema.sql` 作参考）
-- 开发：可设 `ASYNC_TASK_DB_AUTO_CREATE=1`；`DATABASE_RUN_MIGRATIONS=1` 在 HTTP 启动时补列
+- 生产/测试：`DATABASE_RUN_MIGRATIONS=1` 时，空库会自动应用 `social_platform/database/schema.sql` 基线，再补列与 P0 索引
+- 开发：可另设 `ASYNC_TASK_DB_AUTO_CREATE=1` 用 SQLAlchemy `create_all`（仍建议以 schema.sql 为准）
 
 ---
 
 ## 3. 本地开发启动（最小可用）
 
-在 **`python/`** 目录开 **两个终端**，共用同一 `.env`：
+在 **`python/`** 目录开 **两个终端**（共用仓根 **`.env`**）：
 
 **终端 1 — HTTP**
 
@@ -249,7 +255,7 @@ After=network.target mysql.service redis.service
 Type=simple
 User=www-data
 WorkingDirectory=/opt/feishu_keyword/python
-EnvironmentFile=/opt/feishu_keyword/python/.env
+EnvironmentFile=/opt/feishu_keyword/.env
 Environment=HTTP_WORKERS=4
 ExecStart=/opt/feishu_keyword/python/.venv/bin/gunicorn http_service:app \
   -k uvicorn.workers.UvicornWorker \
@@ -278,7 +284,7 @@ After=network.target redis.service mysql.service
 Type=simple
 User=www-data
 WorkingDirectory=/opt/feishu_keyword/python
-EnvironmentFile=/opt/feishu_keyword/python/.env
+EnvironmentFile=/opt/feishu_keyword/.env
 ExecStart=/opt/feishu_keyword/python/.venv/bin/celery \
   -A social_platform.tasks.celery_app worker \
   -l info -P gevent -c 4 --prefetch-multiplier=1
@@ -353,7 +359,7 @@ server {
 | `ASYNC_SCHEDULE_BEAT_ENABLED` | `0` | 无 HTTP 时用 Beat |
 | `ASYNC_TASK_MAX_ACTIVE_PER_USER` | `10` | 单用户活跃任务上限 |
 
-完整列表见 **`.env.example`**。
+完整列表见仓根 **`.env.example`**。
 
 ---
 

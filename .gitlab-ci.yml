@@ -1,6 +1,7 @@
 # feishu_keyword：GitLab Shell Runner → rsync → SSH docker compose
-# test 分支自动部署测试栈；master 手动部署正式栈。
-# 前端：在本地 npm run build:public:test|prod 后提交 public/admin、public/feishu（Runner 无需 Node）
+# test 分支：推送即自动 deploy-test（测试栈 /docker/feishu_keyword-test）
+# master 分支：须 MR 合并进 master 后产生流水线，在 GitLab 手动运行 deploy-prod（正式栈 /docker/feishu_keyword）
+# 前端：测试 build-public-test.bat；正式发布前 build-public-prod.bat，再提交 public/admin、public/feishu
 # 变量：SSH_PRIVATE_KEY、HOST_IP（默认 121.43.231.225）
 
 variables:
@@ -12,6 +13,8 @@ variables:
   PROD_DIR: "/docker/feishu_keyword/server"
   TEST_DIR: "/docker/feishu_keyword-test/server"
   COMPOSE_FILES: "-f docker-compose.yml"
+  # 飞书静态 Nginx 反代 /api/v1 -> sync-api:8765，必须同时起 worker（sync-api + celery-worker）
+  COMPOSE_PROFILES: "--profile admin --profile feishu --profile worker"
 
 stages:
   - deploy
@@ -105,22 +108,51 @@ deploy-test:
       rsync -azP -e "ssh -p $SSH_PORT" deploy/admin-static/ "$SSH_USER@$HOST_IP:$TEST_ROOT/deploy/admin-static/"
       rsync -azP -e "ssh -p $SSH_PORT" deploy/feishu-static/ "$SSH_USER@$HOST_IP:$TEST_ROOT/deploy/feishu-static/"
     - |
+      if ! ssh -p $SSH_PORT $SSH_USER@$HOST_IP "test -f '$TEST_ROOT/.env.test'"; then
+        echo "WARN: 远端无栈根 .env.test，上传仓内占位模板（请 SSH 改真实口令；勿直接改 .env）"
+        rsync -azP -e "ssh -p $SSH_PORT" .env.test "$SSH_USER@$HOST_IP:$TEST_ROOT/.env.test"
+        ssh -p $SSH_PORT $SSH_USER@$HOST_IP "chmod 600 '$TEST_ROOT/.env.test'"
+      fi
+    - |
       ssh -p $SSH_PORT $SSH_USER@$HOST_IP "
         if ! docker ps --format '{{.Names}}' | grep -q '^tbpf-mysql$'; then
           echo 'WARN: tbpf-mysql 未运行，请先: cd /docker/traefik && docker compose up -d mysql redis'
         fi
         set -e
-        cd $TEST_DIR
+        cd $TEST_ROOT
+        if [ ! -f .env.test ] && [ -f server/.env.test ]; then
+          echo '迁移: server/.env.test -> 栈根 .env.test（请勿再维护 server/.env*）'
+          cp -f server/.env.test .env.test
+          chmod 600 .env.test
+        fi
         if [ ! -f .env.test ]; then
-          echo 'ERROR: 远端缺少 server/.env.test，请配置栈根/server .env（见 .env.stack.example、docs/DEPLOY.md）'
+          echo 'ERROR: 远端缺少栈根 .env.test，请执行: bash scripts/remote-setup-env.sh'
           exit 1
         fi
+        echo '==> 使用 .env.test 覆盖 .env（Compose 与容器均读 .env）'
         cp -f .env.test .env && chmod 600 .env
-        cd $TEST_ROOT
-        cp -f server/.env .env && chmod 600 .env
-        if [ -f python/.env.test ]; then cp -f python/.env.test python/.env && chmod 600 python/.env; fi
-        docker compose --profile admin --profile feishu --profile worker down --remove-orphans 2>/dev/null || true
-        docker compose --profile admin --profile feishu --profile worker up -d --build
+        docker compose $COMPOSE_PROFILES down --remove-orphans 2>/dev/null || true
+        docker compose $COMPOSE_PROFILES up -d --build
+        docker compose $COMPOSE_PROFILES ps
+        echo '==> 等待 sync-api HTTP 就绪（feishu-web -> /api/v1/health，容器 running 后 Uvicorn 可能仍需数秒）...'
+        health_ok=0
+        for i in \$(seq 1 40); do
+          if docker compose $COMPOSE_PROFILES exec -T feishu-web wget -qO- --timeout=5 http://sync-api:8765/api/v1/health >/dev/null 2>&1; then
+            health_ok=1
+            echo \"sync-api health ok (attempt \$i)\"
+            break
+          fi
+          echo \"等待 sync-api... (\$i/40)\"
+          sleep 3
+        done
+        if [ \"\$health_ok\" -ne 1 ]; then
+          echo 'ERROR: feishu-web 无法访问 sync-api:8765/api/v1/health'
+          docker compose $COMPOSE_PROFILES logs feishu-web --tail 30 || true
+          docker compose $COMPOSE_PROFILES logs sync-api --tail 80 || true
+          exit 1
+        fi
+        docker compose $COMPOSE_PROFILES exec -T feishu-web wget -qO- http://sync-api:8765/api/v1/health | head -c 400
+        echo ''
         echo '测试环境部署完成'
       "
   rules:
@@ -132,6 +164,7 @@ deploy-prod:
   extends: .ssh-setup
   stage: deploy
   resource_group: feishu-keyword-docker-prod-121
+  # 仅 master 流水线；合并进 master 后在 GitLab 点「运行」deploy-prod
   variables:
     CI_ENVIRONMENT_NAME: production
   script:
@@ -140,11 +173,15 @@ deploy-prod:
         echo "ERROR: 请配置 CI 变量 HOST_IP"
         exit 1
       fi
-    - echo "正式环境部署开始（使用仓内已提交的 public/admin、public/feishu）..."
+    - echo "正式环境部署开始（/docker/feishu_keyword，使用仓内已提交的 public/admin、public/feishu）..."
     - |
       if [ ! -f public/admin/index.html ] || [ ! -f public/feishu/index.html ]; then
-        echo "ERROR: 缺少 public/admin 或 public/feishu 构建产物，请本地 build:public:prod 后提交"
+        echo "ERROR: 缺少 public/admin 或 public/feishu 构建产物，请本地 build-public-prod.bat 后提交"
         exit 1
+      fi
+    - |
+      if grep -rq 'test-fskw' public/feishu/assets public/admin/assets 2>/dev/null; then
+        echo 'WARN: 静态资源含 test-fskw，正式域可能异常；发布正式前请 build-public-prod.bat 并重新提交 public/'
       fi
     - |
       DEPLOY_TS=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
@@ -169,32 +206,52 @@ deploy-prod:
       rsync -azP -e "ssh -p $SSH_PORT" deploy/admin-static/ "$SSH_USER@$HOST_IP:$PROD_ROOT/deploy/admin-static/"
       rsync -azP -e "ssh -p $SSH_PORT" deploy/feishu-static/ "$SSH_USER@$HOST_IP:$PROD_ROOT/deploy/feishu-static/"
     - |
+      if ! ssh -p $SSH_PORT $SSH_USER@$HOST_IP "test -f '$PROD_ROOT/.env.master'"; then
+        echo "WARN: 远端无栈根 .env.master，上传仓内占位模板（请 SSH 改真实口令；勿直接改 .env）"
+        rsync -azP -e "ssh -p $SSH_PORT" .env.master "$SSH_USER@$HOST_IP:$PROD_ROOT/.env.master"
+        ssh -p $SSH_PORT $SSH_USER@$HOST_IP "chmod 600 '$PROD_ROOT/.env.master'"
+      fi
+    - |
       ssh -p $SSH_PORT $SSH_USER@$HOST_IP "
         set -e
-        cd $PROD_DIR
+        cd $PROD_ROOT
+        if [ ! -f .env.master ] && [ -f server/.env.master ]; then
+          echo '迁移: server/.env.master -> 栈根 .env.master（请勿再维护 server/.env*）'
+          cp -f server/.env.master .env.master
+          chmod 600 .env.master
+        fi
         if [ ! -f .env.master ]; then
-          echo 'ERROR: 远端缺少 .env.master'
+          echo 'ERROR: 远端缺少栈根 .env.master，请执行: bash scripts/remote-setup-env.sh'
           exit 1
         fi
+        echo '==> 使用 .env.master 覆盖 .env（Compose 与容器均读 .env）'
         cp -f .env.master .env && chmod 600 .env
-        cd $PROD_ROOT
-        cp -f server/.env .env && chmod 600 .env
-        if [ -f python/.env.master ]; then cp -f python/.env.master python/.env && chmod 600 python/.env; fi
-        docker compose --profile admin --profile feishu --profile worker down --remove-orphans 2>/dev/null || true
-        docker compose --profile admin --profile feishu --profile worker up -d --build
+        docker compose $COMPOSE_PROFILES down --remove-orphans 2>/dev/null || true
+        docker compose $COMPOSE_PROFILES up -d --build
+        docker compose $COMPOSE_PROFILES ps
+        echo '==> 等待 sync-api HTTP 就绪（feishu-web -> /api/v1/health，容器 running 后 Uvicorn 可能仍需数秒）...'
+        health_ok=0
+        for i in \$(seq 1 40); do
+          if docker compose $COMPOSE_PROFILES exec -T feishu-web wget -qO- --timeout=5 http://sync-api:8765/api/v1/health >/dev/null 2>&1; then
+            health_ok=1
+            echo \"sync-api health ok (attempt \$i)\"
+            break
+          fi
+          echo \"等待 sync-api... (\$i/40)\"
+          sleep 3
+        done
+        if [ \"\$health_ok\" -ne 1 ]; then
+          echo 'ERROR: feishu-web 无法访问 sync-api:8765/api/v1/health'
+          docker compose $COMPOSE_PROFILES logs feishu-web --tail 30 || true
+          docker compose $COMPOSE_PROFILES logs sync-api --tail 80 || true
+          exit 1
+        fi
+        docker compose $COMPOSE_PROFILES exec -T feishu-web wget -qO- http://sync-api:8765/api/v1/health | head -c 400
+        echo ''
         echo '正式环境部署完成'
       "
   rules:
-    - if: $CI_COMMIT_BRANCH == "master"
-      changes:
-        - docker-compose.yml
-        - python/**/*
-        - server/**/*
-        - admin/**/*
-        - feishu/**/*
-        - deploy/**/*
-        - .gitlab-ci.yml
-      when: on_success
+    # 正式环境：仅 master 合并后流水线中手动触发（不在 test 流水线发布正式）
     - if: $CI_COMMIT_BRANCH == "master"
       when: manual
 
