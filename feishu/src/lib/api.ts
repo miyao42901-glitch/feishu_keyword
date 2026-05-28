@@ -1,7 +1,7 @@
 /**
  * 浏览器直连 `server/` 提供的 REST API。
  *
- * - Base URL：`VITE_API_BASE_URL`（见 `feishu/.env.example`），**禁止写死生产域名**。
+ * - Base URL：`VITE_API_BASE_URL`（仓根 `.env` / `.env.local`，见 `.env.example`），**禁止写死生产域名**。
  * - 本地 `npm run dev` 未配置时默认 `http://127.0.0.1:8000`。
  * - 后端统一响应：`{ code, message, data }`；本模块 **`apiFetch` 在 `code === 0` 时只返回 `data`**，
  *   非 0 时抛错（`message` 供 UI 提示）。约定见 `docs/API.md` 第五节。
@@ -29,7 +29,7 @@ function getApiRoot(): string {
   if (raw?.trim()) return raw.replace(/\/$/, '')
   if (import.meta.env.DEV) return DEFAULT_DEV_API_ROOT
   throw new Error(
-    '未配置 VITE_API_BASE_URL：请在 feishu/.env 中设置（构建产物部署时需写入真实后端地址后再 npm run build）',
+    '未配置 VITE_API_BASE_URL：请在仓根 .env 中设置（build-public-*.bat 或 cp .env.test .env 后再构建）',
   )
 }
 

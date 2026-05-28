@@ -25,5 +25,5 @@ call npm run build:public:test
 if errorlevel 1 popd & exit /b 1
 popd
 
-echo [OK] 已写入 public\admin 与 public\feishu，请 git add/commit 后推送以触发 deploy-test
+echo [OK] 已写入 public\admin 与 public\feishu，请 git add/commit 后 git push origin test（自动 deploy-test）
 exit /b 0

@@ -24,5 +24,5 @@ call npm run build:public:prod
 if errorlevel 1 popd & exit /b 1
 popd
 
-echo [OK] 已写入 public\admin 与 public\feishu，提交后由 master deploy-prod 使用
+echo [OK] 已写入 public\admin 与 public\feishu，提交后 MR 合并 master，在流水线手动运行 deploy-prod
 exit /b 0

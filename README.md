@@ -20,7 +20,7 @@
 
 **测试管理后台登录**：https://test-fskw-admin.tbpf.com/login — 账号 `admin` / 密码 `Admin123a`（首次登录后请修改）
 
-详细步骤见 [docs/DEPLOY.md](docs/DEPLOY.md)。
+详细步骤见 [docs/DEPLOY.md](docs/DEPLOY.md)；文档索引见 [docs/README.md](docs/README.md)。
 
 ## MySQL / Redis（traefik 共享栈）
 
@@ -55,21 +55,24 @@
 
 ## 本地开发
 
-**局域网联调（不用 Docker）**：各子目录复制 `*.env.local.example` → `.env.local`，按本机 IP 改 `192.168.1.11` 等。
+**局域网联调（不用 Docker）**：在仓根 `cp .env.test .env`，再 `cp .env.local.example .env.local`，按本机 IP 改 `DATABASE_URL`、`VITE_*`、`SYNC_PROXY_TARGET` 等。
 
 ```bash
-cd server && cp .env.local.example .env.local   # 填 DATABASE_URL、Redis
-cd python && cp .env.local.example .env.local
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000   # 在 server 目录
-python run.py                                             # 在 python 目录
+cp .env.test .env
+cp .env.local.example .env.local   # 可选覆盖
 
-cd admin && cp .env.local.example .env.local && npm run dev:lan
-cd feishu && cp .env.local.example .env.local && npm run dev:lan
+cd server && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+cd python && python run.py
+
+cd admin && npm run dev:lan
+cd feishu && npm run dev:lan
 ```
 
 仅本机回环可用 `npm run dev:local`（`127.0.0.1`）。Docker/远端部署见 [docs/DEPLOY.md](docs/DEPLOY.md)（`.env.test` / `.env.master`）。
 
-部署前预编译（测试）：仓根 `build-public-test.bat`，提交 `public/admin`、`public/feishu` 后推送 `test` 分支。
+**CI**：推送 `test` 自动部署测试环境；正式环境须 MR 合并 `master` 后，在 GitLab 流水线手动运行 `deploy-prod`（见 [docs/DEPLOY.md](docs/DEPLOY.md)）。
+
+部署前预编译：测试用 `build-public-test.bat` 后推 `test`；正式发布用 `build-public-prod.bat` 后合并 `master`。
 
 ## 目录结构
 

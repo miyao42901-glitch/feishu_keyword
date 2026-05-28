@@ -30,10 +30,12 @@ npm run build
 
 产物在 `admin/dist/`。
 
-发布到仓库内 Docker 挂载目录（测试环境，API 域名为 `test-fskw.tbpf.com`）：
+发布到仓库内 Docker 挂载目录（**推荐在仓根执行**，会先复制对应 `.env.test` / `.env.master`）：
 
 ```bash
-npm run build:public:test
+# 仓根
+.\build-public-test.bat    # 推 test 前，触发自动 deploy-test
+.\build-public-prod.bat    # MR 合并 master 前，再手动 deploy-prod
 ```
 
-会将 `dist/` 同步到仓根 **`public/admin/`**（与 CI rsync 目标一致）。正式环境用 `build:public:prod`。
+也可在 `admin/` 内 `npm run build:public:test` / `build:public:prod`，产物同步到仓根 **`public/admin/`**（与 CI rsync 一致）。

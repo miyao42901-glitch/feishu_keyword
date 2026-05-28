@@ -17,7 +17,7 @@
 |--------|------|------|
 | 逻辑库名 | MySQL | **`feishu_keyword`**（创建库、建表、连接串中库名一致） |
 | 连接串 | 仓根 `.env` | 变量 **`DATABASE_URL`**，应用启动时由 `app.db` 读取 |
-| 模板 | `.env.example` / `.env.test` / `.env.master` | 占位符可提交；真实密码写在栈根 `.env` |
+| 模板 | 仓根 `.env.example` / `.env.test` / `.env.master` / `.env.local.example` | 占位可提交；真实口令在栈根 `.env`（gitignore） |
 
 **`DATABASE_URL` 格式**（SQLAlchemy + PyMySQL）：
 

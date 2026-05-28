@@ -21,22 +21,23 @@ nginx -t
 nginx -s reload
 ```
 
-## 前端环境变量（`feishu/.env`）
+## 前端环境变量（仓根 `.env` / `.env.local`）
 
-**不要**再写 `VITE_SYNC_API_BASE=http://192.168.1.11:8765`（会跨域）。
+Vite `envDir` 指向**仓库根**。本地示例：`cp .env.test .env`，局域网联调可 `cp .env.local.example .env.local` 并改 IP。
+
+**不要**再写 `VITE_SYNC_API_BASE=http://192.168.1.11:8765`（会跨域）；采集走同源 `/api/v1/` 或仓根 `SYNC_PROXY_TARGET`（开发代理）。
 
 ```env
 # 与 Nginx 对外地址一致（不含 /api）
 VITE_API_BASE_URL=http://192.168.1.24
 
-# 采集 API：不配置，请求走同源 /api/v1/...
-# （留空即可，见 sync-api-common.ts）
+# 开发代理到 sync-api（Vite）；生产由 feishu-web Nginx 反代 /api/v1/
+SYNC_PROXY_TARGET=http://192.168.1.11:8765
 
-# YDDM 登录/计费：走同源 /yddm-api
-# VITE_YDDM_API_BASE=/yddm-api
+# YDDM：生产走同源 /yddm-api；见仓根 .env.test / .env.master 的 YDDM_PROXY_TARGET
 ```
 
-修改 `.env` 后需 **`npm run dev` 重启**；生产需重新 **`npm run build`**。
+修改 env 后需 **`npm run dev` 重启**；CI 发布前用仓根 **`build-public-*.bat`** 并提交 `public/feishu/`。
 
 ## 开发两种用法
 
@@ -48,8 +49,8 @@ VITE_API_BASE_URL=http://192.168.1.24
 Docker 使用 `deploy/feishu-static/default.conf`：除静态资源外，**同源反代** `/api/v1/`、`/api/`、`/yddm-api/`，浏览器无需跨域。
 
 ```powershell
-cd feishu
-npm run build:public:prod   # VITE_API_BASE_URL=https://fskw-feishu.tbpf.com
+# 仓根（推荐）
+.\build-public-prod.bat
 ```
 
 打包脚本请使用 **飞书前端域名**（`fskw-feishu.tbpf.com` / `test-fskw-feishu.tbpf.com`），**不要**写 `fskw.tbpf.com`（API 域），否则 `GET /api/v1/async/tasks` 会跨域。

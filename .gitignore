@@ -32,6 +32,5 @@ __pycache__/
 !.env.master
 !.env.local.example
 !**/.env.example
-!**/.env.local.example
 !**/.env.sample
 scripts/reset-root.sql

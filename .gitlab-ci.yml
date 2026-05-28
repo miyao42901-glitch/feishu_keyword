@@ -1,6 +1,6 @@
 # feishu_keyword：GitLab Shell Runner → rsync → SSH docker compose
-# test 分支：自动 deploy-test（测试栈）；同一流水线中手动 deploy-prod（正式栈 /docker/feishu_keyword）
-# master 分支：亦可手动 deploy-prod（与 test 触发方式二选一）
+# test 分支：推送即自动 deploy-test（测试栈 /docker/feishu_keyword-test）
+# master 分支：须 MR 合并进 master 后产生流水线，在 GitLab 手动运行 deploy-prod（正式栈 /docker/feishu_keyword）
 # 前端：测试 build-public-test.bat；正式发布前 build-public-prod.bat，再提交 public/admin、public/feishu
 # 变量：SSH_PRIVATE_KEY、HOST_IP（默认 121.43.231.225）
 
@@ -166,7 +166,7 @@ deploy-prod:
   extends: .ssh-setup
   stage: deploy
   resource_group: feishu-keyword-docker-prod-121
-  # 与 deploy-test 并行阶段；正式发布在 GitLab 流水线里点「运行」deploy-prod（test 分支常用）
+  # 仅 master 流水线；合并进 master 后在 GitLab 点「运行」deploy-prod
   variables:
     CI_ENVIRONMENT_NAME: production
   script:
@@ -255,19 +255,7 @@ deploy-prod:
         echo '正式环境部署完成'
       "
   rules:
-    # 惯例：推 test → 自动测栈；验证通过后在本流水线手动运行 deploy-prod
-    - if: $CI_COMMIT_BRANCH == "test"
-      when: manual
-    - if: $CI_COMMIT_BRANCH == "master"
-      changes:
-        - docker-compose.yml
-        - python/**/*
-        - server/**/*
-        - admin/**/*
-        - feishu/**/*
-        - deploy/**/*
-        - .gitlab-ci.yml
-      when: on_success
+    # 正式环境：仅 master 合并后流水线中手动触发（不在 test 流水线发布正式）
     - if: $CI_COMMIT_BRANCH == "master"
       when: manual
 

@@ -20,7 +20,7 @@
 | ASGI 服务器 | Uvicorn | 开发：`uvicorn app.main:app` |
 | ORM | SQLAlchemy 2.x | 模型见 `app/models/` |
 | 数据库驱动 | PyMySQL | 经连接串 `mysql+pymysql://...` |
-| 配置 | python-dotenv | 从仓根 `.env` 加载 `DATABASE_URL` |
+| 配置 | python-dotenv | 仓根 `.env` → `.env.local`（见 `app/env_loader.py`） |
 | HTTP 客户端 | httpx | 调用外部 API（飞书、采集服务等） |
 
 ---
@@ -60,6 +60,7 @@ cd server
 ```
 
 - OpenAPI：`http://127.0.0.1:8000/docs`
+- 环境：仓根 `cp .env.test .env`（可选 `cp .env.local.example .env.local`），勿使用 `server/.env*`
 
 ---
 

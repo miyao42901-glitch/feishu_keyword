@@ -14,4 +14,9 @@
 
 ## 密钥
 
-数据库等敏感配置仅放在**仓库根 `.env`**（由 `.env.test` / `.env.master` 复制），勿提交、勿在聊天中发送真实密码。
+数据库等敏感配置仅放在**仓库根**（`.env.test` / `.env.master` 复制为 `.env`；本地可用 `.env.local`），勿提交、勿在聊天中发送真实密码。
+
+## 部署（摘要）
+
+- 推送 **`test`** → 自动部署测试栈；**MR 合并 `master`** → 流水线手动 **`deploy-prod`**。
+- 发布前仓根 `build-public-test.bat` / `build-public-prod.bat`，提交 `public/admin`、`public/feishu`。详见 **`docs/DEPLOY.md`**。
