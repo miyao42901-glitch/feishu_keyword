@@ -1,8 +1,9 @@
-"""启动时应用轻量 SQL 迁移（feishu_async_tasks 列对齐）。"""
+"""启动时应用基线建表与轻量 SQL 迁移（feishu_async_tasks 列对齐、P0 索引）。"""
 
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 
 from sqlalchemy import text
@@ -11,15 +12,65 @@ from sqlalchemy.engine import Engine
 logger = logging.getLogger(__name__)
 
 _MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
+_SCHEMA_SQL = Path(__file__).resolve().parent / "schema.sql"
+_BASELINE_TABLE = "feishu_async_tasks"
+
+
+def _table_exists(engine: Engine, table: str) -> bool:
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                "SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema = DATABASE() AND table_name = :t LIMIT 1"
+            ),
+            {"t": table},
+        ).first()
+    return row is not None
+
+
+def _iter_create_statements(sql_text: str) -> list[str]:
+    """从 schema.sql 提取 CREATE TABLE 语句（忽略注释与尾部 ALTER 说明）。"""
+    lines: list[str] = []
+    for line in sql_text.splitlines():
+        if line.strip().startswith("--"):
+            continue
+        lines.append(line)
+    body = "\n".join(lines)
+    out: list[str] = []
+    for chunk in body.split(";"):
+        stmt = chunk.strip()
+        if re.match(r"^CREATE\s+TABLE\b", stmt, flags=re.IGNORECASE):
+            out.append(stmt)
+    return out
+
+
+def apply_baseline_schema_if_needed(engine: Engine) -> None:
+    """新库/空库：执行 schema.sql 全量 CREATE TABLE（幂等）。"""
+    if _table_exists(engine, _BASELINE_TABLE):
+        return
+    if not _SCHEMA_SQL.is_file():
+        raise FileNotFoundError(f"baseline schema missing: {_SCHEMA_SQL}")
+    logger.info("baseline: %s 不存在，应用 %s", _BASELINE_TABLE, _SCHEMA_SQL.name)
+    statements = _iter_create_statements(_SCHEMA_SQL.read_text(encoding="utf-8"))
+    if not statements:
+        raise RuntimeError(f"no CREATE TABLE statements in {_SCHEMA_SQL}")
+    with engine.begin() as conn:
+        for stmt in statements:
+            conn.execute(text(stmt))
+    logger.info("baseline: applied %d CREATE TABLE statement(s)", len(statements))
 
 
 def _column_names(engine: Engine, table: str) -> set[str]:
+    if not _table_exists(engine, table):
+        return set()
     with engine.connect() as conn:
-        rows = conn.execute(text(f"SHOW COLUMNS FROM {table}")).fetchall()
+        rows = conn.execute(text(f"SHOW COLUMNS FROM `{table}`")).fetchall()
     return {str(r[0]) for r in rows}
 
 
 def _index_names(engine: Engine, table: str) -> set[str]:
+    if not _table_exists(engine, table):
+        return set()
     with engine.connect() as conn:
         rows = conn.execute(text(f"SHOW INDEX FROM `{table}`")).fetchall()
     return {str(r[2]) for r in rows}
@@ -92,6 +143,9 @@ def apply_p0_index_optimizations(engine: Engine) -> None:
 
 def apply_feishu_async_tasks_migrations(engine: Engine) -> None:
     """对齐 feishu_async_tasks 关键列（interval/fetch_count/api_key）。"""
+    if not _table_exists(engine, "feishu_async_tasks"):
+        logger.warning("skip feishu_async_tasks column migrations: table missing")
+        return
     cols = _column_names(engine, "feishu_async_tasks")
 
     with engine.begin() as conn:
@@ -154,6 +208,7 @@ def apply_feishu_async_tasks_migrations(engine: Engine) -> None:
 
 def apply_pending_migrations(engine: Engine) -> None:
     try:
+        apply_baseline_schema_if_needed(engine)
         apply_feishu_async_tasks_migrations(engine)
         apply_p0_index_optimizations(engine)
     except Exception:

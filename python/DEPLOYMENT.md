@@ -82,8 +82,8 @@ cp .env.test .env
 
 ### 2.4 数据库
 
-- 生产：用迁移脚本 / DBA 流程建表（`social_platform/database/schema.sql` 作参考）
-- 开发：可设 `ASYNC_TASK_DB_AUTO_CREATE=1`；`DATABASE_RUN_MIGRATIONS=1` 在 HTTP 启动时补列
+- 生产/测试：`DATABASE_RUN_MIGRATIONS=1` 时，空库会自动应用 `social_platform/database/schema.sql` 基线，再补列与 P0 索引
+- 开发：可另设 `ASYNC_TASK_DB_AUTO_CREATE=1` 用 SQLAlchemy `create_all`（仍建议以 schema.sql 为准）
 
 ---
 
