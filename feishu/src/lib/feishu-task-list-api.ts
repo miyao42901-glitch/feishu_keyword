@@ -206,8 +206,6 @@ export function asyncListItemToTaskCard(rec: Record<string, unknown>): TaskCardM
 
     expireAtRaw: end,
 
-    nextRunAtRaw: readTimeField(rec, 'next_run_at', 'nextRunAt'),
-
     stoppedKind: 'neutral',
 
   }

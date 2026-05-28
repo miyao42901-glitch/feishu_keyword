@@ -3,7 +3,7 @@
  * - `POST /api/v1/async/tasks` 提交
  * - `GET /api/v1/async/tasks` 列表（任务列表页定时轮询，见 `TasksView`：有 pending/running 时约 15s/次，并触发后端调度 tick）
  * - `GET /api/v1/async/tasks/{task_id}` 查看单条任务（Header：`x-api-key`、`X-User-Id`；Query 可选 `X-API-KEY`）
- * - `GET /api/v1/async/tasks/{task_id}/results` 查询采集结果（先 `GET` 状态，`running`/`completed` 时拉结果）
+ * - `GET /api/v1/async/tasks/{task_id}/results` 查询采集结果（先 `GET` 状态；`running`/`completed` 或 `pending` 且已过 `next_run_at+3min` 时拉结果）
  * - `POST /api/v1/async/tasks/{task_id}/delete` 删除任务
  * - `POST /api/v1/async/tasks/edit` 编辑任务（调度字段仅 pending 可改）
  * - `POST /api/v1/results/acceptance` 结果验收（`douyin` / `xhs` 异步任务 id 列表）
@@ -969,9 +969,32 @@ export async function getAsyncTaskStatus(
   return parseAsyncTaskStatusResponse(parsed, id)
 }
 
-/** 拉取 results：`running` 取增量；`completed` 取终态与 `meta.platform` 建表 */
-export function shouldFetchAsyncResultsAfterStatus(lifecycle: AsyncTaskLifecycle): boolean {
-  return lifecycle === 'running' || lifecycle === 'completed'
+/** 待运行定时任务：在 YDDM `next_run_at` 之后约 3 分钟再拉 results（各平台共用） */
+export const PENDING_RESULTS_AFTER_NEXT_RUN_MS = 3 * 60_000
+
+/** 是否已到「pending 可拉 results」时刻（`next_run_at` + {@link PENDING_RESULTS_AFTER_NEXT_RUN_MS}） */
+export function isPendingAsyncResultsDue(
+  nextRunAtRaw: string | null | undefined,
+  nowMs = Date.now(),
+): boolean {
+  const raw = nextRunAtRaw?.trim()
+  if (!raw) return false
+  const nextRunAtMs = Date.parse(raw.replace(' ', 'T'))
+  if (!Number.isFinite(nextRunAtMs)) return false
+  return nowMs >= nextRunAtMs + PENDING_RESULTS_AFTER_NEXT_RUN_MS
+}
+
+/**
+ * 是否对该 lifecycle 发起 `GET .../results`。
+ * `pending` 仅在列表轮询判定 `pendingResultsDue`（next_run_at+3min）时为 true。
+ */
+export function shouldFetchAsyncResultsAfterStatus(
+  lifecycle: AsyncTaskLifecycle,
+  options?: { pendingResultsDue?: boolean },
+): boolean {
+  if (lifecycle === 'running' || lifecycle === 'completed') return true
+  if (lifecycle === 'pending' && options?.pendingResultsDue) return true
+  return false
 }
 
 /** `GET /api/v1/async/tasks/{task_id}/results` 单页原始响应（Header：`x-api-key`、`X-User-Id`） */
@@ -1077,7 +1100,7 @@ export async function fetchAsyncTaskResultsMap(
   ctx: SyncFetchContext,
   taskIds: string[],
   statusMap?: Map<string, AsyncTaskStatusResult>,
-  options?: { maxItemsPerTask?: number },
+  options?: { maxItemsPerTask?: number; pendingResultsDue?: boolean },
 ): Promise<Map<string, AsyncTaskResultsBatch>> {
   const wanted = [...new Set(taskIds.map((x) => x.trim()).filter(Boolean))]
   const map = new Map<string, AsyncTaskResultsBatch>()
@@ -1092,7 +1115,7 @@ export async function fetchAsyncTaskResultsMap(
   await Promise.all(
     wanted.map(async (id) => {
       const lifecycle = statusMap?.get(id)?.lifecycle ?? 'unknown'
-      if (!shouldFetchAsyncResultsAfterStatus(lifecycle)) {
+      if (!shouldFetchAsyncResultsAfterStatus(lifecycle, { pendingResultsDue: options?.pendingResultsDue })) {
         map.set(id, emptyBatch())
         return
       }
@@ -1181,7 +1204,7 @@ export async function postResultsAcceptanceAfterAsyncFetch(
 }
 
 /**
- * 逐条：`GET` 状态 →（仅 `running`）`GET .../results` →（可选）`POST .../acceptance` → 写多维表格。
+ * 逐条：`GET` 状态 →（`running`/`completed`，或 `pending` 且 pendingResultsDue）`GET .../results` →（可选）验收。
  */
 export async function fetchAsyncTaskStatusAndResultsMaps(
   ctx: SyncFetchContext,
@@ -1193,6 +1216,8 @@ export async function fetchAsyncTaskStatusAndResultsMaps(
     skipStatusFetchForIds?: Iterable<string>
     /** 对应表单「选择条数」，拉 results 时翻页上限 */
     maxItemsPerTask?: number
+    /** `pending` 且已过 next_run_at+3min 时拉 results（各平台子任务共用） */
+    pendingResultsDue?: boolean
   },
 ): Promise<{
   statusMap: Map<string, AsyncTaskStatusResult>
@@ -1217,6 +1242,7 @@ export async function fetchAsyncTaskStatusAndResultsMaps(
   }
   const resultsMap = await fetchAsyncTaskResultsMap(ctx, taskIds, statusMap, {
     maxItemsPerTask: options?.maxItemsPerTask,
+    pendingResultsDue: options?.pendingResultsDue,
   })
   if (!options?.skipAcceptance && options?.refs?.length) {
     await postResultsAcceptanceAfterAsyncFetch(ctx, options.refs, resultsMap)

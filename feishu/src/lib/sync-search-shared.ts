@@ -13,7 +13,6 @@ import {
   SyncHttpError,
   type SyncFetchContext,
 } from '@/lib/sync-api-common'
-import { KEYWORD_MAX_LEN, KEYWORD_TOO_LONG_HINT } from '@/lib/keyword-limits'
 import { refreshYddmUserBalance } from '@/lib/refresh-yddm-balance'
 import { primeSyncEndpointDiscountAfterSuccess } from '@/lib/sync-set-discount'
 
