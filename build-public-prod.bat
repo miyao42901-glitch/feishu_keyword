@@ -5,7 +5,7 @@ rem 正式环境 API 预编译 admin + feishu
 set "ROOT=%~dp0"
 if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 
-echo [0/2] 使用仓根 .env.master 作为 Vite 环境变量
+echo [0/2] 使用 .env.master 覆盖 .env（Vite envDir=仓根）
 copy /Y "%ROOT%\.env.master" "%ROOT%\.env" >nul
 if errorlevel 1 (
   echo ERROR: 缺少 %ROOT%\.env.master

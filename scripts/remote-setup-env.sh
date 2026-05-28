@@ -160,6 +160,10 @@ EOF
 write_env_test
 write_env_prod
 
+cp -f "$TEST_ROOT/.env.test" "$TEST_ROOT/.env"
+chmod 600 "$TEST_ROOT/.env"
+echo "remote-setup-env: $TEST_ROOT 已 cp .env.test -> .env"
+
 if docker exec tbpf-mysql mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" -h127.0.0.1 -e \
   "CREATE DATABASE IF NOT EXISTS feishu_keyword CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null; then
   echo "remote-setup-env: feishu_keyword 库已就绪（tbpf-mysql）"

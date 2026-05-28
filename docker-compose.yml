@@ -4,7 +4,7 @@
 # 正式：cd /docker/feishu_keyword && cp -f .env.master .env && docker compose --profile admin --profile feishu --profile worker up -d --build
 #
 # 前置：docker network create proxy；MySQL/Redis 由 traefik 栈提供（tbpf-mysql、tbpf-redis，/docker/traefik）
-# Compose ${VAR} 与 api/sync-api/celery-worker 均读栈根 ./.env（由 .env.test 或 .env.master 复制）
+# Compose ${VAR} 与 api/sync-api/celery-worker 均读栈根 ./.env（部署前 cp -f .env.test|.env.master .env）
 
 services:
   api:
