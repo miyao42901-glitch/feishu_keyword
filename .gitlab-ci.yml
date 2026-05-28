@@ -108,15 +108,40 @@ deploy-test:
       rsync -azP -e "ssh -p $SSH_PORT" deploy/admin-static/ "$SSH_USER@$HOST_IP:$TEST_ROOT/deploy/admin-static/"
       rsync -azP -e "ssh -p $SSH_PORT" deploy/feishu-static/ "$SSH_USER@$HOST_IP:$TEST_ROOT/deploy/feishu-static/"
     - |
+      if ! ssh -p $SSH_PORT $SSH_USER@$HOST_IP "test -f '$TEST_ROOT/.env.test'"; then
+        echo "远端无栈根 .env.test，上传仓内占位模板（不覆盖已存在的远端文件）"
+        rsync -azP -e "ssh -p $SSH_PORT" .env.test "$SSH_USER@$HOST_IP:$TEST_ROOT/.env.test"
+        ssh -p $SSH_PORT $SSH_USER@$HOST_IP "chmod 600 '$TEST_ROOT/.env.test'"
+      fi
+    - |
       ssh -p $SSH_PORT $SSH_USER@$HOST_IP "
         if ! docker ps --format '{{.Names}}' | grep -q '^tbpf-mysql$'; then
           echo 'WARN: tbpf-mysql 未运行，请先: cd /docker/traefik && docker compose up -d mysql redis'
         fi
         set -e
         cd $TEST_ROOT
+        if [ ! -f .env.test ] && [ -f server/.env.test ]; then
+          echo '迁移: server/.env.test -> 栈根 .env.test'
+          cp -f server/.env.test .env.test
+          if [ -f python/.env.test ]; then
+            grep -E '^(REDIS_URL|HTTP_|CELERY_|ASYNC_|DATABASE_RUN|DATABASE_URL)' python/.env.test >> .env.test || true
+          fi
+          chmod 600 .env.test
+        fi
         if [ ! -f .env.test ]; then
-          echo 'ERROR: 远端缺少栈根 .env.test（见仓根 .env.example、docs/DEPLOY.md）'
+          echo 'ERROR: 远端缺少栈根 .env.test（CI 已尝试上传；亦可 bash scripts/remote-setup-env.sh）'
           exit 1
+        fi
+        TRAEFIK_ENV=/docker/traefik/.env
+        if [ -f \"\$TRAEFIK_ENV\" ] && grep -q 'PASSWORD' .env.test; then
+          set +u
+          # shellcheck disable=SC1090
+          . \"\$TRAEFIK_ENV\"
+          set -u
+          if [ -n \"\${MYSQL_ROOT_PASSWORD:-}\" ]; then
+            sed -i \"s|root:PASSWORD@|root:\${MYSQL_ROOT_PASSWORD}@|g\" .env.test
+            sed -i \"s/^MYSQL_ROOT_PASSWORD=PASSWORD/MYSQL_ROOT_PASSWORD=\${MYSQL_ROOT_PASSWORD}/\" .env.test
+          fi
         fi
         cp -f .env.test .env && chmod 600 .env
         docker compose $COMPOSE_PROFILES down --remove-orphans 2>/dev/null || true
@@ -196,12 +221,37 @@ deploy-prod:
       rsync -azP -e "ssh -p $SSH_PORT" deploy/admin-static/ "$SSH_USER@$HOST_IP:$PROD_ROOT/deploy/admin-static/"
       rsync -azP -e "ssh -p $SSH_PORT" deploy/feishu-static/ "$SSH_USER@$HOST_IP:$PROD_ROOT/deploy/feishu-static/"
     - |
+      if ! ssh -p $SSH_PORT $SSH_USER@$HOST_IP "test -f '$PROD_ROOT/.env.master'"; then
+        echo "远端无栈根 .env.master，上传仓内占位模板"
+        rsync -azP -e "ssh -p $SSH_PORT" .env.master "$SSH_USER@$HOST_IP:$PROD_ROOT/.env.master"
+        ssh -p $SSH_PORT $SSH_USER@$HOST_IP "chmod 600 '$PROD_ROOT/.env.master'"
+      fi
+    - |
       ssh -p $SSH_PORT $SSH_USER@$HOST_IP "
         set -e
         cd $PROD_ROOT
+        if [ ! -f .env.master ] && [ -f server/.env.master ]; then
+          echo '迁移: server/.env.master -> 栈根 .env.master'
+          cp -f server/.env.master .env.master
+          if [ -f python/.env.master ]; then
+            grep -E '^(REDIS_URL|HTTP_|CELERY_|ASYNC_|DATABASE_RUN|DATABASE_URL)' python/.env.master >> .env.master || true
+          fi
+          chmod 600 .env.master
+        fi
         if [ ! -f .env.master ]; then
-          echo 'ERROR: 远端缺少栈根 .env.master（见仓根 .env.example）'
+          echo 'ERROR: 远端缺少栈根 .env.master（CI 已尝试上传；亦可 bash scripts/remote-setup-env.sh）'
           exit 1
+        fi
+        TRAEFIK_ENV=/docker/traefik/.env
+        if [ -f \"\$TRAEFIK_ENV\" ] && grep -q 'PASSWORD' .env.master; then
+          set +u
+          # shellcheck disable=SC1090
+          . \"\$TRAEFIK_ENV\"
+          set -u
+          if [ -n \"\${MYSQL_ROOT_PASSWORD:-}\" ]; then
+            sed -i \"s|root:PASSWORD@|root:\${MYSQL_ROOT_PASSWORD}@|g\" .env.master
+            sed -i \"s/^MYSQL_ROOT_PASSWORD=PASSWORD/MYSQL_ROOT_PASSWORD=\${MYSQL_ROOT_PASSWORD}/\" .env.master
+          fi
         fi
         cp -f .env.master .env && chmod 600 .env
         docker compose $COMPOSE_PROFILES down --remove-orphans 2>/dev/null || true

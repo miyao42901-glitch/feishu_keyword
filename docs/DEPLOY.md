@@ -20,7 +20,7 @@
 
 **DNS**：改域名后须：
 
-1. 远端更新栈根 `.env.test` 或 `.env.master`（CI **不** rsync 含真实口令的 `.env`；可维护服务器上的 `.env.test`）
+1. 远端维护栈根 `.env.test` / `.env.master`（CI **不覆盖**已存在的远端文件；若缺失则上传仓内占位模板，并从 `/docker/traefik/.env` 注入 `MYSQL_ROOT_PASSWORD`）
 2. 本地 `build-public-test.bat` 后提交 `public/admin`、`public/feishu`
 3. 推送 `test` 触发流水线
 
