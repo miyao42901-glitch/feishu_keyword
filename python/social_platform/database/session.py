@@ -50,7 +50,7 @@ def session_scope() -> Generator[Session, None, None]:
 
 
 def init_db_tables() -> None:
-    """建表（开发 ASYNC_TASK_DB_AUTO_CREATE=1；生产优先 schema.sql 基线 + 迁移）。"""
+    """建表（开发 ASYNC_TASK_DB_AUTO_CREATE=1；生产优先 python/migrations/schema.sql 基线 + 迁移）。"""
     from social_platform.models import async_task as _at  # noqa: F401
     from social_platform.models.base import Base
     from social_platform.models.results import douyin_search_result as _dr  # noqa: F401

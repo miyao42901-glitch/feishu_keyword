@@ -119,7 +119,7 @@ docker exec feishu_keyword-test-api-1 python scripts/seed_demo.py
 
 管理端登录：`admin` / `Admin123a`
 
-python 业务表：`sync-api` 启动且 `DATABASE_RUN_MIGRATIONS=1` 时，若库中无 `feishu_async_tasks` 会先执行 `schema.sql` 基线建表，再跑列/索引迁移；`server` 侧表仍用 `api` 容器 `init_schema.py`
+python 业务表：`sync-api` 启动且 `DATABASE_RUN_MIGRATIONS=1` 时，若库中无 `feishu_async_tasks` 会先执行 [`python/migrations/schema.sql`](../python/migrations/schema.sql) 基线建表，再跑列/索引迁移；存量库手工增量见 [`python/migrations/`](../python/migrations/README.md)；`server` 侧表仍用 `api` 容器 `init_schema.py`
 
 ## GitLab CI
 
