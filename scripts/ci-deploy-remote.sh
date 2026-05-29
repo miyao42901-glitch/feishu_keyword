@@ -167,9 +167,10 @@ docker compose $COMPOSE_PROFILES ps
 
 echo "==> 等待 api HTTP 就绪（feishu-web -> /api/v1/health）..."
 health_ok=0
+health_body=""
 for i in $(seq 1 40); do
   # shellcheck disable=SC2086
-  if docker compose $COMPOSE_PROFILES exec -T feishu-web wget -qO- --timeout=5 http://api:8765/api/v1/health >/dev/null 2>&1; then
+  if health_body="$(docker compose $COMPOSE_PROFILES exec -T feishu-web wget -qO- --timeout=5 http://api:8765/api/v1/health 2>/dev/null)"; then
     health_ok=1
     echo "api health ok (attempt $i)"
     break
@@ -187,7 +188,6 @@ if [[ "$health_ok" -ne 1 ]]; then
   exit 1
 fi
 
-# shellcheck disable=SC2086
-docker compose $COMPOSE_PROFILES exec -T feishu-web wget -qO- http://api:8765/api/v1/health | head -c 400
+printf '%s\n' "$health_body" | head -c 400
 echo ""
 echo "ci-deploy-remote: done ($DEPLOY_ROOT)"
