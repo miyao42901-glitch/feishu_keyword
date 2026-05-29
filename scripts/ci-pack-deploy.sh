@@ -21,7 +21,7 @@ else
   ENV_TEMPLATE=".env.master"
 fi
 
-for path in docker-compose.yml server python public/admin public/feishu \
+for path in docker-compose.yml server public/admin public/feishu \
   deploy/admin-static deploy/feishu-static deploy/BUILD_INFO "$ENV_TEMPLATE"; do
   if [[ ! -e "$path" ]]; then
     echo "ERROR: 打包缺少 $path"
@@ -35,12 +35,9 @@ tar czf "$PKG_NAME" \
   --exclude='venv' \
   --exclude='__pycache__' \
   --exclude='*.pyc' \
-  --exclude='server/uploads' \
   --exclude='server/.env' \
-  --exclude='python/.env' \
   docker-compose.yml \
   server \
-  python \
   public/admin \
   public/feishu \
   deploy/admin-static \

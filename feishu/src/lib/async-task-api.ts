@@ -3,7 +3,7 @@
  * - `POST /api/v1/async/tasks` 提交
  * - `GET /api/v1/async/tasks` 列表（任务列表页定时轮询，见 `TasksView`：有 pending/running 时约 15s/次，并触发后端调度 tick）
  * - `GET /api/v1/async/tasks/{task_id}` 查看单条任务（Header：`x-api-key`、`X-User-Id`；Query 可选 `X-API-KEY`）
- * - `GET /api/v1/async/tasks/{task_id}/results` 查询采集结果（先 `GET` 状态；`running`/`completed` 或 `pending` 且已过 `next_run_at+3min` 时拉结果）
+ * - `GET /api/v1/async/tasks/{task_id}/results` 查询采集结果（先 `GET` 状态；`running`/`completed` 或 `pending` 且已过 `next_run_at+3min` 时拉结果；首屏 `total=0` 且 `items=[]` 时最多重试 3 次，仍无数据则不验收、不扣积分）
  * - `POST /api/v1/async/tasks/{task_id}/delete` 删除任务
  * - `POST /api/v1/async/tasks/edit` 编辑任务（调度字段仅 pending 可改）
  * - `POST /api/v1/results/acceptance` 结果验收（`douyin` / `xhs` 异步任务 id 列表）
@@ -15,6 +15,7 @@ import {
   extractAsyncTaskResultsMeta,
   extractSyncResultItems,
   extractSyncResultPageMeta,
+  isEmptyAsyncTaskResultsPage,
   type AsyncTaskResultsMeta,
   type SyncFetchContext,
 } from '@/lib/sync-api-common'
@@ -60,6 +61,14 @@ const ASYNC_TASK_PATH = '/api/v1/async/tasks'
 /** `GET /api/v1/async/tasks` 每页条数（列表页轮询默认只拉第 1 页，见 `listTaskCardsFromAsync`） */
 const ASYNC_TASK_LIST_PAGE_LIMIT = 100
 const RESULTS_ACCEPTANCE_PATH = '/api/v1/results/acceptance'
+
+/** `GET .../results` 首屏为空时最多请求次数（落库延迟场景） */
+export const ASYNC_TASK_RESULTS_MAX_ATTEMPTS = 3
+const ASYNC_TASK_RESULTS_RETRY_DELAY_MS = 400
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 /** 定时任务 `POST /api/v1/async/tasks` 的 action（可用环境变量覆盖） */
 const ACTION_BY_PLATFORM: Partial<Record<PlatformKey, string>> = {
@@ -1020,6 +1029,41 @@ export async function fetchAsyncTaskResultsPage(
   })
 }
 
+/**
+ * 首屏 `total=0` 且 `items=[]` 时连续重试（最多 {@link ASYNC_TASK_RESULTS_MAX_ATTEMPTS} 次）。
+ * 翻页（`page>1`）不重试。
+ */
+async function fetchAsyncTaskResultsPageWithRetry(
+  ctx: SyncFetchContext,
+  taskId: string,
+  query?: AsyncTaskResultsQuery,
+): Promise<unknown> {
+  const pageNum = query?.page != null ? Number.parseInt(String(query.page).trim(), 10) : 1
+  const isFirstPage = !Number.isFinite(pageNum) || pageNum <= 1
+  if (!isFirstPage) {
+    return fetchAsyncTaskResultsPage(ctx, taskId, query)
+  }
+
+  let last: unknown = null
+  for (let attempt = 1; attempt <= ASYNC_TASK_RESULTS_MAX_ATTEMPTS; attempt++) {
+    const parsed = await fetchAsyncTaskResultsPage(ctx, taskId, query)
+    last = parsed
+    if (!isEmptyAsyncTaskResultsPage(parsed)) {
+      if (attempt > 1 && import.meta.env.DEV) {
+        console.log('[async-task] results 重试成功', { taskId, attempt })
+      }
+      return parsed
+    }
+    if (attempt < ASYNC_TASK_RESULTS_MAX_ATTEMPTS) {
+      if (import.meta.env.DEV) {
+        console.warn('[async-task] results 为空，将重试', { taskId, attempt })
+      }
+      await sleepMs(ASYNC_TASK_RESULTS_RETRY_DELAY_MS * attempt)
+    }
+  }
+  return last!
+}
+
 /** @deprecated 使用 `fetchAsyncTaskResultsPage` */
 export const postAsyncTaskResults = fetchAsyncTaskResultsPage
 
@@ -1040,7 +1084,7 @@ export async function fetchAllAsyncTaskResults(
     options?.maxItems != null && options.maxItems > 0 ? Math.floor(options.maxItems) : undefined
 
   for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
-    const parsed = await fetchAsyncTaskResultsPage(
+    const parsed = await fetchAsyncTaskResultsPageWithRetry(
       ctx,
       taskId,
       pageNum > 1 ? { page: String(pageNum) } : {},
@@ -1186,6 +1230,7 @@ export async function postResultsAcceptance(
 
 /**
  * 各平台 `GET .../results` 完成后调用验收（失败不阻断写表，DEV 下打日志）。
+ * 仅含已拉到条目的任务 id；三次重试仍无数据的不进入验收，不扣积分。
  */
 export async function postResultsAcceptanceAfterAsyncFetch(
   ctx: SyncFetchContext,

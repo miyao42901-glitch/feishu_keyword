@@ -4,38 +4,13 @@
 # 正式：cd /docker/feishu_keyword && cp -f .env.master .env && docker compose --profile admin --profile feishu --profile worker up -d --build
 #
 # 前置：docker network create proxy；MySQL/Redis 由 traefik 栈提供（tbpf-mysql、tbpf-redis，/docker/traefik）
-# Compose ${VAR} 与 api/sync-api/celery-worker 均读栈根 ./.env（部署前 cp -f .env.test|.env.master .env）
+# Compose ${VAR} 与 api/celery-worker 均读栈根 ./.env（部署前 cp -f .env.test|.env.master .env）
 
 services:
   api:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-      args:
-        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.9-slim}
-        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
-    restart: unless-stopped
-    env_file:
-      - ./.env
-    volumes:
-      - ./server/uploads:/app/uploads
-    networks:
-      - proxy
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=proxy
-      - traefik.http.services.${TRAEFIK_API_ROUTER_NAME:-fkw-api}.loadbalancer.server.port=8000
-      - traefik.http.routers.${TRAEFIK_API_ROUTER_NAME:-fkw-api}.rule=Host(`${API_PUBLIC_HOST:?}`)
-      - traefik.http.routers.${TRAEFIK_API_ROUTER_NAME:-fkw-api}.entrypoints=websecure
-      - traefik.http.routers.${TRAEFIK_API_ROUTER_NAME:-fkw-api}.tls.certresolver=dnspod
-      - traefik.http.routers.${TRAEFIK_API_ROUTER_NAME:-fkw-api}.tls.domains[0].main=tbpf.com
-      - traefik.http.routers.${TRAEFIK_API_ROUTER_NAME:-fkw-api}.tls.domains[0].sans=*.tbpf.com
-      - traefik.http.routers.${TRAEFIK_API_ROUTER_NAME:-fkw-api}.service=${TRAEFIK_API_ROUTER_NAME:-fkw-api}
-
-  sync-api:
     profiles: ["worker"]
     build:
-      context: ./python
+      context: ./server
       dockerfile: Dockerfile
       args:
         PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.9-slim}
@@ -49,7 +24,7 @@ services:
       - traefik.enable=true
       - traefik.docker.network=proxy
       - traefik.http.services.${TRAEFIK_SYNC_ROUTER_NAME:-fkw-sync}.loadbalancer.server.port=8765
-      - traefik.http.routers.${TRAEFIK_SYNC_ROUTER_NAME:-fkw-sync}.rule=Host(`${API_PUBLIC_HOST:?}`) && PathPrefix(`/api/v1`)
+      - traefik.http.routers.${TRAEFIK_SYNC_ROUTER_NAME:-fkw-sync}.rule=Host(`${API_PUBLIC_HOST:?}`) && (PathPrefix(`/api/v1`) || PathPrefix(`/api/admin`))
       - traefik.http.routers.${TRAEFIK_SYNC_ROUTER_NAME:-fkw-sync}.priority=100
       - traefik.http.routers.${TRAEFIK_SYNC_ROUTER_NAME:-fkw-sync}.entrypoints=websecure
       - traefik.http.routers.${TRAEFIK_SYNC_ROUTER_NAME:-fkw-sync}.tls.certresolver=dnspod
@@ -60,7 +35,7 @@ services:
   celery-worker:
     profiles: ["worker"]
     build:
-      context: ./python
+      context: ./server
       dockerfile: Dockerfile
       args:
         PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.9-slim}

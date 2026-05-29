@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Optional
 
 import bcrypt
 from fastapi import APIRouter, Depends, Header, Request
@@ -11,9 +11,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from admin.deps import get_db
 from admin.schemas.response import admin_fail, admin_ok
 from admin.session import issue_admin_token, revoke_admin_token
-from app.api.deps import get_db
 
 router = APIRouter(prefix="/system", tags=["管理端-系统"])
 
@@ -37,15 +37,20 @@ def _verify_password(plain: str, password_hash: Optional[str]) -> bool:
 
 @router.post("/login")
 def admin_login(body: AdminLoginBody, db: Session = Depends(get_db)):
-    row = db.execute(
-        text(
-            """
-            SELECT id, username, password_hash, nickname, is_disable, is_delete
-            FROM sys_admin WHERE username = :u LIMIT 1
-            """
-        ),
-        {"u": body.username.strip()},
-    ).mappings().first()
+    """用户名密码登录，返回 token 与管理员 profile。"""
+    row = (
+        db.execute(
+            text(
+                """
+                SELECT id, username, password_hash, nickname, is_disable, is_delete
+                FROM sys_admin WHERE username = :u LIMIT 1
+                """
+            ),
+            {"u": body.username.strip()},
+        )
+        .mappings()
+        .first()
+    )
 
     if not row or row.get("is_delete"):
         return admin_fail(10001, "账号或密码错误")
@@ -79,6 +84,7 @@ def admin_login(body: AdminLoginBody, db: Session = Depends(get_db)):
 
 @router.post("/logout")
 def admin_logout(request: Request, token: Optional[str] = Header(default=None)):
+    """注销当前 token（Header `token`）。"""
     tok = token or request.headers.get("token")
     if tok:
         revoke_admin_token(tok)

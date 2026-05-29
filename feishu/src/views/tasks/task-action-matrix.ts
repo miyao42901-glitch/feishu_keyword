@@ -55,30 +55,19 @@ export function canTaskAction(status: TaskRunStatus, action: TaskActionKey): boo
   return ACTION_MATRIX[action][status] ?? false
 }
 
-/** 主操作按钮类型（停止 / 重试）；无则不应展示主操作按钮 */
-export type TaskPrimaryActionKind = 'stop' | 'retry' | 'execute'
+/** 主操作按钮类型（停止 / 重试）；不展示「执行」 */
+export type TaskPrimaryActionKind = 'stop' | 'retry'
 
 export function taskPrimaryActionKind(
   status: TaskRunStatus,
-  options?: { taskTypeLabel?: string },
+  _options?: { taskTypeLabel?: string },
 ): TaskPrimaryActionKind | null {
   if (canTaskAction(status, 'stop')) return 'stop'
   if (canTaskAction(status, 'retry')) return 'retry'
-  if (
-    options?.taskTypeLabel === '单次任务' &&
-    (status === 'stopped' || status === 'completed' || status === 'pending_run')
-  ) {
-    return 'execute'
-  }
-  // 定时任务在 pending_run 状态也可以立即执行
-  if (status === 'pending_run' && options?.taskTypeLabel === '定时任务') {
-    return 'execute'
-  }
   return null
 }
 
 export function taskPrimaryActionLabel(kind: TaskPrimaryActionKind): string {
   if (kind === 'stop') return '停止'
-  if (kind === 'execute') return '执行'
   return '重试'
 }

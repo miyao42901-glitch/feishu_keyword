@@ -1,50 +1,75 @@
-# public：由 CI Runner 编译后 tar 部署；本地 build-public-*.bat 产物勿提交
+# =============================================================================
+# feishu_keyword 根目录 .gitignore
+# admin/、feishu/ 下另有 .gitignore 作 Vite 子项目补充
+# =============================================================================
+
+# --- 操作系统 ---
+.DS_Store
+Thumbs.db
+
+# --- IDE ---
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# --- Node / 前端（admin、feishu）---
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.tsbuildinfo
+*.local
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- 静态构建产物（CI Runner 编译后 tar 部署，勿提交）---
 /public/
 
-# Docker 本地数据卷
-/data/
-
-# 参考资料目录（仅本地查看，勿提交）
-/references/
-
-# Python（仅根路径 python/）
+# --- Python（server/ 后端、workers）---
 __pycache__/
 *.py[cod]
 *$py.class
-.idea/
-.vscode/
-python/.env
-python/**/__pycache__/
-python/**/*.py[cod]
-python/**/*$py.class
-python/**/*.so
-python/.Python
-python/venv/
-python/.venv/
-python/ENV/
-python/env/
-python/.eggs/
-python/**/*.egg-info/
-python/**/*.egg
-python/dist/
-python/build/
-python/.pytest_cache/
-python/.mypy_cache/
-python/.ruff_cache/
-python/.coverage
-python/htmlcov/
-python/**/*.cover
-python/.hypothesis/
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+.eggs/
+*.egg-info/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
 
-# ------------------------------------------------------------------
-# 本地访问 / 私密配置（数据库连接、本机 API、个人 token 等，勿提交）
-# ------------------------------------------------------------------
+# --- Docker / 本地数据卷 ---
+/data/
+
+# --- 参考资料（仅本地查看）---
+/references/
+
+# --- 已合并入 server/ 的本地遗留目录 ---
+/python/
+
+# --- 私密环境变量 ---
+# 可提交模板：.env.example / .env.test / .env.master / .env.local.example
 .env
 .env.local
 .env.*.local
 .env.development
 .env.production
-# 仓根与任意子目录下的 .env（保留模板与 test/master 占位版）
 **/.env
 !.env.example
 !.env.test
@@ -52,4 +77,6 @@ python/.hypothesis/
 !.env.local.example
 !**/.env.example
 !**/.env.sample
+
+# --- 运维脚本（含真实口令，勿提交）---
 scripts/reset-root.sql
