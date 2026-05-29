@@ -1,6 +1,6 @@
 {
-  "include": ["python"],
-  "extraPaths": ["python", "python/workers"],
+  "include": ["server"],
+  "extraPaths": ["server", "server/workers"],
   "pythonVersion": "3.9",
   "typeCheckingMode": "basic"
 }

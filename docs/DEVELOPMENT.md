@@ -4,8 +4,8 @@
 
 | 项 | 说明 |
 |----|------|
-| **对应范围** | **全仓库**（根目录、`server/`、`admin/`、`feishu/`、`docs/` 等） |
-| **按目录查阅** | 后端专项：[docs/server/README.md](./server/README.md) · 管理端：[admin/README.md](../admin/README.md) · 飞书插件：[docs/feishu/README.md](./feishu/README.md) |
+| **对应范围** | **全仓库**（根目录、`server/`、`feishu/`、`docs/` 等） |
+| **按目录查阅** | 后端：[docs/server/README.md](./server/README.md) · 飞书插件：[docs/feishu/README.md](./feishu/README.md) |
 
 ---
 
@@ -13,11 +13,10 @@
 
 | 目录 | 技术栈 | 说明 |
 |------|--------|------|
-| `server/` | Python 3 + FastAPI + SQLAlchemy | HTTP API、库表访问、业务服务 |
-| `admin/` | Vue 3 + Vite + TypeScript | 管理后台；产物输出到 `public/admin/` |
+| `server/` | Python 3 + FastAPI + SQLAlchemy + Celery | HTTP `/api/v1`、异步任务、平台采集 Worker |
 | `feishu/` | Vue 3 + Vite + TypeScript | 飞书插件；产物输出到 `public/feishu/` |
 
-库名、表与字段以 **[DATABASE.md](./DATABASE.md)** 为准。
+库名、表与字段以 **[DATABASE.md](./DATABASE.md)** 为准；HTTP 路径与请求体以 **[server/HTTP_API.md](./server/HTTP_API.md)** 为准。
 
 ## 2. 前端复杂页面与私有组件（`feishu/src/views`）
 
@@ -31,23 +30,21 @@
 
 示例：**新建任务** → `views/TaskCreateForm/index.vue`，各配置块在 **`views/TaskCreateForm/components/`**。组件名与注释细则见 **[component-style.md](./feishu/component-style.md)**。
 
-## 3. 后端分层（`server/app`）
+## 3. 后端分层（`server/`）
 
 | 层级 | 路径 | 职责 |
 |------|------|------|
-| 入口 | `main.py` | 创建 `FastAPI` 应用，仅挂载路由 |
-| 路由聚合 | `api/router.py` | `include_router` 汇总子路由 |
-| 子路由 | `api/routers/*.py` | HTTP 路径、参数、调用服务 |
-| 依赖 | `api/deps.py` | `get_db` 等 |
-| 业务 | `services/*.py` | 查询与事务 |
-| 模型 | `models/` | ORM 与表映射（与 DATABASE.md 一致） |
-| 校验/DTO | `schemas/` | Pydantic |
-| 配置常量 | `core/config.py` | 非敏感常量 |
-| 数据库引擎 | `db.py` | `DATABASE_URL`、引擎、会话工厂 |
+| HTTP 入口 | `http_service.py` | 挂载 FastAPI 应用 |
+| 本地启动 | `run.py` | 开发态启动 API 与可选调度循环 |
+| 路由 | `http_api/v1/*.py` | `/api/v1` 路径、参数校验 |
+| 业务 | `social_platform/services/*.py` | 任务、结果、调度 |
+| 模型 | `social_platform/models/` | ORM 与表映射（与 DATABASE.md 一致） |
+| 校验/DTO | `social_platform/schemas/` | Pydantic |
+| 配置 | `config/settings.py` | 读取仓根 `.env` |
+| 迁移 | `social_platform/database/db_migrate.py` | 启动时 schema 与列补丁 |
+| 采集 | `workers/*_worker/` | 各平台 spider / parser |
 
-**接口响应格式**：`server/` 对外 JSON 统一为 **`{ code, message, data }`**（成功 `code=0`），详见 **[API.md](./API.md)** 第五节；实现涉及 `schemas/api_response.py`、`api/exception_handlers.py`。
-
-**接口注释**：`app/api/routers/` 下每个路由处理函数须中文说明路径、参数与 `data`；`schemas/` 与 **`feishu/src/lib/api.ts`** 的 JSDoc 与 **[API.md](./API.md) 第九节** 对齐。
+**接口注释**：`http_api/v1/` 下路由须中文说明路径、Header、Body；`feishu/src/lib/*.ts` 的 JSDoc 与 **[HTTP_API.md](./server/HTTP_API.md)** 对齐。
 
 ## 4. 注释
 
@@ -56,15 +53,19 @@
 ## 5. 环境与密钥
 
 - 环境变量**真源在仓库根**：`.env.example`、`.env.test`、`.env.master`、`.env.local.example`；本地 `cp .env.test .env`，可选 `cp .env.local.example .env.local` 覆盖。
-- `server/`、`python/`、`admin/`、`feishu/` 均加载仓根 `.env` → `.env.local`（Vite `envDir` 指向仓根）。
+- `server/`、`feishu/` 均加载仓根 `.env` → `.env.local`（Vite `envDir` 指向仓根）。
 - 勿提交 `.env` / `.env.local`；详见 [DATABASE.md](./DATABASE.md)。
 
 ## 6. 运行（后端）
 
 ```powershell
 cd server
-.\.venv\Scripts\uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+python run.py
 ```
+
+默认监听 **`http://127.0.0.1:8765`**（`HTTP_HOST` / `HTTP_PORT` 可覆盖）。OpenAPI：`http://127.0.0.1:8765/docs`。
+
+异步任务需另开终端启动 Celery Worker，命令见 [server/README.md](./server/README.md)。
 
 ## 7. Git
 
@@ -75,12 +76,12 @@ cd server
 ## 8. 构建与验证
 
 - **不要求**在每次完成开发任务后固定执行前端生产构建；以任务说明、提测、CI 或协作方明确要求为准。
-- **GitLab CI**：本地 merge 到 **`test`** 并 `git push origin test` 后，Runner 编译 `public/*` 并 **tar+scp** 部署（`deploy-test`）；**GitLab MR 合并 `master`** 后手动 `deploy-prod`。分支流程见 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)。详见 [DEPLOY.md](./DEPLOY.md)。
+- **GitLab CI**：本地 merge 到 **`test`** 并 `git push origin test` 后，Runner 编译 `public/feishu` 并 **tar+scp** 部署（`deploy-test`）；**GitLab MR 合并 `master`** 后手动 `deploy-prod`。分支流程见 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)。详见 [DEPLOY.md](./DEPLOY.md)。
 
-```powershell
-# 本地预检（可选；CI 会在 Runner 上自动 build:public:*）
-.\build-public-test.bat
-.\build-public-prod.bat
+```bash
+# 本地预检（可选；CI 会在 Linux Runner 上自动 build:public:*）
+cp .env.test .env && cd feishu && npm run build:public:test
+cp .env.master .env && cd feishu && npm run build:public:prod
 ```
 
 - 需要确认产物、排查构建错误时，再执行上述构建或测试命令。
@@ -91,14 +92,14 @@ cd server
 
 | 范围 | 建议落点 | 说明 |
 |------|----------|------|
-| 前端（`feishu/`） | **`feishu/src/lib/*.ts`** | 与具体 `.vue` 无强绑定的纯函数、常量、Element Plus 规则工厂等；已有示例：**`lib/datetime-task-window.ts`**（任务生效/过期时间与 `el-date-picker` 禁用、表单校验）。 |
+| 前端（`feishu/`） | **`feishu/src/lib/*.ts`** | 与具体 `.vue` 无强绑定的纯函数、常量、Element Plus 规则工厂等；已有示例：**`lib/datetime-task-window.ts`**。 |
 | 前端仅某功能域内 | 同目录 **`types.ts` / `constants.ts`** 或 `components/` 内再抽一层 | 若逻辑仅被同一 `views/SomeFeature/` 下多个子组件使用，可先放在该目录，**重复出现在第二个功能域时再上提到 `lib/`**。 |
-| 后端（`server/`） | **`app/services/`**、**`app/core/`** 或既有工具模块 | 数据库访问仍在 `services`；可复用的纯逻辑抽到独立函数模块，由多个 `routers` 或 `services` 引用。 |
+| 后端（`server/`） | **`social_platform/services/`**、**`social_platform/utils/`** | 数据库访问仍在 `services`；可复用的纯逻辑抽到独立模块，由多个路由或 `services` 引用。 |
 
 **开发流程（每次改代码都应执行）**：
 
-1. **先搜**：在 `feishu/src`、`server/app` 内 `grep`/搜索是否已有同名或相近实现。  
-2. **再决定**：能复用则扩展原模块；不能则新建公共模块并把旧调用迁过去。  
+1. **先搜**：在 `feishu/src`、`server/` 内 `grep`/搜索是否已有同名或相近实现。
+2. **再决定**：能复用则扩展原模块；不能则新建公共模块并把旧调用迁过去。
 3. **禁止**：为赶工在第二个文件里复制大段相同逻辑且不加注释指向「单一数据源」。
 
 违反本节约定的 PR 应在评审中要求合并重复实现后再合入。

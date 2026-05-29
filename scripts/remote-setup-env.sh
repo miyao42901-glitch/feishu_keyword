@@ -32,10 +32,8 @@ load_mysql_root_password
 MYSQL_USER=root
 DB_URL="mysql+pymysql://${MYSQL_USER}:${MYSQL_ROOT_PASSWORD}@tbpf-mysql:3306/feishu_keyword?charset=utf8mb4"
 
-mkdir -p "$TEST_ROOT/public/admin" "$TEST_ROOT/public/feishu" \
-  "$TEST_ROOT/deploy/admin-static" "$TEST_ROOT/deploy/feishu-static" \
-  "$PROD_ROOT/public/admin" "$PROD_ROOT/public/feishu" \
-  "$PROD_ROOT/deploy/admin-static" "$PROD_ROOT/deploy/feishu-static"
+mkdir -p "$TEST_ROOT/public/feishu" "$TEST_ROOT/deploy/feishu-static" \
+  "$PROD_ROOT/public/feishu" "$PROD_ROOT/deploy/feishu-static"
 
 write_env_test() {
   cat > "$TEST_ROOT/.env.test" <<EOF
@@ -64,11 +62,8 @@ CELERY_WORKER_PREFETCH_MULTIPLIER=1
 CELERY_BEAT_ENABLED=0
 
 API_PUBLIC_HOST=test-fskw.tbpf.com
-ADMIN_PUBLIC_HOST=test-fskw-admin.tbpf.com
 FEISHU_PUBLIC_HOST=test-fskw-feishu.tbpf.com
-TRAEFIK_API_ROUTER_NAME=test-fkw-api
 TRAEFIK_SYNC_ROUTER_NAME=test-fkw-sync
-TRAEFIK_ADMIN_ROUTER_NAME=test-fkw-admin
 TRAEFIK_FEISHU_ROUTER_NAME=test-fkw-feishu
 
 HTTP_HOST=0.0.0.0
@@ -89,8 +84,6 @@ ASYNC_SEARCH_ALL_MAX_RUN_SECONDS=900
 ASYNC_SEARCH_DUPLICATE_PAGE_THRESHOLD=5
 ASYNC_SEARCH_GUARDS_ASYNC_ONLY=1
 
-VITE_API_BASE_URL=https://test-fskw-feishu.tbpf.com
-VITE_ADMIN_API_ORIGIN=https://test-fskw.tbpf.com
 YDDM_PROXY_TARGET=https://api.yddm.com
 SYNC_PROXY_TARGET=https://test-fskw-feishu.tbpf.com
 EOF
@@ -124,11 +117,8 @@ CELERY_WORKER_PREFETCH_MULTIPLIER=1
 CELERY_BEAT_ENABLED=0
 
 API_PUBLIC_HOST=fskw.tbpf.com
-ADMIN_PUBLIC_HOST=fskw-admin.tbpf.com
 FEISHU_PUBLIC_HOST=fskw-feishu.tbpf.com
-TRAEFIK_API_ROUTER_NAME=fkw-api-prod
 TRAEFIK_SYNC_ROUTER_NAME=fkw-sync-prod
-TRAEFIK_ADMIN_ROUTER_NAME=fkw-admin-prod
 TRAEFIK_FEISHU_ROUTER_NAME=fkw-feishu-prod
 
 HTTP_HOST=0.0.0.0
@@ -149,8 +139,6 @@ ASYNC_SEARCH_ALL_MAX_RUN_SECONDS=900
 ASYNC_SEARCH_DUPLICATE_PAGE_THRESHOLD=5
 ASYNC_SEARCH_GUARDS_ASYNC_ONLY=1
 
-VITE_API_BASE_URL=https://fskw-feishu.tbpf.com
-VITE_ADMIN_API_ORIGIN=https://fskw.tbpf.com
 YDDM_PROXY_TARGET=https://api.yddm.com
 SYNC_PROXY_TARGET=https://fskw-feishu.tbpf.com
 EOF

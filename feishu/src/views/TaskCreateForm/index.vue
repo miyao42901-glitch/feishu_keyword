@@ -22,7 +22,7 @@ import {
   runRealtimeSyncSearchFromConfig,
   submitCollectionFromConfig,
 } from '@/lib/async-task-api'
-import type { FeishuTaskConfigDetail } from '@/lib/api'
+import type { FeishuTaskConfigDetail } from '@/lib/task-config-types'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
 import { useAccountPointsStore } from '@/stores/accountPoints'
 import { refreshYddmUserBalance } from '@/lib/refresh-yddm-balance'

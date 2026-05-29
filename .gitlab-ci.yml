@@ -1,4 +1,4 @@
-# feishu_keyword：Shell Runner 编译 admin/feishu → tar + scp → SSH docker compose
+# feishu_keyword：Shell Runner 编译 feishu → tar + scp → SSH docker compose
 # test 分支：推送即自动 deploy-test（/docker/feishu_keyword-test）
 # master 分支：MR 合并后在 GitLab 手动 deploy-prod（/docker/feishu_keyword）
 # 变量：SSH_PRIVATE_KEY、HOST_IP（默认 121.43.231.225）
@@ -11,7 +11,7 @@ variables:
   TEST_ROOT: "/docker/feishu_keyword-test"
   SSH_OPTS: "-o ServerAliveInterval=30 -o ServerAliveCountMax=6"
   PKG_NAME: "deploy.pkg.tar.gz"
-  COMPOSE_PROFILES: "--profile admin --profile feishu --profile worker"
+  COMPOSE_PROFILES: "--profile feishu --profile worker"
 
 stages:
   - deploy

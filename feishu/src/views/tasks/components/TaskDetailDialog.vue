@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import dayjs from 'dayjs'
-import type { FeishuTaskConfigDetail } from '@/lib/api'
+import type { FeishuTaskConfigDetail } from '@/lib/task-config-types'
 import { platformDisplayNames, sourcePlatforms, DATETIME_FORMAT } from '@/views/TaskCreateForm/constants'
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
 import type { TaskCardModel } from '@/views/tasks/types'

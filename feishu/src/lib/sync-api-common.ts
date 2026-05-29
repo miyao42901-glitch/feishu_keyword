@@ -43,8 +43,6 @@ export function isSyncHttpError(err: unknown): err is SyncHttpError {
  * 同步采集 API 根地址（无末尾 `/`）。
  * - 未配置 `VITE_SYNC_API_BASE`：空字符串，请求走同源 `/api/v1/...`（Vite 或飞书静态 Nginx 反代到 8765）
  * - 已配置：直连，如 `http://192.168.1.11:8765`（需上游开 CORS）
- *
- * 注意：勿用 `VITE_API_BASE_URL` 作为采集基址；前端页在 `fskw-feishu.*` 而 API 在 `fskw.*` 时会触发跨域。
  */
 export function getSyncApiBase(): string {
   const raw = (import.meta.env.VITE_SYNC_API_BASE as string | undefined)?.trim()

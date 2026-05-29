@@ -77,10 +77,7 @@ git pull origin test
 git merge hxp
 # 若有冲突：改文件 → git add . → git commit（完成 merge commit）
 
-# 3) 可选：本地预检前端构建（CI 会在 Runner 自动编译 public/*）
-# .\build-public-test.bat
-
-# 4) 推送 test，触发 CI（编译 + tar+scp + deploy-test）
+# 3) 推送 test，触发 CI（Runner 编译 feishu + tar+scp + deploy-test）
 git push origin test
 
 # 5) 回到个人分支，与 test 保持一致
@@ -123,18 +120,11 @@ git log --oneline origin/test..hxp
 **推荐步骤**：
 
 1. 在测试环境验收通过（`test` 已部署且功能 OK）。
-2. 可选本地预检：`.\build-public-prod.bat`（正式静态由 CI 在 `deploy-prod` 时用 `.env.master` 编译）。
-
-   ```bash
-   # 可选
-   .\build-public-prod.bat
-   ```
-
-3. 打开 GitLab → **Merge requests** → **New merge request**。
-4. 源分支选 **`test`**，目标分支选 **`master`**。
-5. 填写说明、指定 Reviewer，合并 MR。
-6. 进入 **`master`** 分支最新 **Pipeline** → 找到 **`deploy-prod`** 任务 → 点击 **Run / 运行**（手动 job）。
-7. 在正式域验收（见 [DEPLOY.md](./DEPLOY.md) 验收 curl）。
+2. 打开 GitLab → **Merge requests** → **New merge request**。
+3. 源分支选 **`test`**，目标分支选 **`master`**。
+4. 填写说明、指定 Reviewer，合并 MR。
+5. 进入 **`master`** 分支最新 **Pipeline** → 找到 **`deploy-prod`** 任务 → 点击 **Run / 运行**（手动 job）。
+6. 在正式域验收（见 [DEPLOY.md](./DEPLOY.md) 验收 curl）。
 
 ---
 
@@ -168,5 +158,5 @@ git branch -D wip/debug-xxx
 
 ```text
 个人分支开发 → 本地 merge 到 test → push test（自动测栈）
-→ 验收 → build-public-prod → GitLab MR test→master → 合并 → 手动 deploy-prod
+→ 验收 → GitLab MR test→master → 合并 → 手动 deploy-prod
 ```

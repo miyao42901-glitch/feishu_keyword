@@ -1,4 +1,6 @@
-# public：由 CI Runner 编译后 tar 部署；本地 build-public-*.bat 产物勿提交
+node_modules/
+
+# public：由 CI Runner 编译后 tar 部署；本地 npm run build:public:* 产物勿提交
 /public/
 
 # Docker 本地数据卷
@@ -7,34 +9,34 @@
 # 参考资料目录（仅本地查看，勿提交）
 /references/
 
-# Python（仅根路径 python/）
+# Python（server/ 后端）
 __pycache__/
 *.py[cod]
 *$py.class
 .idea/
 .vscode/
-python/.env
-python/**/__pycache__/
-python/**/*.py[cod]
-python/**/*$py.class
-python/**/*.so
-python/.Python
-python/venv/
-python/.venv/
-python/ENV/
-python/env/
-python/.eggs/
-python/**/*.egg-info/
-python/**/*.egg
-python/dist/
-python/build/
-python/.pytest_cache/
-python/.mypy_cache/
-python/.ruff_cache/
-python/.coverage
-python/htmlcov/
-python/**/*.cover
-python/.hypothesis/
+server/.env
+server/**/__pycache__/
+server/**/*.py[cod]
+server/**/*$py.class
+server/**/*.so
+server/.Python
+server/venv/
+server/.venv/
+server/ENV/
+server/env/
+server/.eggs/
+server/**/*.egg-info/
+server/**/*.egg
+server/dist/
+server/build/
+server/.pytest_cache/
+server/.mypy_cache/
+server/.ruff_cache/
+server/.coverage
+server/htmlcov/
+server/**/*.cover
+server/.hypothesis/
 
 # ------------------------------------------------------------------
 # 本地访问 / 私密配置（数据库连接、本机 API、个人 token 等，勿提交）

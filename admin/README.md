@@ -2,7 +2,7 @@
 
 独立 **Vite + Vue 3 + TypeScript + Element Plus**。生产部署在站点路径 **`/admin`**（Traefik `StripPrefix` 后由 nginx 提供静态资源）；API 前缀为 **`/api`**。
 
-- API 基址由仓根 `.env` 的 `VITE_ADMIN_API_ORIGIN` 注入（`vite.config.ts` 的 `envDir` 指向仓库根）；测试/正式见 `.env.test` / `.env.master`，打包用仓根 `build-public-*.bat`。
+- API 基址由仓根 `.env` 的 `VITE_ADMIN_API_ORIGIN` 注入（`vite.config.ts` 的 `envDir` 指向仓库根）；测试/正式见 `.env.test` / `.env.master`。
 - 开发时 Vite 将 `/api` 代理到本机 `http://127.0.0.1:8000`，避免浏览器跨域。
 
 ## 本地运行
@@ -30,12 +30,11 @@ npm run build
 
 产物在 `admin/dist/`。
 
-发布到仓库内 Docker 挂载目录（**推荐在仓根执行**，会先复制对应 `.env.test` / `.env.master`）：
+发布到仓库内 Docker 挂载目录（先复制对应 env，再在 `admin/` 内构建）：
 
 ```bash
-# 仓根
-.\build-public-test.bat    # 推 test 前，触发自动 deploy-test
-.\build-public-prod.bat    # MR 合并 master 前，再手动 deploy-prod
+cp .env.test .env && cd admin && npm run build:public:test
+cp .env.master .env && cd admin && npm run build:public:prod
 ```
 
-也可在 `admin/` 内 `npm run build:public:test` / `build:public:prod`，产物同步到仓根 **`public/admin/`**（与 CI 部署挂载目录一致）。
+产物同步到仓根 **`public/admin/`**（与 CI 部署挂载目录一致时需在 Runner 或本地完整构建流程中执行）。

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shell Runner：编译 admin + feishu 到 public/（Vite envDir=仓根）
+# Shell Runner：编译 feishu 到 public/（Vite envDir=仓根）
 # 用法：bash scripts/ci-build-frontend.sh test|prod
 set -euo pipefail
 
@@ -48,13 +48,6 @@ fi
 echo "==> 使用 $ENV_SRC 覆盖 .env（Vite envDir=仓根）"
 cp -f "$ENV_SRC" .env
 
-echo "==> admin npm ci + $BUILD_SCRIPT"
-(
-  cd admin
-  npm ci
-  npm run "$BUILD_SCRIPT"
-)
-
 echo "==> feishu npm ci + $BUILD_SCRIPT"
 (
   cd feishu
@@ -62,17 +55,13 @@ echo "==> feishu npm ci + $BUILD_SCRIPT"
   npm run "$BUILD_SCRIPT"
 )
 
-if [[ ! -f public/admin/index.html ]]; then
-  echo "ERROR: 缺少 public/admin/index.html"
-  exit 1
-fi
 if [[ ! -f public/feishu/index.html ]]; then
   echo "ERROR: 缺少 public/feishu/index.html"
   exit 1
 fi
 
 if [[ "$ENV_MODE" == "prod" ]]; then
-  if grep -rq 'test-fskw' public/feishu/assets public/admin/assets 2>/dev/null; then
+  if grep -rq 'test-fskw' public/feishu/assets 2>/dev/null; then
     echo "WARN: 静态资源含 test-fskw，正式域可能异常"
   fi
 fi
