@@ -11,8 +11,8 @@
 | 分支 | 用途 | 谁可以改 | 推送后 CI |
 |------|------|----------|-----------|
 | **个人分支**（如 `hxp`） | 日常开发与提交 | 分支所有者 | 无自动部署 |
-| **`test`** | 测试环境集成线 | **禁止**直接改；仅本地 **merge** 个人分支后 push | 自动 `deploy-test` |
-| **`master`** | 正式环境发布线 | **禁止**本地直接改；仅 **GitLab MR 合并** | 流水线中**手动** `deploy-prod` |
+| **`test`** | 测试环境集成线 | 仅本地 **merge** 个人分支后 push | 自动 `deploy-test` |
+| **`master`** | 正式环境发布线 | 仅 **GitLab MR 合并** | 流水线中**手动** `deploy-prod` |
 
 ```mermaid
 flowchart LR
@@ -31,7 +31,7 @@ flowchart LR
 
 ## 1. 开发修改必须使用个人分支
 
-**规则**：所有业务代码与配置的 commit，必须在**自己的拼音缩写分支**上完成；**禁止**在 `test`、`master` 上直接修改并提交。
+所有业务代码与配置的 commit，在**自己的拼音缩写分支**上完成。
 
 **首次创建个人分支**（从最新 `test` 拉出）：
 
@@ -49,19 +49,9 @@ git branch --show-current
 
 ---
 
-## 2. `test` 分支只能走合并，禁止直接修改
+## 2. `test` 分支只能走合并
 
-**禁止**在 `test` 上直接改文件、commit、push：
-
-```bash
-# 错误示例 — 不要这样做
-git switch test
-# ... 直接改代码 ...
-git commit -m "fix something"
-git push origin test
-```
-
-**允许**：在本地 checkout `test` 后，仅用于 **merge 个人分支** 并 push（见第 3 节）。
+在 `test` 上 checkout 后，仅用于 **merge 个人分支** 并 push（完整步骤见第 3 节）。
 
 可选加强：在 GitLab 将 `test` 设为 Protected branch，限制仅 Maintainer 可 push，或通过 MR 合入 `test`。
 
@@ -69,9 +59,7 @@ git push origin test
 
 ## 3. 部署测试环境：本地合并到 `test`，解决冲突后推送
 
-测试栈部署由 **`git push origin test`** 触发，自动执行 `deploy-test`（见 [DEPLOY.md](./DEPLOY.md)）。
-
-**标准流程**（须本地 merge，**禁止** `git push origin hxp:test` 跳过本地 `test` 合并）：
+测试栈部署由 **`git push origin test`** 触发，自动执行 `deploy-test`（见 [DEPLOY.md](./DEPLOY.md)）。须先在本地将个人分支 **merge 进 `test`**，解决冲突后再 push。
 
 ```bash
 git fetch origin
@@ -103,12 +91,6 @@ git merge origin/test
 git push origin hxp
 ```
 
-**禁止/弃用**（跳过本地 `test` 合并）：
-
-```bash
-git push origin hxp:test    # 不要这样部署测试环境
-```
-
 ---
 
 ## 4. 修改前先更新 `test`，完成后推送到个人远程分支
@@ -121,7 +103,7 @@ git switch hxp
 git merge origin/test        # 先同步 test，再改
 ```
 
-**改完并 commit 后**（推送到**个人远程分支**，不要推到 `test`/`master`）：
+**改完并 commit 后**（推送到个人远程分支）：
 
 ```bash
 git push -u origin hxp         # 首次
@@ -138,10 +120,7 @@ git log --oneline origin/test..hxp
 
 ## 5. 正式环境：仅 GitLab MR + 手动 CI
 
-**规则**：
-
-- **禁止**本地 `git switch master` 后直接改代码、commit、`git push origin master`。
-- 正式发布必须在 **GitLab 网页**创建 Merge Request，合并进 `master` 后，在流水线中**手动**运行 `deploy-prod`。
+正式发布在 **GitLab 网页**创建 Merge Request，合并进 `master` 后，在流水线中**手动**运行 `deploy-prod`。
 
 **推荐步骤**：
 
@@ -164,15 +143,16 @@ git log --oneline origin/test..hxp
 
 ## 6. 临时分支尽量不要推送到远程
 
-- 本地临时排查可用：`git switch -c wip/debug-xxx`（**不要** `git push`）。
-- 用完删除：
+本地临时排查：
 
-  ```bash
-  git switch hxp
-  git branch -D wip/debug-xxx
-  ```
+```bash
+git switch -c wip/debug-xxx
+# ... 排查 ...
+git switch hxp
+git branch -D wip/debug-xxx
+```
 
-- 每人长期只维护**一个**远程个人分支（如 `origin/hxp`）；避免多个 `feature/*` 长期挂在远程。
+每人长期只维护**一个**远程个人分支（如 `origin/hxp`）。
 
 ---
 
@@ -184,7 +164,6 @@ git log --oneline origin/test..hxp
 | 误在 `test` 上改了未提交 | `git stash` → `git switch hxp` → `git stash pop` → 在 `hxp` 提交 |
 | 远程 `test` 为准，重置本地个人分支 | `git fetch origin && git switch hxp && git reset --hard origin/test` |
 | 远程 `test` 覆盖远程 `hxp`（慎用） | `git push origin origin/test:hxp --force-with-lease` |
-| 个人分支覆盖远程 `test`（**禁止**，见第 3 节） | ~~`git push origin hxp:test`~~ |
 
 ---
 
