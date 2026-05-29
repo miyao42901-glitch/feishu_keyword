@@ -1,5 +1,5 @@
 /**
- * 定时任务：`GET .../async/tasks/{子任务id}/results`（`running`/`completed`，或 `pending` 且 next_run_at+3min）。
+ * 定时任务：`GET .../async/tasks/{子任务id}/results`（`running`/`completed`，或 `pending` 且 next_run_at+3min；首屏空结果最多重试 3 次，仍无数据不验收）。
  * 单次任务：各平台 `POST /api/v1/sync/{platform}/search-page`（不走 results）。
  */
 
