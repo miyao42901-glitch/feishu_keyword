@@ -37,7 +37,7 @@ SYNC_PROXY_TARGET=http://192.168.1.11:8765
 # YDDM：生产走同源 /yddm-api；见仓根 .env.test / .env.master 的 YDDM_PROXY_TARGET
 ```
 
-修改 env 后需 **`npm run dev` 重启**；CI 发布前用仓根 **`build-public-*.bat`** 并提交 `public/feishu/`。
+修改 env 后需 **`npm run dev` 重启**；线上静态由 **CI Runner** 编译打包部署。
 
 ## 开发两种用法
 

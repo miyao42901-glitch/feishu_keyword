@@ -50,8 +50,7 @@
 
 | 路径 | 说明 |
 |------|------|
-| `public/admin/` | 管理端静态，本地 `build:public:*` 后提交主仓 |
-| `public/feishu/` | 飞书静态，本地 `build:public:*` 后提交主仓 |
+| `public/admin/`、`public/feishu/` | 静态资源目录（**CI Runner 编译**后随 tar 部署；勿提交 Git） |
 
 ## 本地开发
 

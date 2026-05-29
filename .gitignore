@@ -1,14 +1,5 @@
-# 本地残留目录（勿提交）
-/web/
-
-# public：admin / feishu 预编译产物（可提交；CI Runner 部署时会重新编译，非必须提交）
-/public/*
-!/public/admin/
-!/public/admin/**
-!/public/feishu/
-!/public/feishu/**
-# 若 public/feishu 内嵌 GitHub 发布用 .git，勿进主仓
-/public/feishu/.git/
+# public：由 CI Runner 编译后 tar 部署；本地 build-public-*.bat 产物勿提交
+/public/
 
 # Docker 本地数据卷
 /data/
