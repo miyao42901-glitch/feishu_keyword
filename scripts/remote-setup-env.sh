@@ -2,35 +2,20 @@
 # 在部署主机执行：根据 traefik 栈 MYSQL_ROOT_PASSWORD 写入测试/正式栈根 .env.test / .env.master，并创建 feishu_keyword 库。
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=env-mysql-from-traefik.sh
+source "$SCRIPT_DIR/env-mysql-from-traefik.sh"
+
 TEST_ROOT="${TEST_ROOT:-/docker/feishu_keyword-test}"
 PROD_ROOT="${PROD_ROOT:-/docker/feishu_keyword}"
-TRAEFIK_ENV="${TRAEFIK_ENV:-/docker/traefik/.env}"
 
-load_mysql_root_password() {
-  local pw=""
-  for f in "$TEST_ROOT/.env" "$PROD_ROOT/.env" "$TRAEFIK_ENV"; do
-    if [ -f "$f" ]; then
-      # shellcheck disable=SC1090
-      set +u
-      source "$f" 2>/dev/null || true
-      set -u
-      if [ -n "${MYSQL_ROOT_PASSWORD:-}" ]; then
-        pw="${MYSQL_ROOT_PASSWORD}"
-        break
-      fi
-    fi
-  done
-  if [ -z "$pw" ]; then
-    echo "ERROR: 未找到 MYSQL_ROOT_PASSWORD（请配置 $TEST_ROOT/.env 或 $TRAEFIK_ENV）"
-    exit 1
-  fi
-  MYSQL_ROOT_PASSWORD="$pw"
-}
-
-load_mysql_root_password
+if ! MYSQL_ROOT_PASSWORD="$(load_mysql_root_password)"; then
+  echo "ERROR: 未找到 MYSQL_ROOT_PASSWORD（请配置 ${TRAEFIK_ENV}）"
+  exit 1
+fi
 
 MYSQL_USER=root
-DB_URL="mysql+pymysql://${MYSQL_USER}:${MYSQL_ROOT_PASSWORD}@tbpf-mysql:3306/feishu_keyword?charset=utf8mb4"
+DB_URL="$(build_feishu_database_url "$MYSQL_ROOT_PASSWORD")"
 
 mkdir -p "$TEST_ROOT/public/admin" "$TEST_ROOT/public/feishu" \
   "$TEST_ROOT/deploy/admin-static" "$TEST_ROOT/deploy/feishu-static" \
@@ -55,8 +40,8 @@ REDIS_PASSWORD=
 REDIS_DB=2
 
 REDIS_URL=redis://tbpf-redis:6379/2
-CELERY_BROKER_URL=
-CELERY_RESULT_BACKEND=
+CELERY_BROKER_URL=redis://tbpf-redis:6379/2
+CELERY_RESULT_BACKEND=redis://tbpf-redis:6379/2
 CELERY_TASK_ALWAYS_EAGER=0
 CELERY_WORKER_POOL=gevent
 CELERY_WORKER_CONCURRENCY=4
@@ -66,7 +51,6 @@ CELERY_BEAT_ENABLED=0
 API_PUBLIC_HOST=test-fskw.tbpf.com
 ADMIN_PUBLIC_HOST=test-fskw-admin.tbpf.com
 FEISHU_PUBLIC_HOST=test-fskw-feishu.tbpf.com
-TRAEFIK_API_ROUTER_NAME=test-fkw-api
 TRAEFIK_SYNC_ROUTER_NAME=test-fkw-sync
 TRAEFIK_ADMIN_ROUTER_NAME=test-fkw-admin
 TRAEFIK_FEISHU_ROUTER_NAME=test-fkw-feishu
@@ -89,10 +73,9 @@ ASYNC_SEARCH_ALL_MAX_RUN_SECONDS=900
 ASYNC_SEARCH_DUPLICATE_PAGE_THRESHOLD=5
 ASYNC_SEARCH_GUARDS_ASYNC_ONLY=1
 
-VITE_API_BASE_URL=https://test-fskw-feishu.tbpf.com
-VITE_ADMIN_API_ORIGIN=https://test-fskw.tbpf.com
 YDDM_PROXY_TARGET=https://api.yddm.com
 SYNC_PROXY_TARGET=https://test-fskw-feishu.tbpf.com
+VITE_ADMIN_API_ORIGIN=https://test-fskw.tbpf.com
 EOF
   chmod 600 "$TEST_ROOT/.env.test"
 }
@@ -115,8 +98,8 @@ REDIS_PASSWORD=
 REDIS_DB=3
 
 REDIS_URL=redis://tbpf-redis:6379/3
-CELERY_BROKER_URL=
-CELERY_RESULT_BACKEND=
+CELERY_BROKER_URL=redis://tbpf-redis:6379/3
+CELERY_RESULT_BACKEND=redis://tbpf-redis:6379/3
 CELERY_TASK_ALWAYS_EAGER=0
 CELERY_WORKER_POOL=gevent
 CELERY_WORKER_CONCURRENCY=4
@@ -126,7 +109,6 @@ CELERY_BEAT_ENABLED=0
 API_PUBLIC_HOST=fskw.tbpf.com
 ADMIN_PUBLIC_HOST=fskw-admin.tbpf.com
 FEISHU_PUBLIC_HOST=fskw-feishu.tbpf.com
-TRAEFIK_API_ROUTER_NAME=fkw-api-prod
 TRAEFIK_SYNC_ROUTER_NAME=fkw-sync-prod
 TRAEFIK_ADMIN_ROUTER_NAME=fkw-admin-prod
 TRAEFIK_FEISHU_ROUTER_NAME=fkw-feishu-prod
@@ -149,10 +131,9 @@ ASYNC_SEARCH_ALL_MAX_RUN_SECONDS=900
 ASYNC_SEARCH_DUPLICATE_PAGE_THRESHOLD=5
 ASYNC_SEARCH_GUARDS_ASYNC_ONLY=1
 
-VITE_API_BASE_URL=https://fskw-feishu.tbpf.com
-VITE_ADMIN_API_ORIGIN=https://fskw.tbpf.com
 YDDM_PROXY_TARGET=https://api.yddm.com
 SYNC_PROXY_TARGET=https://fskw-feishu.tbpf.com
+VITE_ADMIN_API_ORIGIN=https://fskw.tbpf.com
 EOF
   chmod 600 "$PROD_ROOT/.env.master"
 }
@@ -172,4 +153,4 @@ else
   echo "      可在 phpMyAdmin 执行: scripts/create_feishu_db.sql"
 fi
 
-echo "remote-setup-env: done（$TEST_ROOT/.env.test、$PROD_ROOT/.env.master）"
+echo "remote-setup-env: done（口令来源 ${TRAEFIK_ENV}；$TEST_ROOT/.env.test、$PROD_ROOT/.env.master）"

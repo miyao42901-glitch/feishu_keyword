@@ -13,7 +13,7 @@ import {
   parseBackendStoppedKind,
   type FeishuTaskConfigDetail,
   type FeishuTaskConfigWriteResult,
-} from '@/lib/api'
+} from '@/lib/task-config-types'
 import {
   applyTaskTypeFromListCard,
   loadTaskConfigDetail,

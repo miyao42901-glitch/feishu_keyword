@@ -1,31 +1,75 @@
-# 鏈湴娈嬬暀鐩綍锛堝嬁鎻愪氦锛?/web/
+# =============================================================================
+# feishu_keyword 根目录 .gitignore
+# admin/、feishu/ 下另有 .gitignore 作 Vite 子项目补充
+# =============================================================================
 
-# public锛歛dmin / feishu 棰勭紪璇戜骇鐗╅殢涓讳粨鎻愪氦锛圕I 浠?rsync锛孯unner 鏃犻渶 Node锛?/public/*
-!/public/admin/
-!/public/admin/**
-!/public/feishu/
-!/public/feishu/**
-# 鑻?public/feishu 鍐呭祵 GitHub 鍙戝竷鐢?.git锛屽嬁杩涗富浠?/public/feishu/.git/
+# --- 操作系统 ---
+.DS_Store
+Thumbs.db
 
-# Docker 鏈湴鏁版嵁鍗?/data/
+# --- IDE ---
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
-# 鍙傝€冭祫鏂欑洰褰曪紙浠呮湰鍦版煡鐪嬶紝鍕挎彁浜わ級
-/references/
+# --- Node / 前端（admin、feishu）---
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.tsbuildinfo
+*.local
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# Python 字节码缓存（勿提交）
+# --- 静态构建产物（CI Runner 编译后 tar 部署，勿提交）---
+/public/
+
+# --- Python（server/ 后端、workers）---
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+.eggs/
+*.egg-info/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
 
-# ------------------------------------------------------------------
-# 鏈湴璁块棶 / 绉佸瘑閰嶇疆锛堟暟鎹簱杩炴帴銆佹湰鏈?API銆佷釜浜?token 绛夛紝鍕挎彁浜わ級
-# ------------------------------------------------------------------
+# --- Docker / 本地数据卷 ---
+/data/
+
+# --- 参考资料（仅本地查看）---
+/references/
+
+# --- 已合并入 server/ 的本地遗留目录 ---
+/python/
+
+# --- 私密环境变量 ---
+# 可提交模板：.env.example / .env.test / .env.master / .env.local.example
 .env
 .env.local
 .env.*.local
 .env.development
 .env.production
-# 仓根与任意子目录下的 .env（保留模板与 test/master 占位版）
 **/.env
 !.env.example
 !.env.test
@@ -33,4 +77,6 @@ __pycache__/
 !.env.local.example
 !**/.env.example
 !**/.env.sample
+
+# --- 运维脚本（含真实口令，勿提交）---
 scripts/reset-root.sql

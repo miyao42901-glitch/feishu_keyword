@@ -21,13 +21,12 @@
 | UI | Element Plus | 组件库 |
 | 样式 | Tailwind CSS 4 | `@tailwindcss/vite` |
 | 状态 | Pinia | 全局状态 |
-| 飞书 | `@lark-base-open/js-sdk` | 多维表格 / 开放能力（版本以 package.json 为准） |
+| 飞书 | `@lark-base-open/js-sdk` | 多维表格 / 开放能力 |
 | 工具库 | dayjs | 时间处理 |
-| 工程插件 | unplugin-auto-import、unplugin-vue-components | 自动导入 |
 
 ### 视图与页面私有组件
 
-复杂页面使用 **`src/views/<功能名>/`** 目录：**`index.vue`** 为入口，`components/` 下放**仅本页使用**的子组件；类型与选项列表可放同级 `types.ts`、`constants.ts`。约定见 **[DEVELOPMENT.md](../DEVELOPMENT.md)** 第二节「前端复杂页面与私有组件」。
+复杂页面使用 **`src/views/<功能名>/`** 目录：**`index.vue`** 为入口，`components/` 下放**仅本页使用**的子组件。约定见 **[DEVELOPMENT.md](../DEVELOPMENT.md)** 第二节。
 
 当前示例：**新建任务** → `views/TaskCreateForm/index.vue` + `views/TaskCreateForm/components/`。
 
@@ -38,26 +37,25 @@
 | 文档 | 说明 |
 |------|------|
 | [工程约定](../DEVELOPMENT.md) | 全仓库 Git、注释、环境安全 |
-| [HTTP 接口规范](../API.md) | 若前端直连 **`server/`**：路径、分页、**统一响应 `code` / `message` / `data`**（第五节）；飞书任务接口见同文档 §8 |
-| [Nginx 反向代理](./NGINX.md) | 同源访问 `/api/v1`（8765）、`/api`（8000）、`/yddm-api`（YDDM），避免跨域 |
-| [组件命名与注释](./component-style.md) | `defineOptions` 组件名、函数/变量/TS 注释约定（与新建任务示例对照表） |
+| [HTTP_API.md](../server/HTTP_API.md) | 后端 `/api/v1` 路径、Header、同步/异步任务 |
+| [Nginx 反向代理](./NGINX.md) | 同源访问 `/api/v1`（8765）、`/yddm-api`（YDDM） |
+| [组件命名与注释](./component-style.md) | `defineOptions` 组件名、注释约定 |
 
-数据库与 ORM 文档（[DATABASE.md](../DATABASE.md)）**不直接对应** `feishu/` 源码；仅在后端联调或理解数据字段时需要查阅。
+数据库表结构见 **[DATABASE.md](../DATABASE.md)**（后端 `server/` 维护）。
 
 ---
 
-## 消费后端 API（统一响应体）
+## 消费后端 API
 
-`server/` 返回的 JSON **外层固定为** `{ code, message, data }`：
+业务请求发往同源 **`/api/v1/*`**（开发时由 Vite 代理到 `SYNC_PROXY_TARGET`，默认 `http://127.0.0.1:8765`）。
 
-- **`code === 0`**：成功，业务数据在 **`data`**（可能是对象、数组或 `null`）。
-- **`code !== 0`**：失败，请用 **`message`** 提示用户；必要时查看 **`data`**（如校验错误明细）。
+工程内封装：
 
-工程内封装：**`feishu/src/lib/api.ts`** — `apiFetch` 解析统一信封并只返回 **`data`**；各导出函数带 **JSDoc**（对应 `docs/API.md` 路径与参数）。注释与后端路由同步要求见 **[API.md 第九节](../API.md#9-代码位置与接口注释约定)**。
+- **`feishu/src/lib/async-task-api.ts`** — 异步任务 CRUD
+- **`feishu/src/lib/*-sync-api.ts`** — 各平台同步搜索
+- **`feishu/src/lib/sync-api-common.ts`** — 公共请求与错误处理
 
-其它与页面弱耦合的可复用逻辑放在 **`feishu/src/lib/*.ts`**（如任务生效/过期时间与日期控件：**`lib/datetime-task-window.ts`**）。**跨模块复用、禁止重复造轮子**的约定见 **[DEVELOPMENT.md](../DEVELOPMENT.md)** 第九节。
-
-完整约定见 **[HTTP 接口规范](../API.md)** 第五节；飞书任务配置接口见同文档第八节。
+路径与 Header 约定见 **[HTTP_API.md](../server/HTTP_API.md)**。可复用逻辑放在 **`feishu/src/lib/*.ts`**；跨模块复用约定见 **[DEVELOPMENT.md](../DEVELOPMENT.md)** 第九节。
 
 ---
 
@@ -68,21 +66,22 @@
 ```powershell
 # 仓根
 cp .env.test .env
-cp .env.local.example .env.local   # 可选，改 VITE_API_BASE_URL、SYNC_PROXY_TARGET 等
+cp .env.local.example .env.local   # 可选，改 SYNC_PROXY_TARGET 等
+
+# 另开终端：后端（:8765）
+cd server && python run.py
 
 cd feishu
 npm install
-npm run dev          # 默认 127.0.0.1:8000
-npm run dev:lan      # 局域网联调（读仓根 .env.local）
+npm run dev          # 默认本机，Vite 代理 /api/v1 → 8765
+npm run dev:lan      # 局域网联调
 ```
 
-**`npm run dev` 未配置 `VITE_API_BASE_URL` 时**默认 `http://127.0.0.1:8000`。线上打包用仓根 `build-public-test.bat` / `build-public-prod.bat`（会先 `cp .env.test|.env.master → .env`）。接口约定见 **[API.md](../API.md)**。
+**不要**把 `VITE_*` 指到公网 API 域又在 `fskw-feishu.*` 打开页面（会跨域）；测试/正式静态由 **CI Runner** 编译（`build:public:test|prod`）。详见 **[NGINX.md](./NGINX.md)**。
 
-构建与预览（单独调试构建时）：
+构建与预览：
 
 ```powershell
 npm run build
 npm run preview
 ```
-
-同源反代与 `VITE_*` 说明见 **[NGINX.md](./NGINX.md)**。

@@ -12,8 +12,7 @@ RUN if [ -n "$PIP_INDEX_URL" ]; then \
       pip install --no-cache-dir -r requirements.txt; \
     fi
 
-COPY app ./app
-COPY admin ./admin
+COPY . .
 
-EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 8765
+CMD ["uvicorn", "http_service:app", "--host", "0.0.0.0", "--port", "8765"]

@@ -2,7 +2,7 @@
  * 任务配置：8765 异步任务 + 浏览器本地快照（不再请求 `server/` 8000）。
  */
 
-import type { FeishuTaskConfigDetail, FeishuTaskConfigWriteResult } from '@/lib/api'
+import type { FeishuTaskConfigDetail, FeishuTaskConfigWriteResult } from '@/lib/task-config-types'
 import {
   configPatchFromAsyncTaskRecord,
   getAsyncTaskStatus,
