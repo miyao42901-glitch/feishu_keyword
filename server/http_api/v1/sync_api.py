@@ -37,6 +37,7 @@ from http_sync_bodies import (
 )
 from social_platform.aggregated_job import run_task as run_multi
 from social_platform.api_response import from_worker_run, ok, respond
+from social_platform.services.deploy_info import build_version_payload
 from social_platform.schemas import TaskEnvelope
 from social_platform.services.search_persist import (
     try_save_search_after_crawl,
@@ -64,6 +65,11 @@ def build_sync_routers() -> tuple[APIRouter, APIRouter, APIRouter]:
     @health.get("/health")
     def health_v1() -> dict[str, Any]:
         return ok(data={"status": "ok"})
+
+    @health.get("/version")
+    def version_v1() -> dict[str, Any]:
+        """服务、MySQL、Redis 状态及 CI 部署版本信息。"""
+        return ok(data=build_version_payload())
 
     @run_.post(
         "/run",

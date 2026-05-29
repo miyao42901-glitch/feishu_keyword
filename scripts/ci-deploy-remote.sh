@@ -15,6 +15,8 @@ ENV_PATCH_KEYS=(
   ADMIN_PUBLIC_HOST
   TRAEFIK_ADMIN_ROUTER_NAME
   VITE_ADMIN_API_ORIGIN
+  MYSQL_ROOT_PASSWORD
+  DATABASE_URL
 )
 
 env_get() {
@@ -31,15 +33,58 @@ env_set() {
   fi
 }
 
+is_env_placeholder() {
+  local val="${1//[[:space:]]/}"
+  [[ -z "$val" || "$val" == "PASSWORD" || "$val" == "your_root_password" ]]
+}
+
+is_database_url_placeholder() {
+  local val="$1"
+  if is_env_placeholder "$val"; then
+    return 0
+  fi
+  if [[ "$val" == *":PASSWORD@"* || "$val" == *":your_root_password@"* || "$val" == *"root:@"* ]]; then
+    return 0
+  fi
+  return 1
+}
+
+should_patch_env_key() {
+  local key="$1" remote_val="$2" pkg_val="$3"
+  if [[ -z "${pkg_val//[[:space:]]/}" ]]; then
+    return 1
+  fi
+  case "$key" in
+    MYSQL_ROOT_PASSWORD)
+      is_env_placeholder "$remote_val"
+      return $?
+      ;;
+    DATABASE_URL)
+      is_database_url_placeholder "$remote_val"
+      return $?
+      ;;
+    *)
+      [[ -z "${remote_val//[[:space:]]/}" ]]
+      return $?
+      ;;
+  esac
+}
+
 merge_empty_env_from_package() {
   local target="$1" pkg="$2"
   local key remote_val pkg_val
   for key in "${ENV_PATCH_KEYS[@]}"; do
     remote_val="$(env_get "$target" "$key")"
     pkg_val="$(env_get "$pkg" "$key")"
-    if [[ -z "${remote_val//[[:space:]]/}" && -n "${pkg_val//[[:space:]]/}" ]]; then
+    if should_patch_env_key "$key" "$remote_val" "$pkg_val"; then
+      if [[ "$key" == "MYSQL_ROOT_PASSWORD" || "$key" == "DATABASE_URL" ]] && is_env_placeholder "$pkg_val"; then
+        continue
+      fi
+      if [[ "$key" == "DATABASE_URL" ]] && is_database_url_placeholder "$pkg_val"; then
+        continue
+      fi
       env_set "$target" "$key" "$pkg_val"
-      echo "==> 补全 ${ENV_FILE}: ${key}（远端为空，采用包内模板）"
+      echo "==> 补全 ${ENV_FILE}: ${key}（远端缺失或占位，采用包内值）"
     fi
   done
   # Celery 仍空时，回退为 REDIS_URL（与仓根 .env.test 约定一致）
