@@ -8,6 +8,53 @@ ENV_FILE="${ENV_FILE:?ENV_FILE required}"
 COMPOSE_PROFILES="${COMPOSE_PROFILES:---profile admin --profile feishu --profile worker}"
 PKG_NAME="${PKG_NAME:-deploy.pkg.tar.gz}"
 
+# 远端保留口令等敏感项；若下列键在远端为空，则用本次 CI 包内模板补全（避免 api 因 CELERY 未配置崩溃）
+ENV_PATCH_KEYS=(
+  CELERY_BROKER_URL
+  CELERY_RESULT_BACKEND
+  ADMIN_PUBLIC_HOST
+  TRAEFIK_ADMIN_ROUTER_NAME
+  VITE_ADMIN_API_ORIGIN
+)
+
+env_get() {
+  local file="$1" key="$2"
+  grep -E "^${key}=" "$file" 2>/dev/null | head -1 | cut -d= -f2- || true
+}
+
+env_set() {
+  local file="$1" key="$2" val="$3"
+  if grep -q "^${key}=" "$file"; then
+    sed -i "s|^${key}=.*|${key}=${val}|" "$file"
+  else
+    echo "${key}=${val}" >> "$file"
+  fi
+}
+
+merge_empty_env_from_package() {
+  local target="$1" pkg="$2"
+  local key remote_val pkg_val
+  for key in "${ENV_PATCH_KEYS[@]}"; do
+    remote_val="$(env_get "$target" "$key")"
+    pkg_val="$(env_get "$pkg" "$key")"
+    if [[ -z "${remote_val//[[:space:]]/}" && -n "${pkg_val//[[:space:]]/}" ]]; then
+      env_set "$target" "$key" "$pkg_val"
+      echo "==> 补全 ${ENV_FILE}: ${key}（远端为空，采用包内模板）"
+    fi
+  done
+  # Celery 仍空时，回退为 REDIS_URL（与仓根 .env.test 约定一致）
+  remote_val="$(env_get "$target" CELERY_BROKER_URL)"
+  if [[ -z "${remote_val//[[:space:]]/}" ]]; then
+    local redis_url
+    redis_url="$(env_get "$target" REDIS_URL)"
+    if [[ -n "${redis_url//[[:space:]]/}" ]]; then
+      env_set "$target" CELERY_BROKER_URL "$redis_url"
+      env_set "$target" CELERY_RESULT_BACKEND "$redis_url"
+      echo "==> 补全 ${ENV_FILE}: CELERY_* ← REDIS_URL"
+    fi
+  fi
+}
+
 mkdir -p "$DEPLOY_ROOT"
 cd "$DEPLOY_ROOT"
 
@@ -26,17 +73,23 @@ echo "==> 解压 $PKG_NAME → $DEPLOY_ROOT"
 tar -xzf "$PKG_NAME"
 rm -f "$PKG_NAME"
 
+ENV_FROM_PKG="$(mktemp)"
+cp -a "$ENV_FILE" "$ENV_FROM_PKG"
+
 if [[ -n "$ENV_BAK" ]]; then
   cp -a "$ENV_BAK" "$ENV_FILE"
   rm -f "$ENV_BAK"
-  echo "==> 保留远端已有 $ENV_FILE（未用包内占位覆盖）"
+  echo "==> 保留远端已有 $ENV_FILE（未用包内占位覆盖口令）"
+  merge_empty_env_from_package "$ENV_FILE" "$ENV_FROM_PKG"
 elif [[ -f "$ENV_FILE" ]]; then
   chmod 600 "$ENV_FILE"
   echo "WARN: 首次落盘 $ENV_FILE（包内占位模板），请 SSH 修改真实口令"
 else
+  rm -f "$ENV_FROM_PKG"
   echo "ERROR: 解压后仍缺少 $ENV_FILE"
   exit 1
 fi
+rm -f "$ENV_FROM_PKG"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "ERROR: 远端缺少栈根 $ENV_FILE，请执行: bash scripts/remote-setup-env.sh"
