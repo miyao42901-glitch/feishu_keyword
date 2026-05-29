@@ -70,10 +70,12 @@ cd server
 
 提交聚焦需求；说明「改了什么、为何」。不擅自扩大范围。
 
+**分支与部署**（个人拼音缩写分支、`test` 仅 merge、`master` 仅 GitLab MR）须遵守 **[GIT_WORKFLOW.md](./GIT_WORKFLOW.md)**，禁止在 `test`/`master` 上直接开发，禁止 `git push origin hxp:test` 跳过本地 `test` 合并。
+
 ## 8. 构建与验证
 
 - **不要求**在每次完成开发任务后固定执行前端生产构建；以任务说明、提测、CI 或协作方明确要求为准。
-- **GitLab CI**：推送 **`test`** 自动 `deploy-test`；**MR 合并 `master`** 后在流水线**手动** `deploy-prod`。Runner **不安装 Node**；须本地构建并提交 `public/admin`、`public/feishu`（CI 只 rsync）。详见 [DEPLOY.md](./DEPLOY.md)。
+- **GitLab CI**：本地 merge 到 **`test`** 并 `git push origin test` 后自动 `deploy-test`；**GitLab MR 合并 `master`** 后在流水线**手动** `deploy-prod`。分支流程见 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)。Runner **不安装 Node**；须本地构建并提交 `public/admin`、`public/feishu`（CI 只 rsync）。详见 [DEPLOY.md](./DEPLOY.md)。
 
 ```powershell
 # 测试（推 test 前）

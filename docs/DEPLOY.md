@@ -21,7 +21,7 @@
 **DNS**：改域名后须：
 
 1. 在栈根维护 `.env.test` 或 `.env.master`（含真实口令）；**每次部署**执行 `cp -f .env.test .env`（正式用 `.env.master`）。勿长期手改 `.env`，它会被覆盖。
-2. 测试：`build-public-test.bat` → 提交 `public/*` → 推送 `test`（自动 `deploy-test`）
+2. 测试：`build-public-test.bat` → 提交 `public/*` → **本地 merge 到 `test`** → `git push origin test`（自动 `deploy-test`，见 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)）
 3. 正式：`build-public-prod.bat` → 提交 `public/*` → **MR 合并 `master`** → 流水线中手动 `deploy-prod`
 
 探活：`GET https://test-fskw.tbpf.com/ci-test`
@@ -128,7 +128,7 @@ python 业务表：`sync-api` 启动且 `DATABASE_RUN_MIGRATIONS=1` 时，若库
 | `test` | 推送后**自动**执行 | `deploy-test` → 测试栈 `/docker/feishu_keyword-test` |
 | `master` | **MR 合并进 master** 后产生流水线 | 在流水线中**手动**运行 `deploy-prod` → 正式栈 `/docker/feishu_keyword` |
 
-推荐发布流程：开发分支 → 合并/推 `test` → 验收测试环境 → `build-public-prod.bat` 并提交 `public/*` → MR 合并 `master` → 手动 `deploy-prod`。
+推荐发布流程：个人分支 → **本地 merge `test`** → push `test` → 验收测试环境 → `build-public-prod.bat` 并提交 `public/*` → GitLab **MR** 合并 `master` → 手动 `deploy-prod`。分支规范见 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)。
 
 - `deploy-prod` / `deploy-test` 均使用 `--profile admin --profile feishu --profile worker`，部署后校验 `feishu-web` → `sync-api:8765/api/v1/health`（避免 `/api/v1` 502）
 - 远端须有栈根 `.env.test`（测试）或 `.env.master`（正式）；CI 每次部署 **`cp -f` 覆盖 `.env`**
@@ -162,5 +162,5 @@ cd feishu && npm run dev:lan
 
 | 阶段 | 命令 |
 |------|------|
-| 测栈 | `.\build-public-test.bat` → `git push origin test`（自动 `deploy-test`） |
-| 正式 | `.\build-public-prod.bat` → 提交 `public/*` → MR 合并 `master` → 流水线手动 `deploy-prod` |
+| 测栈 | 本地 `git merge` 个人分支到 `test` → `.\build-public-test.bat` → `git push origin test`（自动 `deploy-test`，见 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)） |
+| 正式 | `.\build-public-prod.bat` → 提交 `public/*` → GitLab MR 合并 `master` → 流水线手动 `deploy-prod` |
