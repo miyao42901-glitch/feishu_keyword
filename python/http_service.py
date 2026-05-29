@@ -20,7 +20,6 @@ ensure_dotenv_loaded()
 from contextlib import asynccontextmanager  # noqa: E402
 
 from fastapi import FastAPI  # noqa: E402
-from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
 from config.settings import get_settings  # noqa: E402
 from http_api.v1.routes import register_v1_routes  # noqa: E402
@@ -50,6 +49,10 @@ async def _lifespan(app: FastAPI):
             from social_platform.database.db_migrate import apply_pending_migrations
 
             apply_pending_migrations(get_engine())
+        if s.async_dispatch_http_enabled or s.async_schedule_beat_enabled:
+            from social_platform.celery_broker import ensure_celery_startup_health
+
+            ensure_celery_startup_health(logger)
     from social_platform.services.async_dispatch_loop import start_async_dispatch_loop
 
     start_async_dispatch_loop()
@@ -57,14 +60,6 @@ async def _lifespan(app: FastAPI):
 
 
 app = FastAPI(title="social_http", version="1.0.0", lifespan=_lifespan)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origin_regex=r"https?://.*",
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 register_api_exception_handlers(app)
 register_v1_routes(app)
