@@ -118,6 +118,19 @@ bash scripts/init-feishu-keyword-db.sh
 
 **CI 流程**（Shell Runner）：`scripts/ci-build-frontend.sh` 编译 **admin + feishu** → `ci-pack-deploy.sh` 打 `deploy.pkg.tar.gz` → **scp** 到栈根 → `ci-deploy-remote.sh` 解压并 `docker compose up -d --build`。
 
+### Runner 与部署机的构建分工
+
+| 产物 | Shell Runner | 部署机（121.43.231.225） |
+|------|--------------|---------------------------|
+| `public/admin`、`public/feishu` | `npm ci` + Vite 构建（必须在 Runner 完成） | nginx 容器只挂载静态目录，**不**装 Node |
+| `server/` Python 后端 | 仅随 tar **打包源码** | `docker compose up --build` 内执行 [`server/Dockerfile`](../server/Dockerfile)（`pip install` + 启动 `uvicorn`/`celery`） |
+
+Python **不需要**在 Runner 上「编译」或 `pip install`；镜像构建由 CI 脚本 SSH 到部署机触发，仍属 CI 流程，**不是**人工登录服务器手敲命令。
+
+部署时 [`scripts/ci-deploy-remote.sh`](../scripts/ci-deploy-remote.sh) 会**保留远端** `.env.test` / `.env.master` 中的口令；若 `CELERY_BROKER_URL` 等键在远端为空，则从本次 CI 包内模板补全（仍空则回退 `REDIS_URL`），避免 `api` 因 Celery 未配置而启动失败。
+
+**域名与路径**：`API_PUBLIC_HOST`（如 `test-fskw.tbpf.com`）在 Traefik 上**只**转发 `/api/v1` 与 `/api/admin`，访问根路径 `/` 返回 404 属正常；探活用 `GET /api/v1/health`，不要用 API 域名的 `/` 判断服务是否存活。
+
 - `deploy-prod` / `deploy-test` 均使用 `--profile admin --profile feishu --profile worker`
 - 部署后校验：`feishu-web` 容器内访问 `http://api:8765/api/v1/health`
 - 远端须有栈根 `.env.test`（测试）或 `.env.master`（正式）；部署时 **`cp -f` 覆盖 `.env`**
@@ -127,7 +140,13 @@ bash scripts/init-feishu-keyword-db.sh
 ## 验收 curl
 
 ```bash
+# API（勿用 API 域名根路径 /，该域仅 /api/v1 与 /api/admin）
 curl -sS https://test-fskw.tbpf.com/api/v1/health
+curl -sS https://test-fskw.tbpf.com/api/admin/v1/health
+
+# 静态站点
+curl -sS -o /dev/null -w '%{http_code}\n' https://test-fskw-admin.tbpf.com/
+curl -sS -o /dev/null -w '%{http_code}\n' https://test-fskw-feishu.tbpf.com/
 ```
 
 ## 本地开发
