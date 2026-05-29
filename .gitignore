@@ -1,10 +1,25 @@
 # 本地残留目录（勿提交）
 /web/
 
+# public：admin / feishu 预编译产物（可提交；CI Runner 部署时会重新编译，非必须提交）
+/public/*
+!/public/admin/
+!/public/admin/**
+!/public/feishu/
+!/public/feishu/**
+# 若 public/feishu 内嵌 GitHub 发布用 .git，勿进主仓
+/public/feishu/.git/
 
+# Docker 本地数据卷
+/data/
+
+# 参考资料目录（仅本地查看，勿提交）
+/references/
 
 # Python（仅根路径 python/）
-__pycache__
+__pycache__/
+*.py[cod]
+*$py.class
 .idea/
 .vscode/
 python/.env
@@ -30,3 +45,20 @@ python/htmlcov/
 python/**/*.cover
 python/.hypothesis/
 
+# ------------------------------------------------------------------
+# 本地访问 / 私密配置（数据库连接、本机 API、个人 token 等，勿提交）
+# ------------------------------------------------------------------
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+# 仓根与任意子目录下的 .env（保留模板与 test/master 占位版）
+**/.env
+!.env.example
+!.env.test
+!.env.master
+!.env.local.example
+!**/.env.example
+!**/.env.sample
+scripts/reset-root.sql

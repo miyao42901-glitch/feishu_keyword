@@ -38,4 +38,4 @@ npm run build
 .\build-public-prod.bat    # MR 合并 master 前，再手动 deploy-prod
 ```
 
-也可在 `admin/` 内 `npm run build:public:test` / `build:public:prod`，产物同步到仓根 **`public/admin/`**（与 CI rsync 一致）。
+也可在 `admin/` 内 `npm run build:public:test` / `build:public:prod`，产物同步到仓根 **`public/admin/`**（与 CI 部署挂载目录一致）。

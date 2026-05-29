@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions
-rem 本地预编译 admin + feishu 到 public/（GitLab CI 仅 rsync，Runner 无需 Node）
+rem 本地预编译 admin + feishu 到 public/（可选；CI Runner 会自动 build:public:test）
 rem 测试环境一键构建；正式环境用 build-public-prod.bat
 
 set "ROOT=%~dp0"
@@ -25,5 +25,5 @@ call npm run build:public:test
 if errorlevel 1 popd & exit /b 1
 popd
 
-echo [OK] 已写入 public\admin 与 public\feishu，请 git add/commit 后 git push origin test（自动 deploy-test）
+echo [OK] 已写入 public\admin 与 public\feishu（本地预检；推 test 后由 CI Runner 编译部署）
 exit /b 0
