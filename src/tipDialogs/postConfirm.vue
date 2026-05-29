@@ -26,7 +26,7 @@
   <template #footer>
     <span class="dialog-footer">
       <el-button @click="dialogVisible = false">{{ '关闭' }}</el-button>
-      <el-button @click="handleJump" class="jump-btn" v-if="1 || props.resultTableId">{{ '查看结果' }}</el-button>
+      <el-button @click="handleJump" class="jump-btn" v-if="props.resultTableId">{{ '查看结果' }}</el-button>
     </span>
   </template>
   </el-dialog>

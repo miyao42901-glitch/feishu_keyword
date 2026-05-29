@@ -14,6 +14,7 @@
     ElTabPane,
   } from 'element-plus';
   import pluginAPI from '@/utils/request'
+  import { dyPlatformConfig } from '@/configs/platformConfigs'
   import { writeToTable, updateTable, getFirstRecordByField} from '@/utils/tableHelper'
   import TableSelect from '@/components/TableSelect.vue'
   import { Plus, ArrowDown, CircleClose, Remove, CirclePlus, QuestionFilled } from '@element-plus/icons-vue'
@@ -54,6 +55,17 @@
     },
     emits: ['update:isLocked'],
     setup(props, { emit }) {
+      const dyConfig = dyPlatformConfig(() => '')
+
+      function parseAccountInput(inputValue) {
+        const trimmed = String(inputValue).trim()
+        if (!trimmed) return null
+        const secUid = dyConfig.extractSecUid(trimmed)
+        if (dyConfig.isValidSecUid(secUid)) {
+          return { sec_user_id: secUid }
+        }
+        return { share_text: trimmed }
+      }
 
       function userFields() {
         return {
@@ -109,10 +121,10 @@
       const collectionTypeOptions = ref({'blogger': 1, 'post': 1})
       const ranges = ref({
         '当天': {value: 1 , type: 'date'},
-        '3天内': {value: 3 , type: 'date'},
-        '7天内': {value: 7 , type: 'date'},
-        '15天内': {value: 15 , type: 'date'},
-        '30天内': {value: 30 , type: 'date'},
+        '3天': {value: 3 , type: 'date'},
+        '7天': {value: 7 , type: 'date'},
+        '15天': {value: 15 , type: 'date'},
+        '30天': {value: 30 , type: 'date'},
         '1页': {value: 1 , type: 'page'},
         '2页': {value: 2 , type: 'page'},
         '5页': {value: 5 , type: 'page'},
@@ -571,22 +583,24 @@
             }
             for (const user_recordId of item.data.recordIdList){
               const userRecord = await tmpTable.getRecordById(user_recordId);
-              const sec_user_id = userRecord.fields[fieldMap[tmpUserFields.sec_uid.label]?.id]?.[0].text || ''
-              if (sec_user_id){
+              const rawValue = userRecord.fields[fieldMap[tmpUserFields.sec_uid.label]?.id]?.[0].text || ''
+              const accountParams = parseAccountInput(rawValue)
+              if (accountParams){
                 post_data_list.push({
                   itemType: item.dataType,
                   tableId: item.data.tableId,
                   recordId: user_recordId,
-                  sec_user_id: sec_user_id,
+                  ...accountParams,
                 })
               }
             }
           }
           else if (item.dataType === 'input'){
-            if (item.data.inputValue){
+            const accountParams = parseAccountInput(item.data.inputValue)
+            if (accountParams){
               post_data_list.push({
                 itemType: item.dataType,
-                share_text: item.data.inputValue,
+                ...accountParams,
               })
             }
           }
@@ -664,6 +678,11 @@
         emit('update:isLocked', true);
         try{
           [props.formData.message, props.formData.messageType] = await collect()
+          if (props.formData.messageType === 'success') {
+            props.formData.resultTableId = paneData.value.selectedTableId || null
+          } else {
+            props.formData.resultTableId = null
+          }
         } catch (error) {
           console.error('操作失败:', error);
           props.formData.message = '操作失败:'+ (error.message || '未知错误');
@@ -708,17 +727,17 @@
         </div>
       </div>
 
-      <!-- 2. 采集范围 -->
+      <!-- 2. 作品数据范围 -->
       <div class="section-block" v-if="paneData.collectionType === 'post'">
-        <div class="section-title">采集范围</div>
-        <el-select v-model="paneData.searchRange" :placeholder="'请选择数据范围'">
+        <div class="field-label">作品数据范围</div>
+        <el-select v-model="paneData.searchRange" class="custom-select" :placeholder="'请选择数据范围'">
           <el-option v-for="item in Object.keys(ranges)" :key="item" :label="item" :value="item" />
         </el-select>
       </div>
 
       <!-- 3. 采集到表格 -->
       <div class="section-block">
-        <div class="section-title">采集到表格</div>
+        <div class="field-label">采集到表格</div>
         <TableSelect v-model="paneData.selectedTableId" placeholder="默认新建表格" />
       </div>
     </div>
@@ -740,25 +759,24 @@
           <!-- 带下拉箭头的输入框 -->
           <generalSelect
             v-model="searchValues[key]"
-            placeholder="请输入主页链接，或从已有表中选择博主"
+            placeholder="输入账号主页链接，或选择已有表格"
           />
           <!-- 始终显示添加按钮（第一行），其他行显示删除按钮 -->
-          <el-icon 
+          <span
             v-if="key === Object.keys(searchValues)[0]"
-            style="cursor: pointer;" 
-            size="20"
+            class="account-add-btn"
             @click="addSearchRow"
           >
-            <CirclePlus />
-          </el-icon>
-          <el-icon 
+            <el-icon size="16"><CirclePlus /></el-icon>
+          </span>
+          <span
             v-else
-            style="cursor: pointer; color: #ff4d4f;" 
-            size="20"
+            class="account-add-btn"
+            style="color: #ff4d4f; border-color: #ffccc7;"
             @click="removeSearchRow(key)"
           >
-            <Remove />
-          </el-icon>
+            <el-icon size="16"><Remove /></el-icon>
+          </span>
         </div>
       </div>
     </div>
@@ -767,7 +785,8 @@
     <div class="collect-btn-container">
       <div class="collect-btn-item">
         <el-button
-          class="collect-btn" 
+          class="collect-btn"
+          :disabled="isLocked"
           @click="executeCollect(collectData)"
         >
           采集数据
@@ -777,6 +796,7 @@
         <el-button
           class="update-btn"
           v-if="paneData.collectionType === 'post' && paneData.selectedTableId"
+          :disabled="isLocked"
           @click="executeCollect(updateWorks)" 
         >
           批量更新作品数据

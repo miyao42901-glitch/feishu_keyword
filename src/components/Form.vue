@@ -37,6 +37,7 @@
   import RechargeDialog from './RechargeDialog.vue'
   import WechatLoginDialog from './WechatLoginDialog.vue'
   import PostConfirm from '@/tipDialogs/postConfirm.vue'
+  import { formatFormMessage } from '@/utils/errorMessage'
   import axios from 'axios'
   import { RefreshRight, Switch } from '@element-plus/icons-vue'
   import '@/assets/form-styles.css'
@@ -94,6 +95,7 @@
         key: null,
         message: null,
         messageType: 'success',
+        resultTableId: null,
         remainMoney: null,
       });
 
@@ -120,13 +122,24 @@
           }
           isShow.value = false;
           if (formData.value.message) {
-            await ElMessageBox.confirm(formData.value.message, '提示',{type: formData.value.messageType})
-            postConfirmProps.value.displayInfo = formData.value.message;
-            postConfirmProps.value.resultType = formData.value.messageType;
-            postConfirmVisible.value = true;
-            // 清空提示信息
+            const displayMessage = formatFormMessage(formData.value.message)
+            const messageType = formData.value.messageType
+
+            if (messageType === 'success') {
+              postConfirmProps.value.displayInfo = displayMessage;
+              postConfirmProps.value.resultType = messageType;
+              postConfirmProps.value.resultTableId = formData.value.resultTableId || '';
+              postConfirmVisible.value = true;
+            } else {
+              await ElMessageBox.alert(displayMessage, '提示', {
+                type: messageType,
+                confirmButtonText: '确定',
+              })
+            }
+
             formData.value.message = null;
             formData.value.messageType = 'success';
+            formData.value.resultTableId = null;
           }
         }
         else if (newVal === true) {
@@ -322,7 +335,7 @@
             <div class="header-actions">
                 <a class="action-btn" href="https://lcnnrhjmwxym.feishu.cn/wiki/OruzwbB6nigLMek8zxFcbKwmnXg" target="_blank" style="text-decoration: none;">使用指南</a>
                 <span style="color: #d1d5db; font-size: 12px;">|</span>
-                <a class="action-btn" href="https://lcnnrhjmwxym.feishu.cn/wiki/OruzwbB6nigLMek8zxFcbKwmnXg" target="_blank" style="text-decoration: none;">加入交流群</a>
+                <a class="action-btn" href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=193k33c1-7a43-4709-9bd2-9ac32184dd65" target="_blank" style="text-decoration: none;">加入交流群</a>
             </div>
         </div>
 
@@ -359,7 +372,7 @@
           <PDyFormNew :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
         </el-tab-pane> -->
         <el-tab-pane :label="t('form.tabs.douyin')">
-          <PDyForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
+          <PDyFormNew :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />
         </el-tab-pane>
         <el-tab-pane :label="'小红书'">
           <PXhsForm :form-data="formData" :is-locked="isLocked" @update:is-locked="isLocked = $event" />

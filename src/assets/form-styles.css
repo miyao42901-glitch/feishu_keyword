@@ -12,28 +12,40 @@
 .collect-panel {
     background-color: #ffffff;
     border-radius: 8px;
-    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
     height: 100%;
     display: flex;
     flex-direction: column;
+    padding: 4px 0;
 }
 
 .collect-sub-panel {
-    background-color: #eeeeee;
-    padding: 20px 20px 0px 20px;
-    margin-bottom: 20px;
+    background-color: #f5f6f7;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
 }
 
 .section-block {
-    padding-bottom: 20px;
+    padding-bottom: 16px;
+}
+
+.section-block:last-child {
+    padding-bottom: 0;
 }
 
 .section-title {
     font-weight: 600;
+    font-size: 14px;
     color: #303133;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     display: flex;
     align-items: center;
+}
+
+.field-label {
+    font-size: 13px;
+    color: #606266;
+    margin-bottom: 6px;
 }
 
 .section-title .icon-hint {
@@ -44,23 +56,27 @@
 
 /* 采集内容切换按钮样式 */
 .toggle-wrapper {
-    border-radius: 4px;
-    display: flex;
-    gap: 4px;
-    width: fit-content;
+    background-color: #ffffff;
+    border-radius: 6px;
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
 }
 
 .toggle-btn {
-    background-color: #ffffff !important;
+    background-color: transparent !important;
+    border: none !important;
     padding: 6px 16px;
-    border-radius: 2px;
+    border-radius: 4px;
     cursor: pointer;
     color: #606266 !important;
-    transition: all 0.3s;
+    font-size: 13px;
+    transition: all 0.2s;
+    margin: 0 !important;
 }
 
 .toggle-btn.active {
-    background-color: #162042 !important; /* 截图中的深蓝色 */
+    background-color: #021446 !important;
     color: #ffffff !important;
 }
 
@@ -69,6 +85,11 @@
 }
 
 /* 输入框/下拉框区域样式微调 */
+.collect-sub-panel .el-input__wrapper,
+.collect-sub-panel .el-select__wrapper {
+    background-color: #ffffff;
+}
+
 .custom-select .el-input__wrapper {
     border-radius: 4px;
 }
@@ -81,7 +102,27 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 15px;
+    margin-bottom: 12px;
+}
+
+.account-add-btn {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #ffffff;
+    border: 1px solid #dcdfe6;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #606266;
+    transition: all 0.2s;
+}
+
+.account-add-btn:hover {
+    border-color: #162042;
+    color: #162042;
 }
 
 .account-input-group:last-child {
@@ -137,9 +178,17 @@
     width: 100%;
 }
 
-.collect-btn:hover {
-    background-color: #aabbcc !important; /* 截图中的深蓝色 */
+.collect-btn:hover:not(.is-disabled) {
+    background-color: #aabbcc !important;
     color: #444444 !important;
+}
+
+.collect-btn.is-disabled,
+.collect-btn.is-disabled:hover {
+    background-color: #8089a2 !important;
+    border-color: #8089a2 !important;
+    color: #ffffff !important;
+    cursor: not-allowed;
 }
 
 .update-btn {
