@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "output": "dist",
   "scripts": {
     "dev": "vite",
     "dev:prod": "vite",
@@ -16,6 +17,8 @@
     "build:github": "npm run build:github:test",
     "build:github:test": "npm run build && node ./scripts/prepare-github-release.mjs",
     "build:github:prod": "npm run build && node ./scripts/prepare-github-release.mjs",
+    "push:plugin-static": "node ./scripts/push-github-main.mjs",
+    "release:plugin-static:prod": "npm run build:github:prod && npm run push:plugin-static",
     "preview": "vite preview"
   },
   "dependencies": {
