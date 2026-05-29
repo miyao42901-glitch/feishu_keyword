@@ -130,7 +130,16 @@ def respond_err(
     text = (msg if msg is not None else get_message(code)).strip() or get_message(
         CODE_FAILED
     )
-    return respond(err(code, text, data=data), http_status=http_status, headers=headers)
+    from social_platform.debug_errors import enrich_error_payload, expose_debug_details
+
+    payload_data = data
+    if expose_debug_details():
+        payload_data = enrich_error_payload(
+            data,
+            api_code=code,
+            http_status=http_status,
+        )
+    return respond(err(code, text, data=payload_data), http_status=http_status, headers=headers)
 
 
 def respond_yddm_error(
@@ -269,23 +278,59 @@ def register_api_exception_handlers(app: Any) -> None:
     """在 FastAPI 应用上注册统一异常响应（``http_service`` 启动时调用）。"""
     from fastapi.exceptions import RequestValidationError
 
+    from social_platform.debug_errors import (
+        enrich_error_payload,
+        expose_debug_details,
+        public_error_message,
+    )
+
     @app.exception_handler(ApiHttpError)
     async def _api_http_error_handler(_request: Any, exc: ApiHttpError) -> JSONResponse:
+        data = enrich_error_payload(
+            exc.data,
+            exc=exc,
+            api_code=exc.code,
+            http_status=exc.http_status,
+        )
         return respond_err(
             exc.code,
             exc.msg,
-            exc.data,
+            data,
             http_status=exc.http_status,
             headers=exc.headers,
         )
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error_handler(
-        _request: Any, exc: RequestValidationError
+        request: Any, exc: RequestValidationError
     ) -> JSONResponse:
+        data = enrich_error_payload(
+            {"errors": _json_safe_value(exc.errors())},
+            exc=exc,
+            path=str(getattr(request, "url", "")),
+        )
         return respond_err(
             CODE_BAD_REQUEST,
             get_message(CODE_BAD_REQUEST),
-            data={"errors": _json_safe_value(exc.errors())},
+            data=data,
             http_status=400,
         )
+
+    @app.exception_handler(Exception)
+    async def _unhandled_exception_handler(
+        request: Any, exc: Exception
+    ) -> JSONResponse:
+        if isinstance(exc, ApiHttpError):
+            raise exc
+        from admin.exceptions import AdminHttpError
+
+        if isinstance(exc, AdminHttpError):
+            raise exc
+        generic = get_message(CODE_FAILED)
+        msg = public_error_message(exc, generic=generic)
+        path = str(getattr(request, "url", ""))
+        namespace = "admin" if "/api/admin" in path else "api"
+        data = enrich_error_payload(None, exc=exc, path=path, namespace=namespace)
+        if expose_debug_details():
+            return respond_err(CODE_FAILED, msg, data=data, http_status=500)
+        return respond_err(CODE_FAILED, generic, http_status=500)

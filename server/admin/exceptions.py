@@ -24,9 +24,17 @@ class AdminHttpError(Exception):
 
 
 def register_admin_exception_handlers(app: FastAPI) -> None:
+    from social_platform.debug_errors import enrich_error_payload
+
     @app.exception_handler(AdminHttpError)
     async def _admin_http_error(_request: Request, exc: AdminHttpError) -> JSONResponse:
+        data = enrich_error_payload(
+            exc.data,
+            exc=exc,
+            api_code=exc.code,
+            namespace="admin",
+        )
         return JSONResponse(
             status_code=exc.http_status,
-            content={"code": exc.code, "msg": exc.msg, "data": exc.data},
+            content={"code": exc.code, "msg": exc.msg, "data": data},
         )

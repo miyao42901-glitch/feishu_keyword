@@ -121,6 +121,11 @@ class Settings(BaseSettings):
         default=True, validation_alias="ASYNC_SEARCH_GUARDS_ASYNC_ONLY"
     )
 
+    environment: str = Field(default="", validation_alias="ENVIRONMENT")
+
+    def is_test_environment(self) -> bool:
+        return self.environment.strip().lower() == "test"
+
     def resolved_celery_broker(self) -> str:
         from social_platform.celery_broker import require_redis_celery_url
 

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import text
 
 from config.settings import get_settings
+from social_platform.debug_errors import expose_debug_details
 from social_platform.redis_client import ping_redis, redis_configured
 
 _SERVER_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -39,11 +39,15 @@ def check_mysql_status() -> dict[str, Any]:
             conn.execute(text("SELECT 1"))
         return {"status": "ok", "configured": True}
     except Exception as exc:
-        return {
+        err_limit = 2000 if expose_debug_details() else 200
+        out: dict[str, Any] = {
             "status": "error",
             "configured": True,
-            "error": str(exc)[:200],
+            "error": str(exc)[:err_limit],
         }
+        if expose_debug_details():
+            out["error_type"] = type(exc).__name__
+        return out
 
 
 def check_redis_status() -> dict[str, Any]:
@@ -51,7 +55,11 @@ def check_redis_status() -> dict[str, Any]:
         return {"status": "unconfigured", "configured": False}
     if ping_redis():
         return {"status": "ok", "configured": True}
-    return {"status": "error", "configured": True}
+    out: dict[str, Any] = {"status": "error", "configured": True}
+    if expose_debug_details():
+        out["error"] = "redis ping failed"
+        out["redis_url"] = get_settings().redis_url.split("@")[-1]
+    return out
 
 
 def build_version_payload() -> dict[str, Any]:
@@ -69,13 +77,22 @@ def build_version_payload() -> dict[str, Any]:
         "branch": build_info.get("branch", ""),
         "deployed_at": build_info.get("deployed_at", ""),
         "environment": build_info.get("environment")
-        or os.getenv("ENVIRONMENT", ""),
+        or get_settings().environment
+        or "",
         "pipeline": build_info.get("pipeline", ""),
     }
 
-    return {
+    payload: dict[str, Any] = {
         "service": {"status": service_status},
         "mysql": mysql,
         "redis": redis_st,
         "deploy": deploy,
     }
+    if expose_debug_details():
+        s = get_settings()
+        payload["debug"] = {
+            "database_configured": bool(s.database_url.strip()),
+            "celery_broker_configured": bool(s.celery_broker_url.strip()),
+            "celery_backend_configured": bool(s.celery_result_backend.strip()),
+        }
+    return payload
