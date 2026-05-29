@@ -21,8 +21,8 @@ else
   ENV_TEMPLATE=".env.master"
 fi
 
-for path in docker-compose.yml server public/feishu \
-  deploy/feishu-static deploy/BUILD_INFO "$ENV_TEMPLATE"; do
+for path in docker-compose.yml server public/admin public/feishu \
+  deploy/admin-static deploy/feishu-static deploy/BUILD_INFO "$ENV_TEMPLATE"; do
   if [[ ! -e "$path" ]]; then
     echo "ERROR: 打包缺少 $path"
     exit 1
@@ -38,7 +38,9 @@ tar czf "$PKG_NAME" \
   --exclude='server/.env' \
   docker-compose.yml \
   server \
+  public/admin \
   public/feishu \
+  deploy/admin-static \
   deploy/feishu-static \
   deploy/BUILD_INFO \
   "$ENV_TEMPLATE"

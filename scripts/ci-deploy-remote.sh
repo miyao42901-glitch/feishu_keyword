@@ -5,7 +5,7 @@ set -euo pipefail
 
 DEPLOY_ROOT="${DEPLOY_ROOT:?DEPLOY_ROOT required}"
 ENV_FILE="${ENV_FILE:?ENV_FILE required}"
-COMPOSE_PROFILES="${COMPOSE_PROFILES:---profile feishu --profile worker}"
+COMPOSE_PROFILES="${COMPOSE_PROFILES:---profile admin --profile feishu --profile worker}"
 PKG_NAME="${PKG_NAME:-deploy.pkg.tar.gz}"
 
 mkdir -p "$DEPLOY_ROOT"

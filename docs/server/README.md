@@ -5,7 +5,7 @@
 | 项 | 说明 |
 |----|------|
 | **对应代码目录** | 仓库根目录下的 **`server/`** |
-| **职责** | FastAPI `/api/v1`、MySQL 任务与结果、Celery 异步采集、各平台 Worker |
+| **职责** | FastAPI `/api/v1`（飞书/采集）、`/api/admin/v1`（管理台）、MySQL 任务与结果、Celery 异步采集、各平台 Worker |
 
 ---
 
@@ -30,6 +30,7 @@
 | 文档 | 说明 |
 |------|------|
 | [HTTP_API.md](./HTTP_API.md) | `/api/v1` 路径、鉴权 Header、同步/异步任务、限流 |
+| [../admin/README.md](../../admin/README.md) | 管理台前端；后端 API 前缀 **`/api/admin/v1`**（`server/admin/`） |
 | [DATABASE.md](../DATABASE.md) | 库名、五张业务表、`DATABASE_URL` |
 | [DEVELOPMENT.md](../DEVELOPMENT.md) | 分层目录、Git 与注释 |
 | [DEPLOY.md](../DEPLOY.md) | Docker `api` / `celery-worker`、CI 与健康检查 |
@@ -43,6 +44,7 @@ server/
 ├── run.py                 # 本地开发启动（HTTP + 可选调度）
 ├── http_service.py        # FastAPI 应用入口（Docker CMD）
 ├── http_api/v1/           # /api/v1 路由（sync、async、health）
+├── admin/                 # /api/admin/v1 管理台（login、RBAC、后续业务）
 ├── social_platform/       # 业务：models、services、tasks、database
 ├── workers/               # douyin / xhs / wxvideo / mp 采集
 ├── config/                # 配置读取
@@ -69,6 +71,7 @@ celery -A social_platform.tasks.celery_app:celery_app worker -l info -P gevent -
 
 - OpenAPI：`http://127.0.0.1:8765/docs`
 - 健康检查：`GET http://127.0.0.1:8765/api/v1/health`
+- 管理端：`GET http://127.0.0.1:8765/api/admin/v1/health`；登录 `POST /api/admin/v1/system/login`（开发账号 `admin` / `Admin123a`，需 RBAC 迁移）
 
 `DATABASE_RUN_MIGRATIONS=1` 时，启动会自动执行 `schema.sql`（新库）与 `db_migrate.py` 补丁。
 
@@ -78,7 +81,7 @@ celery -A social_platform.tasks.celery_app:celery_app worker -l info -P gevent -
 
 与 `docker-compose.yml` 中 **`api`**、**`celery-worker`** 服务共用同一镜像（`server/Dockerfile`）：
 
-- `api`：暴露 8765，Traefik 将公网 `API_PUBLIC_HOST` 的 `/api/v1` 转发到此服务
+- `api`：暴露 8765，Traefik 将公网 `API_PUBLIC_HOST` 的 `/api/v1` 与 `/api/admin` 转发到此服务
 - `celery-worker`：执行异步采集；须与 `api` 同栈、同 `.env` 中的 `DATABASE_URL` 与 Redis
 
 `feishu-web` 容器内 nginx 将浏览器请求的 `/api/v1/` 反代到 `http://api:8765`（见 `deploy/feishu-static/default.conf`）。

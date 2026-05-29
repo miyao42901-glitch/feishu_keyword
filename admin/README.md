@@ -1,20 +1,23 @@
 # 飞书关键词监控管理后台 (`admin/`)
 
-独立 **Vite + Vue 3 + TypeScript + Element Plus**。生产部署在站点路径 **`/admin`**（Traefik `StripPrefix` 后由 nginx 提供静态资源）；API 前缀为 **`/api`**。
+独立 **Vite + Vue 3 + TypeScript + Element Plus**。生产静态部署在独立域名（如 `test-fskw-admin.tbpf.com`）；API 前缀为 **`/api/admin/v1`**，由同一 `server` 进程（`:8765`）提供。
 
 - API 基址由仓根 `.env` 的 `VITE_ADMIN_API_ORIGIN` 注入（`vite.config.ts` 的 `envDir` 指向仓库根）；测试/正式见 `.env.test` / `.env.master`。
-- 开发时 Vite 将 `/api` 代理到本机 `http://127.0.0.1:8000`，避免浏览器跨域。
+- 开发时 Vite 将 `/api` 代理到本机 `http://127.0.0.1:8765`（与 `server/run.py` 一致）。
 
 ## 本地运行
 
 ```bash
+cp .env.test .env
+cd server && python run.py   # 另开终端
 cd admin
 npm ci
-npm run dev:local    # 本机 127.0.0.1:8000
-npm run dev:lan      # 局域网：仓根 cp .env.test .env 与 cp .env.local.example .env.local
+npm run dev:local
 ```
 
-浏览器打开 `http://localhost:5101/admin/`（注意末尾斜杠与 `base: '/admin/'` 一致）。
+浏览器打开 `http://localhost:5101/`（`base: '/'`）。
+
+默认开发账号（首次启动且 RBAC 迁移已执行）：`admin` / `Admin123a`。
 
 若需指向线上 API 调试（不经本地代理），可用：
 

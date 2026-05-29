@@ -9,7 +9,7 @@
 
 推荐流程：个人分支 → **本地 merge 到 `test`** → `git push origin test` → 验收 → GitLab **MR** `test`→`master` → 手动 `deploy-prod`。详见 **[GIT_WORKFLOW.md](./GIT_WORKFLOW.md)**。
 
-Runner 在流水线内编译 `public/feishu` 后 **tar+scp** 部署。详见 **[DEPLOY.md](./DEPLOY.md)**、**[GIT_WORKFLOW.md](./GIT_WORKFLOW.md)**。
+Runner 在流水线内编译 `public/admin` 与 `public/feishu` 后 **tar+scp** 部署。详见 **[DEPLOY.md](./DEPLOY.md)**、**[GIT_WORKFLOW.md](./GIT_WORKFLOW.md)**。
 
 **编排真源**：仓库根 [`docker-compose.yml`](../docker-compose.yml)、[`.gitlab-ci.yml`](../.gitlab-ci.yml)（仅此一份 compose，测试/正式靠主机目录与栈根 `.env` 区分）。
 
@@ -24,7 +24,7 @@ Runner 在流水线内编译 `public/feishu` 后 **tar+scp** 部署。详见 **[
 | `.env` | 生效文件（gitignore）；部署时 `cp -f .env.test` 或 `.env.master` 覆盖 |
 | `.env.local.example` → `.env.local` | 本机 / 局域网联调覆盖（gitignore） |
 
-`server/`、`feishu/` 的 Vite **均从仓根**加载 `.env` → `.env.local`。勿再维护子目录 env 模板。
+`server/`、`admin/`、`feishu/` 的 Vite **均从仓根**加载 `.env` → `.env.local`。勿再维护子目录 env 模板。
 
 ---
 

@@ -20,7 +20,10 @@ ensure_dotenv_loaded()
 from contextlib import asynccontextmanager  # noqa: E402
 
 from fastapi import FastAPI  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
+from admin.exceptions import register_admin_exception_handlers  # noqa: E402
+from admin.router import register_admin_routes  # noqa: E402
 from config.settings import get_settings  # noqa: E402
 from http_api.v1.routes import register_v1_routes  # noqa: E402
 from social_platform.api_response import register_api_exception_handlers  # noqa: E402
@@ -61,5 +64,16 @@ async def _lifespan(app: FastAPI):
 
 app = FastAPI(title="social_http", version="1.0.0", lifespan=_lifespan)
 
+# 管理台静态域与 API 域分离时需 CORS（如 test-fskw-admin → test-fskw）
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"https?://[^\s]+",
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 register_api_exception_handlers(app)
+register_admin_exception_handlers(app)
 register_v1_routes(app)
+register_admin_routes(app)

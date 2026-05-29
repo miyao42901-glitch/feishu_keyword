@@ -11,27 +11,28 @@
 
 命名约定：**测试环境**使用 `test-` 前缀（如 `test-fskw.tbpf.com`）；**正式**为 `fskw*.tbpf.com`。
 
-| 环境 | API（Traefik → `api:8765`，路径 `/api/v1`） | Feishu 静态 |
-|------|---------------------------------------------|-------------|
-| 测试 | https://test-fskw.tbpf.com | https://test-fskw-feishu.tbpf.com |
-| 正式 | https://fskw.tbpf.com | https://fskw-feishu.tbpf.com |
+| 环境 | API（Traefik → `api:8765`，路径 `/api/v1`） | Admin 静态 | Feishu 静态 |
+|------|---------------------------------------------|------------|-------------|
+| 测试 | https://test-fskw.tbpf.com | https://test-fskw-admin.tbpf.com | https://test-fskw-feishu.tbpf.com |
+| 正式 | https://fskw.tbpf.com | https://fskw-admin.tbpf.com | https://fskw-feishu.tbpf.com |
 
-对应仓根 [`.env.test`](../.env.test) / [`.env.master`](../.env.master) 中 `API_PUBLIC_HOST`、`FEISHU_PUBLIC_HOST` 及 `TRAEFIK_*_ROUTER_NAME`。
+对应仓根 [`.env.test`](../.env.test) / [`.env.master`](../.env.master) 中 `API_PUBLIC_HOST`、`ADMIN_PUBLIC_HOST`、`FEISHU_PUBLIC_HOST` 及 `TRAEFIK_*_ROUTER_NAME`。
 
 **DNS**：改域名后须：
 
 1. 在栈根维护 `.env.test` 或 `.env.master`（含真实口令）；**每次部署**执行 `cp -f .env.test .env`（正式用 `.env.master`）。勿长期手改 `.env`，它会被覆盖。
-2. 测试：本地 merge 到 `test` → `git push origin test`（CI 在 Runner 编译 `public/feishu` 并 tar+scp 部署）
+2. 测试：本地 merge 到 `test` → `git push origin test`（CI 在 Runner 编译 `public/admin` 与 `public/feishu` 并 tar+scp 部署）
 3. 正式：GitLab **MR** 合并 `master` → 流水线中手动 `deploy-prod`（CI 使用 `.env.master` 编译正式静态）
 
-探活：`GET https://test-fskw.tbpf.com/api/v1/health`
+探活：`GET https://test-fskw.tbpf.com/api/v1/health`；管理端：`GET https://test-fskw.tbpf.com/api/admin/v1/health`
 
 ## Docker 服务
 
 | 服务 | profile | 说明 |
 |------|---------|------|
-| `api` | `worker` | `server/` 镜像，FastAPI **:8765**，对外 `/api/v1/*`（Traefik） |
+| `api` | `worker` | `server/` 镜像，FastAPI **:8765**，对外 `/api/v1/*` 与 `/api/admin/v1/*`（Traefik） |
 | `celery-worker` | `worker` | 同一镜像，执行异步采集任务 |
+| `admin-web` | `admin` | nginx 静态 `public/admin`，Traefik 域名 `ADMIN_PUBLIC_HOST` |
 | `feishu-web` | `feishu` | nginx 静态 `public/feishu`，同源反代 `/api/v1/` → `api:8765` |
 
 **仓库仅一份** [`docker-compose.yml`](../docker-compose.yml)；测试/正式靠主机目录与 **栈根 `.env`** 区分（`cp -f .env.test .env` 或 `cp -f .env.master .env`）。
@@ -42,12 +43,12 @@ MySQL/Redis 由 **traefik 栈**（`/docker/traefik`）提供：`tbpf-mysql`、`t
 # 测试
 cd /docker/feishu_keyword-test
 cp -f .env.test .env && chmod 600 .env
-docker compose --profile feishu --profile worker up -d --build
+docker compose --profile admin --profile feishu --profile worker up -d --build
 
 # 正式
 cd /docker/feishu_keyword
 cp -f .env.master .env && chmod 600 .env
-docker compose --profile feishu --profile worker up -d --build
+docker compose --profile admin --profile feishu --profile worker up -d --build
 ```
 
 ## 环境变量
@@ -65,7 +66,7 @@ cp -f .env.test .env && chmod 600 .env
 cp -f .env.master .env && chmod 600 .env
 ```
 
-Compose 插值与 `api` / `celery-worker` **均只读栈根 `./.env`**。本地预检：先 `cp .env.test|.env.master .env`，再在 `feishu/` 内 `npm run build:public:test|prod`。
+Compose 插值与 `api` / `celery-worker` **均只读栈根 `./.env`**。本地预检：先 `cp .env.test|.env.master .env`，再在 `admin/`、`feishu/` 内 `npm run build:public:test|prod`（admin 构建依赖 `VITE_ADMIN_API_ORIGIN`）。
 
 **真实口令**写在服务器栈根 `.env`（与 `/docker/traefik/.env` 中 `MYSQL_ROOT_PASSWORD` 一致），勿提交 Git。
 
@@ -115,9 +116,9 @@ bash scripts/init-feishu-keyword-db.sh
 
 推荐发布流程：个人分支 → **本地 merge `test`** → push `test` → 验收测试环境 → GitLab **MR** 合并 `master` → 手动 `deploy-prod`。分支规范见 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)。
 
-**CI 流程**（Shell Runner）：`scripts/ci-build-frontend.sh` 编译 **feishu** → `ci-pack-deploy.sh` 打 `deploy.pkg.tar.gz` → **scp** 到栈根 → `ci-deploy-remote.sh` 解压并 `docker compose up -d --build`。
+**CI 流程**（Shell Runner）：`scripts/ci-build-frontend.sh` 编译 **admin + feishu** → `ci-pack-deploy.sh` 打 `deploy.pkg.tar.gz` → **scp** 到栈根 → `ci-deploy-remote.sh` 解压并 `docker compose up -d --build`。
 
-- `deploy-prod` / `deploy-test` 均使用 `--profile feishu --profile worker`
+- `deploy-prod` / `deploy-test` 均使用 `--profile admin --profile feishu --profile worker`
 - 部署后校验：`feishu-web` 容器内访问 `http://api:8765/api/v1/health`
 - 远端须有栈根 `.env.test`（测试）或 `.env.master`（正式）；部署时 **`cp -f` 覆盖 `.env`**
 - 部署前会检查 `tbpf-mysql` 是否运行；未运行则 WARN

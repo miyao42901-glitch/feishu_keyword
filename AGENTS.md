@@ -9,8 +9,8 @@
 
 ## 项目入口
 
-- 后端：`server/` → 技术栈与索引见 **`docs/server/README.md`**，HTTP 入口 `http_service:app`，API 前缀 **`/api/v1`**，本地 `python run.py`（:8765）。
-- 前端：`feishu/` → 技术栈与索引见 **`docs/feishu/README.md`**。
+- 后端：`server/` → 技术栈与索引见 **`docs/server/README.md`**，HTTP 入口 `http_service:app`，对外 **`/api/v1`**（飞书/采集）与 **`/api/admin/v1`**（管理台），本地 `python run.py`（:8765）。
+- 前端：`feishu/` → 技术栈与索引见 **`docs/feishu/README.md`**；管理后台 `admin/` → 见 **`admin/README.md`**。
 
 ## 密钥
 
@@ -19,4 +19,4 @@
 ## 部署（摘要）
 
 - 个人分支开发 → **本地 merge 到 `test`** → `git push origin test` → 自动部署测试栈；**GitLab MR 合并 `master`** → 流水线手动 **`deploy-prod`**。
-- 静态资源由 GitLab CI Runner 在 `feishu/` 内编译；本地预检见 [DEVELOPMENT.md](./DEVELOPMENT.md)。详见 **`docs/GIT_WORKFLOW.md`**、**`docs/DEPLOY.md`**。
+- 静态资源由 GitLab CI Runner 在 `admin/`、`feishu/` 内编译；本地预检见 [DEVELOPMENT.md](./DEVELOPMENT.md)。详见 **`docs/GIT_WORKFLOW.md`**、**`docs/DEPLOY.md`**。

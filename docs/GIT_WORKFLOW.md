@@ -77,7 +77,7 @@ git pull origin test
 git merge hxp
 # 若有冲突：改文件 → git add . → git commit（完成 merge commit）
 
-# 3) 推送 test，触发 CI（Runner 编译 feishu + tar+scp + deploy-test）
+# 3) 推送 test，触发 CI（Runner 编译 admin + feishu + tar+scp + deploy-test）
 git push origin test
 
 # 5) 回到个人分支，与 test 保持一致

@@ -1,8 +1,9 @@
-"""启动时应用轻量 SQL 迁移（feishu_async_tasks 列对齐）。"""
+"""启动时应用轻量 SQL 迁移（feishu_async_tasks 列对齐、管理端 RBAC）。"""
 
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 
 from sqlalchemy import text
@@ -10,7 +11,7 @@ from sqlalchemy.engine import Engine
 
 logger = logging.getLogger(__name__)
 
-_MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
+_MIGRATIONS_DIR = Path(__file__).resolve().parent.parent.parent / "migrations"
 
 
 def _column_names(engine: Engine, table: str) -> set[str]:
@@ -77,6 +78,8 @@ _P0_INDEXES: tuple[tuple[str, str, str], ...] = (
 
 def apply_p0_index_optimizations(engine: Engine) -> None:
     """P0 索引：任务列表、结果分页、待验收（幂等）。"""
+    if not _table_exists(engine, "feishu_async_tasks"):
+        return
     tables = {t for t, _, _ in _P0_INDEXES}
     existing_by_table = {t: _index_names(engine, t) for t in tables}
     with engine.begin() as conn:
@@ -92,6 +95,9 @@ def apply_p0_index_optimizations(engine: Engine) -> None:
 
 def apply_feishu_async_tasks_migrations(engine: Engine) -> None:
     """对齐 feishu_async_tasks 关键列（interval/fetch_count/api_key）。"""
+    if not _table_exists(engine, "feishu_async_tasks"):
+        logger.info("skip feishu_async_tasks migrations: table missing")
+        return
     cols = _column_names(engine, "feishu_async_tasks")
 
     with engine.begin() as conn:
@@ -154,8 +160,58 @@ def apply_feishu_async_tasks_migrations(engine: Engine) -> None:
 
 def apply_pending_migrations(engine: Engine) -> None:
     try:
+        apply_admin_backoffice_migrations(engine)
         apply_feishu_async_tasks_migrations(engine)
         apply_p0_index_optimizations(engine)
     except Exception:
         logger.exception("database migration failed")
         raise
+
+
+def _table_exists(engine: Engine, table: str) -> bool:
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT COUNT(*) FROM information_schema.tables
+                WHERE table_schema = DATABASE() AND table_name = :t
+                """
+            ),
+            {"t": table},
+        ).scalar()
+        return int(row or 0) > 0
+
+
+def _split_sql_statements(raw: str) -> list[str]:
+    lines: list[str] = []
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("--"):
+            continue
+        lines.append(line)
+    body = "\n".join(lines)
+    parts = re.split(r";\s*\n", body)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def _execute_sql_file(engine: Engine, path: Path) -> None:
+    if not path.is_file():
+        logger.warning("migration file missing: %s", path)
+        return
+    statements = _split_sql_statements(path.read_text(encoding="utf-8"))
+    with engine.begin() as conn:
+        for stmt in statements:
+            conn.execute(text(stmt))
+    logger.info("executed migration file %s", path.name)
+
+
+def apply_admin_backoffice_migrations(engine: Engine) -> None:
+    """创建 sys_* 管理端表并写入开发种子（幂等）。"""
+    if _table_exists(engine, "sys_admin"):
+        return
+    schema_sql = _MIGRATIONS_DIR / "012_create_sys_backoffice_rbac.sql"
+    seed_sql = _MIGRATIONS_DIR / "013_seed_sys_backoffice_dev.sql"
+    _execute_sql_file(engine, schema_sql)
+    if _table_exists(engine, "sys_admin"):
+        _execute_sql_file(engine, seed_sql)
+        logger.info("admin backoffice schema + seed applied")
