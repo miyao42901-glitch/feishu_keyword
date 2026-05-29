@@ -191,6 +191,24 @@ export type AsyncTaskResultsMeta = {
   resultTable?: string
 }
 
+/** `GET .../async/tasks/{id}/results` 响应中的 `data.result.total` */
+export function extractAsyncTaskResultsTotal(payload: unknown): number | null {
+  const r = readSyncResultEnvelope(payload)
+  if (!r) return null
+  const total = r.total
+  if (typeof total === 'number' && Number.isFinite(total)) {
+    return Math.max(0, Math.floor(total))
+  }
+  return null
+}
+
+/** 首屏 `total=0` 且 `items` 为空（落库可能尚未完成，可重试） */
+export function isEmptyAsyncTaskResultsPage(payload: unknown): boolean {
+  const total = extractAsyncTaskResultsTotal(payload)
+  if (total != null && total > 0) return false
+  return extractSyncResultItems(payload).length === 0
+}
+
 export function extractAsyncTaskResultsMeta(payload: unknown): AsyncTaskResultsMeta {
   if (!payload || typeof payload !== 'object') return {}
   const data = (payload as Record<string, unknown>).data
