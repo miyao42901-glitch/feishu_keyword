@@ -24,18 +24,14 @@
 
 基础设施在 `/docker/traefik`：`tbpf-mysql`、`tbpf-redis`（`proxy` 网络）。phpMyAdmin：https://pma.tbpf.com
 
-**本项目独立库 `feishu_keyword`**；应用与运维均用 **root**（与 traefik `MYSQL_ROOT_PASSWORD` 一致，便于跨库）。真实口令写在各环境**栈根** `.env`（由 [.env.test](.env.test) / [.env.master](.env.master) 复制，见 [.env.example](.env.example)），勿提交 Git。
+**本项目独立库 `feishu_keyword`**；应用与运维均用 **root**（与 traefik `MYSQL_ROOT_PASSWORD` 一致）。**真实 MySQL 口令只写在部署机 `/docker/traefik/.env`**；栈根 `.env.test` / `.env.master` 由 `remote-setup-env.sh` 或 CI 写入 `DATABASE_URL`。
 
 | 用途 | 主机 | 账号 | 库名 |
 |------|------|------|------|
-| 应用 `DATABASE_URL` / 运维 | `tbpf-mysql:3306` | `root` | **`feishu_keyword`**（默认；可跨库查询） |
-| Redis | `tbpf-redis:6379` | 无密码 | 测试 DB `2`、正式 DB `3` |
+| 应用 `DATABASE_URL` / 运维 | `tbpf-mysql:3306` | `root` | **`feishu_keyword`** |
+| Redis | `tbpf-redis:6379` | 见 traefik `.env` | 测试 DB `2`、正式 DB `3` |
 
-连接串示例（远端栈根 `.env`）：
-
-`mysql+pymysql://root:***@tbpf-mysql:3306/feishu_keyword?charset=utf8mb4`
-
-一键写入远端 env：`bash scripts/remote-setup-env.sh`（读栈根或 `/docker/traefik/.env` 中的口令）。
+一键写入远端 env：`bash scripts/remote-setup-env.sh`（从 `/docker/traefik/.env` 读取口令）。
 
 ## 后端与前端
 

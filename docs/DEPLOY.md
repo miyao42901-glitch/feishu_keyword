@@ -68,14 +68,18 @@ cp -f .env.master .env && chmod 600 .env
 
 Compose 插值与 `api` / `celery-worker` **均只读栈根 `./.env`**。本地预检：先 `cp .env.test|.env.master .env`，再在 `admin/`、`feishu/` 内 `npm run build:public:test|prod`（admin 构建依赖 `VITE_ADMIN_API_ORIGIN`）。
 
-**真实口令**写在服务器栈根 `.env`（与 `/docker/traefik/.env` 中 `MYSQL_ROOT_PASSWORD` 一致），勿提交 Git。
+**MySQL 口令（推荐）**：真实 `MYSQL_ROOT_PASSWORD` 只写在部署机 **`/docker/traefik/.env`**（与 `tbpf-mysql` 一致）。仓内 `.env.test` / `.env.master` 保持 `PASSWORD` 占位即可。
 
-一键写入远端（在部署机执行）：
+**首次初始化**（在部署机执行一次）：
 
 ```bash
-# 需已配置 /docker/traefik/.env 或栈根 .env 中的 MYSQL_ROOT_PASSWORD
+# 需已配置 /docker/traefik/.env 中的 MYSQL_ROOT_PASSWORD
 bash scripts/remote-setup-env.sh
 ```
+
+脚本会从 traefik `.env` 读取口令，写入 `/docker/feishu_keyword-test/.env.test` 与 `/docker/feishu_keyword/.env.master`（含 `DATABASE_URL`），并尝试创建 `feishu_keyword` 库。
+
+**CI 部署**：[`scripts/ci-deploy-remote.sh`](../scripts/ci-deploy-remote.sh) 保留远端栈根已有口令；若 `DATABASE_URL` / `MYSQL_ROOT_PASSWORD` 仍为占位，则自动从 **`/docker/traefik/.env`** 补全（不再从 Git 包内读取数据库口令）。
 
 ## MySQL
 
@@ -127,7 +131,7 @@ bash scripts/init-feishu-keyword-db.sh
 
 Python **不需要**在 Runner 上「编译」或 `pip install`；镜像构建由 CI 脚本 SSH 到部署机触发，仍属 CI 流程，**不是**人工登录服务器手敲命令。
 
-部署时 [`scripts/ci-deploy-remote.sh`](../scripts/ci-deploy-remote.sh) 会**保留远端** `.env.test` / `.env.master` 中的口令；若 `CELERY_BROKER_URL`、`DATABASE_URL`、`MYSQL_ROOT_PASSWORD` 等在远端为空或仍为 `PASSWORD` 占位，则从本次 CI 包内 `.env.test` / `.env.master` 补全（包内亦须为真实口令，否则服务无法连库）。
+部署时 [`scripts/ci-deploy-remote.sh`](../scripts/ci-deploy-remote.sh) 会**保留远端** `.env.test` / `.env.master` 中的非占位配置；`CELERY_BROKER_URL` 等空键从包内模板补全；**MySQL** 占位时从 **`/docker/traefik/.env`** 补全 `DATABASE_URL` / `MYSQL_ROOT_PASSWORD`。
 
 **域名与路径**：`API_PUBLIC_HOST`（如 `test-fskw.tbpf.com`）在 Traefik 上**只**转发 `/api/v1` 与 `/api/admin`，访问根路径 `/` 返回 404 属正常；探活用 `GET /api/v1/health` 或 `GET /api/v1/version`（含 MySQL/Redis 与部署版本），不要用 API 域名的 `/` 判断服务是否存活。
 

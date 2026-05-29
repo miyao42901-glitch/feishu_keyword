@@ -2,35 +2,20 @@
 # 在部署主机执行：根据 traefik 栈 MYSQL_ROOT_PASSWORD 写入测试/正式栈根 .env.test / .env.master，并创建 feishu_keyword 库。
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=env-mysql-from-traefik.sh
+source "$SCRIPT_DIR/env-mysql-from-traefik.sh"
+
 TEST_ROOT="${TEST_ROOT:-/docker/feishu_keyword-test}"
 PROD_ROOT="${PROD_ROOT:-/docker/feishu_keyword}"
-TRAEFIK_ENV="${TRAEFIK_ENV:-/docker/traefik/.env}"
 
-load_mysql_root_password() {
-  local pw=""
-  for f in "$TEST_ROOT/.env" "$PROD_ROOT/.env" "$TRAEFIK_ENV"; do
-    if [ -f "$f" ]; then
-      # shellcheck disable=SC1090
-      set +u
-      source "$f" 2>/dev/null || true
-      set -u
-      if [ -n "${MYSQL_ROOT_PASSWORD:-}" ]; then
-        pw="${MYSQL_ROOT_PASSWORD}"
-        break
-      fi
-    fi
-  done
-  if [ -z "$pw" ]; then
-    echo "ERROR: 未找到 MYSQL_ROOT_PASSWORD（请配置 $TEST_ROOT/.env 或 $TRAEFIK_ENV）"
-    exit 1
-  fi
-  MYSQL_ROOT_PASSWORD="$pw"
-}
-
-load_mysql_root_password
+if ! MYSQL_ROOT_PASSWORD="$(load_mysql_root_password)"; then
+  echo "ERROR: 未找到 MYSQL_ROOT_PASSWORD（请配置 ${TRAEFIK_ENV}）"
+  exit 1
+fi
 
 MYSQL_USER=root
-DB_URL="mysql+pymysql://${MYSQL_USER}:${MYSQL_ROOT_PASSWORD}@tbpf-mysql:3306/feishu_keyword?charset=utf8mb4"
+DB_URL="$(build_feishu_database_url "$MYSQL_ROOT_PASSWORD")"
 
 mkdir -p "$TEST_ROOT/public/admin" "$TEST_ROOT/public/feishu" \
   "$TEST_ROOT/deploy/admin-static" "$TEST_ROOT/deploy/feishu-static" \
@@ -168,4 +153,4 @@ else
   echo "      可在 phpMyAdmin 执行: scripts/create_feishu_db.sql"
 fi
 
-echo "remote-setup-env: done（$TEST_ROOT/.env.test、$PROD_ROOT/.env.master）"
+echo "remote-setup-env: done（口令来源 ${TRAEFIK_ENV}；$TEST_ROOT/.env.test、$PROD_ROOT/.env.master）"

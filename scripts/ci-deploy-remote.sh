@@ -3,20 +3,23 @@
 # 环境变量：DEPLOY_ROOT、ENV_FILE（.env.test|.env.master）、COMPOSE_PROFILES、PKG_NAME
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=env-mysql-from-traefik.sh
+source "$SCRIPT_DIR/env-mysql-from-traefik.sh"
+
 DEPLOY_ROOT="${DEPLOY_ROOT:?DEPLOY_ROOT required}"
 ENV_FILE="${ENV_FILE:?ENV_FILE required}"
 COMPOSE_PROFILES="${COMPOSE_PROFILES:---profile admin --profile feishu --profile worker}"
 PKG_NAME="${PKG_NAME:-deploy.pkg.tar.gz}"
 
 # 远端保留口令等敏感项；若下列键在远端为空，则用本次 CI 包内模板补全（避免 api 因 CELERY 未配置崩溃）
+# MySQL 口令见 merge_db_credentials_from_traefik（/docker/traefik/.env）
 ENV_PATCH_KEYS=(
   CELERY_BROKER_URL
   CELERY_RESULT_BACKEND
   ADMIN_PUBLIC_HOST
   TRAEFIK_ADMIN_ROUTER_NAME
   VITE_ADMIN_API_ORIGIN
-  MYSQL_ROOT_PASSWORD
-  DATABASE_URL
 )
 
 env_get() {
@@ -54,20 +57,7 @@ should_patch_env_key() {
   if [[ -z "${pkg_val//[[:space:]]/}" ]]; then
     return 1
   fi
-  case "$key" in
-    MYSQL_ROOT_PASSWORD)
-      is_env_placeholder "$remote_val"
-      return $?
-      ;;
-    DATABASE_URL)
-      is_database_url_placeholder "$remote_val"
-      return $?
-      ;;
-    *)
-      [[ -z "${remote_val//[[:space:]]/}" ]]
-      return $?
-      ;;
-  esac
+  [[ -z "${remote_val//[[:space:]]/}" ]]
 }
 
 merge_empty_env_from_package() {
@@ -77,14 +67,8 @@ merge_empty_env_from_package() {
     remote_val="$(env_get "$target" "$key")"
     pkg_val="$(env_get "$pkg" "$key")"
     if should_patch_env_key "$key" "$remote_val" "$pkg_val"; then
-      if [[ "$key" == "MYSQL_ROOT_PASSWORD" || "$key" == "DATABASE_URL" ]] && is_env_placeholder "$pkg_val"; then
-        continue
-      fi
-      if [[ "$key" == "DATABASE_URL" ]] && is_database_url_placeholder "$pkg_val"; then
-        continue
-      fi
       env_set "$target" "$key" "$pkg_val"
-      echo "==> 补全 ${ENV_FILE}: ${key}（远端缺失或占位，采用包内值）"
+      echo "==> 补全 ${ENV_FILE}: ${key}（远端为空，采用包内模板）"
     fi
   done
   # Celery 仍空时，回退为 REDIS_URL（与仓根 .env.test 约定一致）
@@ -97,6 +81,24 @@ merge_empty_env_from_package() {
       env_set "$target" CELERY_RESULT_BACKEND "$redis_url"
       echo "==> 补全 ${ENV_FILE}: CELERY_* ← REDIS_URL"
     fi
+  fi
+}
+
+merge_db_credentials_from_traefik() {
+  local target="$1"
+  local pw db_url
+  if ! pw="$(load_mysql_root_password)"; then
+    echo "WARN: 未从 ${TRAEFIK_ENV} 读取 MYSQL_ROOT_PASSWORD"
+    return 0
+  fi
+  if is_env_placeholder "$(env_get "$target" MYSQL_ROOT_PASSWORD)"; then
+    env_set "$target" MYSQL_ROOT_PASSWORD "$pw"
+    echo "==> 补全 ${ENV_FILE}: MYSQL_ROOT_PASSWORD ← ${TRAEFIK_ENV}"
+  fi
+  if is_database_url_placeholder "$(env_get "$target" DATABASE_URL)"; then
+    db_url="$(build_feishu_database_url "$pw")"
+    env_set "$target" DATABASE_URL "$db_url"
+    echo "==> 补全 ${ENV_FILE}: DATABASE_URL ← ${TRAEFIK_ENV}"
   fi
 }
 
@@ -126,9 +128,11 @@ if [[ -n "$ENV_BAK" ]]; then
   rm -f "$ENV_BAK"
   echo "==> 保留远端已有 $ENV_FILE（未用包内占位覆盖口令）"
   merge_empty_env_from_package "$ENV_FILE" "$ENV_FROM_PKG"
+  merge_db_credentials_from_traefik "$ENV_FILE"
 elif [[ -f "$ENV_FILE" ]]; then
   chmod 600 "$ENV_FILE"
-  echo "WARN: 首次落盘 $ENV_FILE（包内占位模板），请 SSH 修改真实口令"
+  merge_db_credentials_from_traefik "$ENV_FILE"
+  echo "WARN: 首次落盘 ${ENV_FILE}（包内占位模板）；MySQL 已从 ${TRAEFIK_ENV} 补全（若可读）"
 else
   rm -f "$ENV_FROM_PKG"
   echo "ERROR: 解压后仍缺少 $ENV_FILE"
@@ -138,6 +142,11 @@ rm -f "$ENV_FROM_PKG"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "ERROR: 远端缺少栈根 $ENV_FILE，请执行: bash scripts/remote-setup-env.sh"
+  exit 1
+fi
+
+if is_database_url_placeholder "$(env_get "$ENV_FILE" DATABASE_URL)"; then
+  echo "ERROR: DATABASE_URL 仍为占位，请配置 ${TRAEFIK_ENV} 后执行: bash scripts/remote-setup-env.sh"
   exit 1
 fi
 

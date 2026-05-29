@@ -76,12 +76,13 @@ stages:
     - bash scripts/ci-pack-deploy.sh "$DEPLOY_ENV"
     - |
       echo ">>> scp 开始 $(date -u +%Y-%m-%dT%H:%M:%SZ) → $SSH_USER@$HOST_IP:$DEPLOY_ROOT"
-      scp $SSH_OPTS -P "$SSH_PORT" "$PKG_NAME" "$SSH_USER@$HOST_IP:$DEPLOY_ROOT/$PKG_NAME"
+      scp $SSH_OPTS -P "$SSH_PORT" "$PKG_NAME" \
+        scripts/ci-deploy-remote.sh scripts/env-mysql-from-traefik.sh \
+        "$SSH_USER@$HOST_IP:$DEPLOY_ROOT/"
       echo ">>> scp 完成 $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     - |
-      sed '1s/^\xEF\xBB\xBF//' scripts/ci-deploy-remote.sh | \
-        ssh $SSH_OPTS -p "$SSH_PORT" "$SSH_USER@$HOST_IP" \
-        "DEPLOY_ROOT=$DEPLOY_ROOT ENV_FILE=$ENV_FILE COMPOSE_PROFILES='$COMPOSE_PROFILES' PKG_NAME=$PKG_NAME bash -s"
+      ssh $SSH_OPTS -p "$SSH_PORT" "$SSH_USER@$HOST_IP" \
+        "DEPLOY_ROOT=$DEPLOY_ROOT ENV_FILE=$ENV_FILE COMPOSE_PROFILES='$COMPOSE_PROFILES' PKG_NAME=$PKG_NAME bash $DEPLOY_ROOT/ci-deploy-remote.sh"
 
 deploy-test:
   extends: .deploy-template
