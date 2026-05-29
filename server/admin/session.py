@@ -3,30 +3,23 @@
 from __future__ import annotations
 
 import json
-import os
 import secrets
 import uuid
 from typing import Any, Optional
-
 
 ADMIN_TOKEN_PREFIX = "fkw:admin:token:"
 ADMIN_TOKEN_TTL_SEC = 86400 * 7
 
 
 def _redis_client():
-    import redis
+    from social_platform.redis_client import redis_configured, get_redis
 
-    host = (os.getenv("REDIS_HOST") or "").strip()
-    if not host:
+    if not redis_configured():
         return None
-    return redis.Redis(
-        host=host,
-        port=int(os.getenv("REDIS_PORT", "6379")),
-        password=os.getenv("REDIS_PASSWORD") or None,
-        db=int(os.getenv("REDIS_DB", "0")),
-        decode_responses=True,
-        socket_connect_timeout=3,
-    )
+    try:
+        return get_redis()
+    except RuntimeError:
+        return None
 
 
 def issue_admin_token(admin_id: int, profile: dict[str, Any]) -> str:
@@ -35,7 +28,11 @@ def issue_admin_token(admin_id: int, profile: dict[str, Any]) -> str:
     if client is None:
         return f"local-{admin_id}-{uuid.uuid4().hex}"
     payload = {"admin_id": admin_id, "profile": profile}
-    client.setex(f"{ADMIN_TOKEN_PREFIX}{token}", ADMIN_TOKEN_TTL_SEC, json.dumps(payload))
+    client.setex(
+        f"{ADMIN_TOKEN_PREFIX}{token}",
+        ADMIN_TOKEN_TTL_SEC,
+        json.dumps(payload, ensure_ascii=False),
+    )
     return token
 
 

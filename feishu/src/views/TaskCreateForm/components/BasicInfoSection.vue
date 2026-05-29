@@ -3,6 +3,7 @@
  * 「基础设置」步骤：任务名称、任务类型（定时 / 单次横向切换，与设计稿一致）。
  */
 import { AlarmClock, Lightning, QuestionFilled } from '@element-plus/icons-vue'
+import { TASK_NAME_MAX_LEN } from '@/views/TaskCreateForm/constants'
 import type { TaskCreateFormModel } from '@/views/TaskCreateForm/types'
 
 defineOptions({ name: 'BasicInfoSection' })
@@ -13,7 +14,14 @@ defineProps<{ form: TaskCreateFormModel }>()
 <template>
   <div>
     <el-form-item label="任务名称" prop="planName">
-      <el-input v-model="form.planName" class="w-full" placeholder="请输入任务名称" clearable />
+      <el-input
+        v-model="form.planName"
+        class="w-full"
+        placeholder="请输入任务名称"
+        clearable
+        :maxlength="TASK_NAME_MAX_LEN"
+        show-word-limit
+      />
     </el-form-item>
     <el-form-item prop="taskType" class="task-type-form-item">
       <template #label>

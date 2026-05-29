@@ -5,7 +5,7 @@
 | 项 | 说明 |
 |----|------|
 | **对应代码目录** | 仓库根目录下的 **`server/`** |
-| **职责** | HTTP API、MySQL 访问、业务服务；与飞书开放平台交互时可在本目录扩展客户端封装 |
+| **职责** | FastAPI `/api/v1`（飞书/采集）、`/api/admin/v1`（管理台）、MySQL 任务与结果、Celery 异步采集、各平台 Worker |
 
 ---
 
@@ -15,13 +15,13 @@
 
 | 类别 | 技术 | 说明 |
 |------|------|------|
-| 语言 | Python 3 | 建议使用 3.10+（与本地虚拟环境一致） |
-| Web 框架 | FastAPI | 路由、依赖注入、OpenAPI |
-| ASGI 服务器 | Uvicorn | 开发：`uvicorn app.main:app` |
-| ORM | SQLAlchemy 2.x | 模型见 `app/models/` |
-| 数据库驱动 | PyMySQL | 经连接串 `mysql+pymysql://...` |
-| 配置 | python-dotenv | 从 `server/.env` 加载 `DATABASE_URL` |
-| HTTP 客户端 | httpx | 调用外部 API（飞书、采集服务等） |
+| 语言 | Python 3 | 建议 3.9+（Docker 镜像 `python:3.9-slim`） |
+| Web 框架 | FastAPI | 路由、OpenAPI |
+| ASGI 服务器 | Uvicorn | 生产容器：`uvicorn http_service:app`；开发：`python run.py` |
+| ORM | SQLAlchemy 2.x | 模型见 `social_platform/models/` |
+| 任务队列 | Celery + Redis | Worker：`social_platform.tasks.celery_app` |
+| 数据库驱动 | PyMySQL | 连接串 `mysql+pymysql://...` |
+| 配置 | 仓根 `.env` | 经 `config/settings.py`、`social_platform/env_bootstrap.py` 加载 |
 
 ---
 
@@ -29,48 +29,66 @@
 
 | 文档 | 说明 |
 |------|------|
-| [HTTP 接口规范](../API.md) | `/api` 前缀、REST 命名、分页、**统一响应 `code` / `message` / `data`**（详见该文档 §5）、响应约定 |
-| [数据库与 ORM](../DATABASE.md) | 库名、表字段、`DATABASE_URL`、变更清单 |
-| [工程约定](../DEVELOPMENT.md) | 分层目录、`get_db`、Git 与注释 |
+| [HTTP_API.md](./HTTP_API.md) | `/api/v1` 路径、鉴权 Header、同步/异步任务、限流 |
+| [../admin/README.md](../../admin/README.md) | 管理台前端；后端 API 前缀 **`/api/admin/v1`**（`server/admin/`） |
+| [DATABASE.md](../DATABASE.md) | 库名、五张业务表、`DATABASE_URL` |
+| [DEVELOPMENT.md](../DEVELOPMENT.md) | 分层目录、Git 与注释 |
+| [DEPLOY.md](../DEPLOY.md) | Docker `api` / `celery-worker`、CI 与健康检查 |
 
 ---
 
-## 统一 API 响应（`code` / `message` / `data`）
+## 目录结构（摘要）
 
-业务接口均返回同一外层 JSON：
-
-| 字段 | 说明 |
-|------|------|
-| `code` | `0` 成功；非 `0` 为业务错误码（见 `app/schemas/api_response.py` 中 `BizCode`） |
-| `message` | 给人阅读的说明（成功 / 失败文案） |
-| `data` | 成功时为载荷；失败时多为 `null`（校验失败时可能含 `errors`） |
-
-HTTP 状态码（404、422、503 等）仍保留语义；**客户端建议以响应体内的 `code` 分支**。全局异常由 `app/api/exception_handlers.py` 转为上述格式。
-
-**权威说明与错误码表**：见 **[HTTP 接口规范](../API.md)** 文档第五节「统一响应体」。
+```
+server/
+├── run.py                 # 本地开发启动（HTTP + 可选调度）
+├── http_service.py        # FastAPI 应用入口（Docker CMD）
+├── http_api/v1/           # /api/v1 路由（sync、async、health）
+├── admin/                 # /api/admin/v1 管理台（login、RBAC、后续业务）
+├── social_platform/       # 业务：models、services、tasks、database
+├── workers/               # douyin / xhs / wxvideo / mp 采集
+├── config/                # 配置读取
+├── migrations/            # schema.sql 与增量 SQL
+└── requirements.txt
+```
 
 ---
 
 ## 本地运行
 
+环境：仓根 `cp .env.test .env`（可选 `cp .env.local.example .env.local`）。需本机或局域网可访问的 **MySQL**（`feishu_keyword`）与 **Redis**（Celery）。
+
 ```powershell
 cd server
-.\.venv\Scripts\pip install -r requirements.txt
-.\.venv\Scripts\uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+pip install -r requirements.txt
+
+# 终端 1：HTTP API（默认 :8765）
+python run.py
+
+# 终端 2：Celery Worker
+celery -A social_platform.tasks.celery_app:celery_app worker -l info -P gevent -c 4 --prefetch-multiplier=1
 ```
 
-- OpenAPI：`http://127.0.0.1:8000/docs`
+- OpenAPI：`http://127.0.0.1:8765/docs`
+- 健康检查：`GET http://127.0.0.1:8765/api/v1/health`
+- 管理端：`GET http://127.0.0.1:8765/api/admin/v1/health`；登录 `POST /api/admin/v1/system/login`（开发账号 `admin` / `Admin123a`，需 RBAC 迁移）
+
+`DATABASE_RUN_MIGRATIONS=1` 时，启动会自动执行 `schema.sql`（新库）与 `db_migrate.py` 补丁。
 
 ---
 
-## 代码分层（摘要）
+## Docker
 
-详见 [DEVELOPMENT.md](../DEVELOPMENT.md) 第二节：
+与 `docker-compose.yml` 中 **`api`**、**`celery-worker`** 服务共用同一镜像（`server/Dockerfile`）：
 
-- **C 端 / 业务 API**：`app/main.py` → `app/api/router.py` → `app/api/routers/` → `services/` → `models/` / `schemas/`
-- **管理端 API**：`server/admin/`（`admin/router.py` 聚合 `admin/routers/*`，挂载前缀 `/api/admin/v1`；与仓库根 `admin/` Vue 静态站对应）
+- `api`：暴露 8765，Traefik 将公网 `API_PUBLIC_HOST` 的 `/api/v1` 与 `/api/admin` 转发到此服务
+- `celery-worker`：执行异步采集；须与 `api` 同栈、同 `.env` 中的 `DATABASE_URL` 与 Redis
+
+`feishu-web` 容器内 nginx 将浏览器请求的 `/api/v1/` 反代到 `http://api:8765`（见 `deploy/feishu-static/default.conf`）。
+
+---
 
 ## 接口实现与注释
 
-- 各 **`app/api/routers/*.py`** 内处理函数须写**中文 docstring**（路径、参数、成功 `data`、常见错误），与 **[HTTP 接口规范 §9](../API.md#9-代码位置与接口注释约定)** 一致。
-- 前端直连封装见 **`feishu/src/lib/api.ts`**（JSDoc 与后端路径对应）。
+- **`http_api/v1/*.py`** 路由处理函数须写**中文 docstring**（路径、Header、Body、响应结构），与 **[HTTP_API.md](./HTTP_API.md)** 一致。
+- 前端封装见 **`feishu/src/lib/async-task-api.ts`**、**`feishu/src/lib/*-sync-api.ts`** 等（JSDoc 与路径对应）。

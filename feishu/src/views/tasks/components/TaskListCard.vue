@@ -46,9 +46,13 @@ const statusTextModifier: Record<TaskRunStatus, string> = {
   failed: 'failed',
 }
 
-const primaryKind = computed(() =>
-  taskPrimaryActionKind(props.row.status, { taskTypeLabel: props.row.taskTypeLabel }),
-)
+/** 列表不展示「执行」主操作（审核上架要求；详情弹框仍保留重试等） */
+const primaryKind = computed(() => {
+  const kind = taskPrimaryActionKind(props.row.status, {
+    taskTypeLabel: props.row.taskTypeLabel,
+  })
+  return kind === 'execute' ? null : kind
+})
 
 const showView = computed(() => canTaskAction(props.row.status, 'view'))
 const showEdit = computed(() => canTaskAction(props.row.status, 'edit'))

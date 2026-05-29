@@ -1,5 +1,5 @@
 /**
- * 定时任务：`GET .../async/tasks/{子任务id}/results`。
+ * 定时任务：`GET .../async/tasks/{子任务id}/results`（`running`/`completed`，或 `pending` 且 next_run_at+3min）。
  * 单次任务：各平台 `POST /api/v1/sync/{platform}/search-page`（不走 results）。
  */
 
@@ -473,6 +473,8 @@ async function buildTestDataFeedFromAsyncResults(params: {
   sync: SyncFetchContext
   /** 列表卡片已是 running 时跳过 `GET .../tasks/{id}` */
   skipStatusFetchForTaskIds?: string[]
+  /** `pending` 且 next_run_at+3min：各平台子任务拉 `GET .../results` */
+  pendingResultsDue?: boolean
 }): Promise<AsyncFeedBuildResult> {
   const { taskId, taskName, config, sync } = params
   if (isRealtimeTaskConfig(config)) {
@@ -493,6 +495,8 @@ async function buildTestDataFeedFromAsyncResults(params: {
     refs,
     skipAcceptance: true,
     skipStatusFetchForIds: params.skipStatusFetchForTaskIds,
+    maxItemsPerTask: limit,
+    pendingResultsDue: params.pendingResultsDue,
   })
 
   if (!refs.length) {
@@ -598,6 +602,8 @@ export async function buildTestDataFeedFromConfig(params: {
   onlyPlatforms?: SyncCollectionPlatformId[]
   /** 列表已 running 的子任务，拉 results 时不重复 `GET .../tasks/{id}` */
   skipStatusFetchForTaskIds?: string[]
+  /** `pending` 且 next_run_at+3min：各平台子任务拉 `GET .../results` */
+  pendingResultsDue?: boolean
   /** 列表卡片：单次任务强制走 search-page */
   card?: TaskCardModel
 }): Promise<BuildTestDataFeedResult> {
@@ -645,6 +651,7 @@ export async function buildTestDataFeedFromConfig(params: {
       config,
       sync,
       skipStatusFetchForTaskIds: params.skipStatusFetchForTaskIds,
+      pendingResultsDue: params.pendingResultsDue,
     })
     return {
       rows: asyncFeed.rows,

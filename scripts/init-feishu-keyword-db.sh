@@ -2,26 +2,12 @@
 # 仅在共享 MySQL（tbpf-mysql）上创建 feishu_keyword 库，不修改 jzl_editor 等库的数据与表。
 set -euo pipefail
 
-TEST_ROOT="${TEST_ROOT:-/docker/feishu_keyword-test}"
-PROD_ROOT="${PROD_ROOT:-/docker/feishu_keyword}"
-TRAEFIK_ENV="${TRAEFIK_ENV:-/docker/traefik/.env}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=env-mysql-from-traefik.sh
+source "$SCRIPT_DIR/env-mysql-from-traefik.sh"
 
-ROOT_PW=""
-for f in "$TEST_ROOT/.env" "$PROD_ROOT/.env" "$TRAEFIK_ENV"; do
-  if [ -f "$f" ]; then
-    # shellcheck disable=SC1090
-    set +u
-    source "$f" 2>/dev/null || true
-    set -u
-    if [ -n "${MYSQL_ROOT_PASSWORD:-}" ]; then
-      ROOT_PW="${MYSQL_ROOT_PASSWORD}"
-      break
-    fi
-  fi
-done
-
-if [ -z "$ROOT_PW" ]; then
-  echo "ERROR: MYSQL_ROOT_PASSWORD empty（配置栈根 .env 或 $TRAEFIK_ENV）"
+if ! ROOT_PW="$(load_mysql_root_password)"; then
+  echo "ERROR: MYSQL_ROOT_PASSWORD empty（请配置 ${TRAEFIK_ENV}）"
   exit 1
 fi
 

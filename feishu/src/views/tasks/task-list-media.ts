@@ -1,5 +1,5 @@
 /** `public/images/task-list/` 下任务列表卡片静态资源 */
-const TASK_LIST_RASTER_BASE = '/images/task-list'
+const TASK_LIST_RASTER_BASE = `${import.meta.env.BASE_URL}images/task-list`
 
 /** 任务卡片元信息行「平台」图标（原 `public/Frame.png`） */
 export const taskListPlatformIcon = {

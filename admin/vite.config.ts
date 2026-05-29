@@ -4,8 +4,10 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const repoRoot = path.resolve(__dirname, '..')
 
 export default defineConfig({
+  envDir: repoRoot,
   base: '/',
   plugins: [vue()],
   resolve: {
@@ -18,7 +20,7 @@ export default defineConfig({
     port: 5101,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8765',
         changeOrigin: true,
       },
     },

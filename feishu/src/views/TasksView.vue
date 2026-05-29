@@ -13,7 +13,7 @@ import {
   parseBackendStoppedKind,
   type FeishuTaskConfigDetail,
   type FeishuTaskConfigWriteResult,
-} from '@/lib/api'
+} from '@/lib/task-config-types'
 import {
   applyTaskTypeFromListCard,
   loadTaskConfigDetail,
@@ -35,6 +35,7 @@ import { readSyncCollectionPlatforms } from '@/lib/sync-collection-platforms'
 import {
   applyCollectionResultToConfig,
   deleteAsyncTask,
+  isPendingAsyncResultsDue,
   isRealtimeTaskConfig,
   resetAsyncTaskLifecycleCache,
   submitCollectionFromConfig,
@@ -113,19 +114,14 @@ const testFeedBitableDeps = createTestFeedBitableDeps()
 
 /** 仅 `running` 卡片拉 results 的最小间隔 */
 const RUNNING_FEED_POLL_MS = 120_000
-/** pending 定时任务仅在 next_run_at 之后延迟 3 分钟再拉 results */
-const PENDING_RESULTS_AFTER_NEXT_RUN_MS = 3 * 60_000
 let syncPollTimerDebounce: ReturnType<typeof setTimeout> | null = null
 let refreshTestDataFeedInFlight: Promise<void> | null = null
 let runningFeedWatchDebounce: ReturnType<typeof setTimeout> | null = null
 
+/** 定时任务 pending_run：各平台在 next_run_at+3min 拉 `GET .../results` */
 function isPendingTaskResultsDue(row: TaskCardModel, now = Date.now()): boolean {
   if (row.status !== 'pending_run' || row.taskTypeLabel === '单次任务') return false
-  const raw = row.nextRunAtRaw?.trim()
-  if (!raw) return false
-  const nextRunAtMs = Date.parse(raw.replace(' ', 'T'))
-  if (!Number.isFinite(nextRunAtMs)) return false
-  return now >= nextRunAtMs + PENDING_RESULTS_AFTER_NEXT_RUN_MS
+  return isPendingAsyncResultsDue(row.nextRunAtRaw, now)
 }
 
 function listRunningFeedTargets(): TaskCardModel[] {
@@ -400,7 +396,7 @@ async function refreshTestDataFeed(options?: RefreshTestDataFeedOptions) {
 async function refreshTestDataFeedInner(options?: RefreshTestDataFeedOptions) {
   if (screen.value !== 'list') return
   const scopeTargets = listRunningFeedTargets()
-  /** `running` 立即拉 results；`pending_run` 仅在 next_run_at + 3 分钟后拉 results */
+  /** `running` 立即拉 results；`pending_run` 在 next_run_at+3min 且 YDDM 为 pending 时拉 results */
   const resultsTargets = listActiveRunningFeedTargets()
   pruneTestFeedAppendState(new Set(scopeTargets.map((t) => t.id)))
   pruneFeedPollState(new Set(scopeTargets.map((t) => t.id)))
@@ -456,13 +452,16 @@ async function refreshTestDataFeedInner(options?: RefreshTestDataFeedOptions) {
         const cfg = await resolveFeedConfigForPoll(t)
         if (isRealtimeTaskConfig(cfg)) continue
         configByTaskId.set(t.id, cfg)
+        const pendingResultsDue = isPendingTaskResultsDue(t, now)
         const feed = await buildTestDataFeedFromConfig({
           taskId: t.id,
           taskName: t.name,
           config: cfg,
           sync: syncCtx,
           card: t,
-          skipStatusFetchForTaskIds: [String(t.id)],
+          pendingResultsDue,
+          skipStatusFetchForTaskIds:
+            t.status === 'running' ? [String(t.id)] : undefined,
         })
         counts.set(t.id, feed.rows.length)
         const maxCollected = feed.rows.reduce((m, r) => Math.max(m, r.collectedAtMs), 0)

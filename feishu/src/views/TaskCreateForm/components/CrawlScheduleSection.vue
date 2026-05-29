@@ -88,7 +88,7 @@ function onExpireDisabledTime(date: Date) {
   font-size: 12px;
   font-weight: 400;
   line-height: 1.35;
-  color: #646a73;
+  color: #f54a45;
 }
 
 .crawl-frequency-form-item :deep(.el-form-item__label) {

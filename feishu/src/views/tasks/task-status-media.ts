@@ -1,7 +1,7 @@
 import type { TaskRunStatus } from '@/views/TaskCreateForm/types'
 
 /** `public/images/task-status/` 下静态资源根路径（Vite 下以 `/` 引用） */
-const TASK_STATUS_RASTER_BASE = '/images/task-status'
+const TASK_STATUS_RASTER_BASE = `${import.meta.env.BASE_URL}images/task-status`
 
 /**
  * 任务展示态角标位图（与 `TaskRunStatus` 一一对应）。

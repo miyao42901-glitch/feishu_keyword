@@ -83,6 +83,7 @@ const githubPkg = {
   version: pkg.version ?? '0.0.0',
   private: true,
   description: '飞书关键词监控插件静态资源（dist/）',
+  output: 'dist',
 }
 writeFileSync(githubPkgPath, `${JSON.stringify(githubPkg, null, 2)}\n`, 'utf8')
 

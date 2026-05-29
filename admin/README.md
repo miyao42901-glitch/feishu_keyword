@@ -1,20 +1,23 @@
 # 飞书关键词监控管理后台 (`admin/`)
 
-独立 **Vite + Vue 3 + TypeScript + Element Plus**。生产部署在站点路径 **`/admin`**（Traefik `StripPrefix` 后由 nginx 提供静态资源）；API 前缀为 **`/api`**。
+独立 **Vite + Vue 3 + TypeScript + Element Plus**。生产静态部署在独立域名（如 `test-fskw-admin.tbpf.com`）；API 前缀为 **`/api/admin/v1`**，由同一 `server` 进程（`:8765`）提供。
 
-- 默认 API 基址：`https://test-fskw.tbpf.com`（见 `src/config/adminApiOrigin.ts`；测试打包用 `npm run build:public:test`，正式用 `build:public:prod` → `https://fskw.tbpf.com`）。
-- 开发时 Vite 将 `/api` 代理到本机 `http://127.0.0.1:8000`，避免浏览器跨域。
+- API 基址由仓根 `.env` 的 `VITE_ADMIN_API_ORIGIN` 注入（`vite.config.ts` 的 `envDir` 指向仓库根）；测试/正式见 `.env.test` / `.env.master`。
+- 开发时 Vite 将 `/api` 代理到本机 `http://127.0.0.1:8765`（与 `server/run.py` 一致）。
 
 ## 本地运行
 
 ```bash
+cp .env.test .env
+cd server && python run.py   # 另开终端
 cd admin
 npm ci
-npm run dev:local    # 本机 127.0.0.1:8000
-npm run dev:lan      # 局域网：先 cp .env.local.example .env.local
+npm run dev:local
 ```
 
-浏览器打开 `http://localhost:5101/admin/`（注意末尾斜杠与 `base: '/admin/'` 一致）。
+浏览器打开 `http://localhost:5101/`（`base: '/'`）。
+
+默认开发账号（首次启动且 RBAC 迁移已执行）：`admin` / `Admin123a`。
 
 若需指向线上 API 调试（不经本地代理），可用：
 
@@ -30,10 +33,11 @@ npm run build
 
 产物在 `admin/dist/`。
 
-发布到仓库内 Docker 挂载目录（测试环境，API 域名为 `test-fskw.tbpf.com`）：
+发布到仓库内 Docker 挂载目录（先复制对应 env，再在 `admin/` 内构建）：
 
 ```bash
-npm run build:public:test
+cp .env.test .env && cd admin && npm run build:public:test
+cp .env.master .env && cd admin && npm run build:public:prod
 ```
 
-会将 `dist/` 同步到仓根 **`public/admin/`**（与 CI rsync 目标一致）。正式环境用 `build:public:prod`。
+产物同步到仓根 **`public/admin/`**（与 CI 部署挂载目录一致时需在 Runner 或本地完整构建流程中执行）。
