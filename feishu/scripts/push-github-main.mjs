@@ -1,9 +1,11 @@
 /**
- * 将 public/feishu（dist/ + package.json + README.md）推到 GitHub 的 main 分支。
- * 该仓 main 仅作飞书插件静态发布，不含完整 monorepo；开发仍在 GitLab hxp。
+ * 将 public/feishu（dist/ + package.json + README.md）推到插件发布仓。
  *
- * 前置：npm run build:github:test
- * 环境：GITHUB_REPO（默认 git@github.com:miyao42901-glitch/feishu_keyword.git）
+ * 前置：npm run build:github:prod（或 build:github:test）
+ * 环境：
+ *   PLUGIN_GIT_REMOTE — 默认 origin（GitLab jzl/feishu_keyword）
+ *   PLUGIN_GIT_BRANCH — 默认 feishu-plugin-static
+ *   GITHUB_REPO — 兼容旧变量，覆盖 PLUGIN_GIT_REMOTE
  */
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -15,8 +17,11 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const feishuRoot = join(__dirname, '..')
 const repoRoot = join(feishuRoot, '..')
 const releaseDir = join(repoRoot, 'public', 'feishu')
-const githubRepo =
-  process.env.GITHUB_REPO?.trim() || 'git@github.com:miyao42901-glitch/feishu_keyword.git'
+const pluginRemote =
+  process.env.GITHUB_REPO?.trim() ||
+  process.env.PLUGIN_GIT_REMOTE?.trim() ||
+  'http://192.168.1.200:8080/jzl/feishu_keyword.git'
+const pluginBranch = process.env.PLUGIN_GIT_BRANCH?.trim() || 'feishu-plugin-static'
 
 function run(cmd, cwd) {
   console.log(`> ${cmd}`)
@@ -39,18 +44,12 @@ try {
   const version = JSON.parse(readFileSync(join(releaseDir, 'package.json'), 'utf8')).version
   run('git init', tmp)
   run('git add dist package.json README.md', tmp)
-  run(`git commit -m "release(feishu): ${version} 测试包 dist 目录"`, tmp)
-  run('git branch -M main', tmp)
-  run(`git remote add origin ${githubRepo}`, tmp)
-  run('git push -f origin main', tmp)
+  run(`git commit -m "release(feishu): ${version} 正式包 dist 目录"`, tmp)
+  run(`git branch -M ${pluginBranch}`, tmp)
+  run(`git remote add origin ${pluginRemote}`, tmp)
+  run(`git push -f origin ${pluginBranch}`, tmp)
 
-  try {
-    run('git push origin --delete hxp', tmp)
-  } catch {
-    console.log('push-github-main: 远程无 hxp 分支或已删除，跳过')
-  }
-
-  console.log('push-github-main: 已更新 GitHub main（仅 dist/、package.json、README.md）')
+  console.log(`push-github-main: 已更新 ${pluginRemote} 分支 ${pluginBranch}（dist/、package.json、README.md）`)
 } finally {
   rmSync(tmp, { recursive: true, force: true })
 }

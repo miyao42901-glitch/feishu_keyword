@@ -9,7 +9,7 @@ import TasksView from '@/views/TasksView.vue'
 import YddmAuthView from '@/views/YddmAuthView.vue'
 import { formatPointsBadge } from '@/lib/account-balance'
 import { getCustomerServiceQrUrl } from '@/lib/insufficient-balance'
-import { homeHeroAccountPointsIconImgAttrs } from '@/lib/home-hero-media'
+import { homeHeroAccountPointsIconImgAttrs, homeHeroBannerBg } from '@/lib/home-hero-media'
 import { useAccountPointsStore } from '@/stores/accountPoints'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
 import { useYddmAuthStore } from '@/stores/yddmAuth'
@@ -42,7 +42,10 @@ function onHeaderNavClick() {
   }
 }
 
-/** 首页「操作文档」默认飞书 Wiki（可用 `VITE_OPERATIONS_DOC_URL` 覆盖） */
+const heroBannerBgStyle = {
+  '--hero-bg-1x': `url(${homeHeroBannerBg['1x']})`,
+  '--hero-bg-2x': `url(${homeHeroBannerBg['2x']})`,
+} as Record<string, string>
 const DEFAULT_OPERATIONS_DOC_URL =
   'https://lcnnrhjmwxym.feishu.cn/wiki/Hnstw1DDgi3sswkMwh6cyn2lnlc'
 
@@ -149,7 +152,7 @@ onMounted(() => {
       />
     </el-dialog>
     <div class="home-hero">
-      <div class="home-hero__bg" aria-hidden="true" />
+      <div class="home-hero__bg" :style="heroBannerBgStyle" aria-hidden="true" />
       <div class="home-hero__inner">
         <div class="home-hero__copy">
           <div class="home-hero__title-row">
@@ -285,7 +288,7 @@ onMounted(() => {
   inset: 0;
   z-index: 0;
   background-color: transparent;
-  background-image: url('/images/home/hero-banner.png');
+  background-image: var(--hero-bg-1x);
   background-repeat: no-repeat;
   background-position: right center;
   background-size: auto 100%;
@@ -300,7 +303,7 @@ onMounted(() => {
 
 @media (min-resolution: 2dppx) {
   .home-hero__bg {
-    background-image: url('/images/home/hero-banner@2x.png');
+    background-image: var(--hero-bg-2x);
   }
 }
 

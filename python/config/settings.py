@@ -8,25 +8,13 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# python/config/settings.py -> 环境变量在仓库根 .env、.env.local
+# python/config/settings.py -> python/（含 .env）
 _PY_ROOT = Path(__file__).resolve().parent.parent
-_REPO_ROOT = _PY_ROOT.parent
-
-
-def _settings_env_files() -> tuple[str, ...]:
-    files: list[str] = []
-    env_path = _REPO_ROOT / ".env"
-    if env_path.is_file():
-        files.append(str(env_path))
-    local_path = _REPO_ROOT / ".env.local"
-    if local_path.is_file():
-        files.append(str(local_path))
-    return tuple(files) if files else (str(env_path),)
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=_settings_env_files(),
+        env_file=str(_PY_ROOT / ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -38,6 +26,17 @@ class Settings(BaseSettings):
     celery_broker_url: str = Field(default="", validation_alias="CELERY_BROKER_URL")
     celery_result_backend: str = Field(
         default="", validation_alias="CELERY_RESULT_BACKEND"
+    )
+    celery_require_worker_online: bool = Field(
+        default=True,
+        validation_alias="CELERY_REQUIRE_WORKER_ONLINE",
+        description="派发前 control.ping；无 worker 时阻止 apply_async",
+    )
+    celery_apply_async_max_retries: int = Field(
+        default=3, validation_alias="CELERY_APPLY_ASYNC_MAX_RETRIES"
+    )
+    celery_apply_async_backoff_base: float = Field(
+        default=1.0, validation_alias="CELERY_APPLY_ASYNC_BACKOFF_BASE"
     )
     celery_task_eager: bool = Field(
         default=False, validation_alias="CELERY_TASK_ALWAYS_EAGER"
@@ -79,7 +78,7 @@ class Settings(BaseSettings):
         default=604800, validation_alias="ASYNC_TASK_REDIS_MAX_TTL_SECONDS"
     )
     async_task_running_stale_seconds: float = Field(
-        default=1800.0, validation_alias="ASYNC_TASK_RUNNING_STALE_SECONDS"
+        default=120.0, validation_alias="ASYNC_TASK_RUNNING_STALE_SECONDS"
     )
 
     database_run_migrations: bool = Field(
@@ -123,10 +122,16 @@ class Settings(BaseSettings):
     )
 
     def resolved_celery_broker(self) -> str:
-        return (self.celery_broker_url or self.redis_url).strip()
+        from social_platform.celery_broker import require_redis_celery_url
+
+        return require_redis_celery_url(self.celery_broker_url, "CELERY_BROKER_URL")
 
     def resolved_celery_backend(self) -> str:
-        return (self.celery_result_backend or self.redis_url).strip()
+        from social_platform.celery_broker import require_redis_celery_url
+
+        return require_redis_celery_url(
+            self.celery_result_backend, "CELERY_RESULT_BACKEND"
+        )
 
 
 @lru_cache

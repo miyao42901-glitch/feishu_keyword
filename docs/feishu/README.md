@@ -76,7 +76,7 @@ npm run dev          # 默认 127.0.0.1:8000
 npm run dev:lan      # 局域网联调（读仓根 .env.local）
 ```
 
-**`npm run dev` 未配置 `VITE_API_BASE_URL` 时**默认 `http://127.0.0.1:8000`。线上打包用仓根 `build-public-test.bat` / `build-public-prod.bat`（会先 `cp .env.test|.env.master → .env`）。接口约定见 **[API.md](../API.md)**。
+**`npm run dev` 未配置 `VITE_API_BASE_URL` 时**默认 `http://127.0.0.1:8000`。测试/正式静态由 **CI Runner** 编译（`build:public:test|prod`）；本地可用 `build-public-*.bat` 预检。接口约定见 **[API.md](../API.md)**。
 
 构建与预览（单独调试构建时）：
 

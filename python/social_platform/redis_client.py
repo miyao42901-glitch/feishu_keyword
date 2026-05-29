@@ -14,7 +14,7 @@ _client: Optional[redis.Redis] = None
 
 @lru_cache
 def redis_url() -> str:
-    return get_settings().resolved_celery_broker().strip()
+    return get_settings().redis_url.strip()
 
 
 def redis_configured() -> bool:

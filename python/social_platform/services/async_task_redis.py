@@ -500,7 +500,22 @@ def apply_celery_run_at(
     if countdown > 0:
         kwargs["countdown"] = countdown
     try:
-        async_result = run_social_async_task.apply_async(**kwargs)
+        from social_platform.celery_broker import (
+            CeleryWorkerOfflineError,
+            safe_apply_async,
+        )
+
+        async_result = safe_apply_async(
+            run_social_async_task,
+            task_id=int(task_id),
+            apply_kwargs=kwargs,
+        )
+    except CeleryWorkerOfflineError:
+        logger.error(
+            "celery_apply_async_blocked task_id=%s: Celery worker offline",
+            int(task_id),
+        )
+        return None
     except Exception as exc:
         broker_errors: tuple[type[BaseException], ...]
         try:
@@ -821,6 +836,8 @@ def recover_stale_pending_tasks(*, batch_size: int = 50) -> int:
                 continue
             tid = int(row.id)
             try:
+                if naive_dt(row.task_start_time) > now:
+                    continue
                 end = naive_dt(row.task_end_time)
                 if end <= now:
                     if not _try_mark_pending_task_window_success(db, row):
@@ -845,11 +862,8 @@ def recover_stale_pending_tasks(*, batch_size: int = 50) -> int:
                 committed = get_committed_next_run_at(row)
                 if committed is None:
                     continue
-                # 始终对齐 ZSET（窗口开始前也需写入，避免仅依赖首次 enqueue 时 ZSET 丢失）
                 schedule_async_task_run(tid, committed)
                 update_async_task_cache(row, next_run_at=committed)
-                if naive_dt(row.task_start_time) > now:
-                    continue
                 if not is_run_at_due(committed, now=now):
                     continue
                 if _pending_celery_in_flight(row):

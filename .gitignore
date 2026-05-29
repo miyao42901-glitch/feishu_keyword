@@ -1,24 +1,43 @@
-# 鏈湴娈嬬暀鐩綍锛堝嬁鎻愪氦锛?/web/
+# public：由 CI Runner 编译后 tar 部署；本地 build-public-*.bat 产物勿提交
+/public/
 
-# public锛歛dmin / feishu 棰勭紪璇戜骇鐗╅殢涓讳粨鎻愪氦锛圕I 浠?rsync锛孯unner 鏃犻渶 Node锛?/public/*
-!/public/admin/
-!/public/admin/**
-!/public/feishu/
-!/public/feishu/**
-# 鑻?public/feishu 鍐呭祵 GitHub 鍙戝竷鐢?.git锛屽嬁杩涗富浠?/public/feishu/.git/
+# Docker 本地数据卷
+/data/
 
-# Docker 鏈湴鏁版嵁鍗?/data/
-
-# 鍙傝€冭祫鏂欑洰褰曪紙浠呮湰鍦版煡鐪嬶紝鍕挎彁浜わ級
+# 参考资料目录（仅本地查看，勿提交）
 /references/
 
-# Python 字节码缓存（勿提交）
+# Python（仅根路径 python/）
 __pycache__/
 *.py[cod]
 *$py.class
+.idea/
+.vscode/
+python/.env
+python/**/__pycache__/
+python/**/*.py[cod]
+python/**/*$py.class
+python/**/*.so
+python/.Python
+python/venv/
+python/.venv/
+python/ENV/
+python/env/
+python/.eggs/
+python/**/*.egg-info/
+python/**/*.egg
+python/dist/
+python/build/
+python/.pytest_cache/
+python/.mypy_cache/
+python/.ruff_cache/
+python/.coverage
+python/htmlcov/
+python/**/*.cover
+python/.hypothesis/
 
 # ------------------------------------------------------------------
-# 鏈湴璁块棶 / 绉佸瘑閰嶇疆锛堟暟鎹簱杩炴帴銆佹湰鏈?API銆佷釜浜?token 绛夛紝鍕挎彁浜わ級
+# 本地访问 / 私密配置（数据库连接、本机 API、个人 token 等，勿提交）
 # ------------------------------------------------------------------
 .env
 .env.local

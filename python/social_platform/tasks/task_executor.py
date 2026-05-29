@@ -114,12 +114,19 @@ def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
         return
 
     if task.status == "running" and not _lease_active(task, now=now):
-        logger.warning("worker_skip_expired_running", extra={"task_id": int(task_id)})
-        return
+        logger.warning(
+            "worker_recover_expired_running",
+            extra={"task_id": int(task_id), "run_id": task.current_run_id},
+        )
+        task.current_run_id = None
+        task.running_lease_until = None
+        task.update_time = schedule_now_wall_naive()
+        db.add(task)
+        db.commit()
 
     from config.settings import get_settings
 
-    lease_seconds = max(300.0, float(get_settings().async_task_running_stale_seconds))
+    lease_seconds = max(120.0, float(get_settings().async_task_running_stale_seconds))
     run_id = str(uuid4())
     running_lease_until = now + timedelta(seconds=lease_seconds)
 

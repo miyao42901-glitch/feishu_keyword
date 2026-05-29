@@ -1,5 +1,5 @@
 /** `public/images/home/` 下首页横幅静态资源 */
-const HOME_HERO_RASTER_BASE = '/images/home'
+const HOME_HERO_RASTER_BASE = `${import.meta.env.BASE_URL}images/home`
 
 /** 横幅右侧「剩余积分」钻石图标（原 `public/Frame.png`） */
 export const homeHeroAccountPointsIcon = {

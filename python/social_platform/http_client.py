@@ -1,12 +1,15 @@
-"""HTTP：POST JSON、超时、aiohttp 异步 IO + 同步封装 post_json。"""
+"""HTTP：POST JSON。同步 ``post_json``（requests）供 Spider/Celery；``post_json_async``（aiohttp）供 async 路径。"""
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any, Optional
 
 import aiohttp
+import requests
+from requests import RequestException
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +30,48 @@ class BaseHttpClient:
         self.max_retries = max_retries
         self.retry_sleep_sec = retry_sleep_sec
 
+    def post_json(
+        self,
+        url: str,
+        payload: dict[str, Any],
+        *,
+        headers: Optional[dict[str, str]] = None,
+    ) -> dict[str, Any]:
+        """
+        同步 POST JSON（requests）。
+        供 Spider、Celery gevent worker、FastAPI ``def`` 同步路由使用；勿在 ``async def`` 中直接调用。
+        """
+        last_exc: Optional[Exception] = None
+        req_headers = dict(headers or {})
+        for attempt in range(self.max_retries):
+            try:
+                logger.debug("HTTP POST url=%s payload=%s", url, payload)
+                resp = requests.post(
+                    url,
+                    json=payload,
+                    headers=req_headers,
+                    timeout=self.timeout,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                if not isinstance(data, dict):
+                    raise HttpClientError(f"响应 JSON 非对象: {type(data)!s}")
+                return data
+            except (RequestException, ValueError, TypeError) as e:
+                last_exc = e
+                logger.warning(
+                    "HTTP POST 失败 (%s/%s): %s",
+                    attempt + 1,
+                    self.max_retries,
+                    e,
+                    exc_info=logger.isEnabledFor(logging.DEBUG),
+                )
+                if attempt < self.max_retries - 1:
+                    time.sleep(self.retry_sleep_sec)
+        raise HttpClientError(
+            f"POST 重试{self.max_retries}次仍失败: {last_exc!s}"
+        ) from last_exc
+
     async def post_json_async(
         self,
         url: str,
@@ -34,14 +79,16 @@ class BaseHttpClient:
         *,
         headers: Optional[dict[str, str]] = None,
     ) -> dict[str, Any]:
+        """异步 POST JSON（aiohttp）；在已有事件循环的 async 代码路径中使用。"""
         client_timeout = aiohttp.ClientTimeout(total=self.timeout)
         last_exc: Optional[Exception] = None
         async with aiohttp.ClientSession(timeout=client_timeout) as session:
             for attempt in range(self.max_retries):
                 try:
-                    print(f"url: {url}")
-                    print(f"payload: {payload}")
-                    async with session.post(url, json=payload, headers=headers) as resp:
+                    logger.debug("HTTP POST url=%s payload=%s", url, payload)
+                    async with session.post(
+                        url, json=payload, headers=headers
+                    ) as resp:
                         resp.raise_for_status()
                         data = await resp.json(content_type=None)
                         if not isinstance(data, dict):
@@ -55,7 +102,11 @@ class BaseHttpClient:
                 ) as e:
                     last_exc = e
                     logger.warning(
-                        "HTTP POST 失败 (%s/%s): %s", attempt + 1, self.max_retries, e
+                        "HTTP POST 失败 (%s/%s): %s",
+                        attempt + 1,
+                        self.max_retries,
+                        e,
+                        exc_info=logger.isEnabledFor(logging.DEBUG),
                     )
                     if attempt < self.max_retries - 1:
                         await asyncio.sleep(self.retry_sleep_sec)
@@ -63,12 +114,3 @@ class BaseHttpClient:
             f"POST 重试{self.max_retries}次仍失败: {last_exc!s}"
         ) from last_exc
 
-    def post_json(
-        self,
-        url: str,
-        payload: dict[str, Any],
-        *,
-        headers: Optional[dict[str, str]] = None,
-    ) -> dict[str, Any]:
-        """供同步爬虫调用；内部 asyncio.run，请勿在已有运行中的事件循环里调用。"""
-        return asyncio.run(self.post_json_async(url, payload, headers=headers))

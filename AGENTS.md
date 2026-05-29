@@ -4,7 +4,7 @@
 
 ## 开始写代码之前
 
-1. 阅读 **`docs/README.md`**，按任务选择 **`docs/server/README.md`**（改后端）或 **`docs/feishu/README.md`**（改前端），再读 **`DEVELOPMENT.md`** 及相关的 **`API.md` / `DATABASE.md`**。联调 HTTP 时须遵守 **`docs/API.md`** 中 **统一响应 `code` / `message` / `data`**（第五节）。  
+1. 阅读 **`docs/README.md`** 与 **`docs/GIT_WORKFLOW.md`**（分支与部署）；按任务选择 **`docs/server/README.md`**（改后端）或 **`docs/feishu/README.md`**（改前端），再读 **`DEVELOPMENT.md`** 及相关的 **`API.md` / `DATABASE.md`**。联调 HTTP 时须遵守 **`docs/API.md`** 中 **统一响应 `code` / `message` / `data`**（第五节）。  
 2. 若存在 **`.cursor/rules/dev-standards.mdc`**（`alwaysApply: true`），助手应结合上述文档行动。
 
 ## 项目入口
@@ -18,5 +18,5 @@
 
 ## 部署（摘要）
 
-- 推送 **`test`** → 自动部署测试栈；**MR 合并 `master`** → 流水线手动 **`deploy-prod`**。
-- 发布前仓根 `build-public-test.bat` / `build-public-prod.bat`，提交 `public/admin`、`public/feishu`。详见 **`docs/DEPLOY.md`**。
+- 个人分支开发 → **本地 merge 到 `test`** → `git push origin test` → 自动部署测试栈；**GitLab MR 合并 `master`** → 流水线手动 **`deploy-prod`**。
+- 发布前可选本地 `build-public-test.bat` / `build-public-prod.bat` 预检；CI 在 Runner 自动编译。详见 **`docs/GIT_WORKFLOW.md`**、**`docs/DEPLOY.md`**。

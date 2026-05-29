@@ -2,7 +2,7 @@
 
 ## 当前项目
 
-本项目是面向**飞书（Lark）**的**关键词监控插件**，用于在飞书生态内对关键词进行监控与相关能力扩展。
+本项目是面向**飞书（Lark）**的**关键词监控插件**，用于在飞书生态内对关键词进行监控与相关能力扩展。 
 
 - **全称**：飞书关键词监控插件  
 - **GitLab 仓库**：[http://192.168.1.200:8080/jzl/feishu_keyword/](http://192.168.1.200:8080/jzl/feishu_keyword/)
@@ -50,8 +50,7 @@
 
 | 路径 | 说明 |
 |------|------|
-| `public/admin/` | 管理端静态，本地 `build:public:*` 后提交主仓 |
-| `public/feishu/` | 飞书静态，本地 `build:public:*` 后提交主仓 |
+| `public/admin/`、`public/feishu/` | 静态资源目录（**CI Runner 编译**后随 tar 部署；勿提交 Git） |
 
 ## 本地开发
 
@@ -70,9 +69,9 @@ cd feishu && npm run dev:lan
 
 仅本机回环可用 `npm run dev:local`（`127.0.0.1`）。Docker/远端部署见 [docs/DEPLOY.md](docs/DEPLOY.md)（`.env.test` / `.env.master`）。
 
-**CI**：推送 `test` 自动部署测试环境；正式环境须 MR 合并 `master` 后，在 GitLab 流水线手动运行 `deploy-prod`（见 [docs/DEPLOY.md](docs/DEPLOY.md)）。
+**CI / 分支**：本地 merge 到 `test` 后 `git push origin test`（Runner 编译前端并 tar+scp 自动部署）；正式环境 GitLab MR 合并 `master` 后手动 `deploy-prod`。详见 [docs/GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md)、[docs/DEPLOY.md](docs/DEPLOY.md)。
 
-部署前预编译：测试用 `build-public-test.bat` 后推 `test`；正式发布用 `build-public-prod.bat` 后合并 `master`。
+本地 `build-public-*.bat` 可选，用于离线预检；**不必**为部署提交 `public/*`。
 
 ## 目录结构
 
@@ -90,3 +89,4 @@ feishu_keyword/
 ├── public/
 └── docs/
 ```
+
