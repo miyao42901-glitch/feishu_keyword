@@ -21,8 +21,8 @@
 **DNS**：改域名后须：
 
 1. 在栈根维护 `.env.test` 或 `.env.master`（含真实口令）；**每次部署**执行 `cp -f .env.test .env`（正式用 `.env.master`）。勿长期手改 `.env`，它会被覆盖。
-2. 测试：`build-public-test.bat` → 提交 `public/*` → **本地 merge 到 `test`** → `git push origin test`（自动 `deploy-test`，见 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)）
-3. 正式：`build-public-prod.bat` → 提交 `public/*` → **MR 合并 `master`** → 流水线中手动 `deploy-prod`
+2. 测试：本地 merge 到 `test` → `git push origin test`（CI 在 Runner 编译 `public/*` 并 tar+scp 部署）
+3. 正式：GitLab **MR** 合并 `master` → 流水线中手动 `deploy-prod`（CI 使用 `.env.master` 编译正式静态）
 
 探活：`GET https://test-fskw.tbpf.com/ci-test`
 
@@ -128,12 +128,15 @@ python 业务表：`sync-api` 启动且 `DATABASE_RUN_MIGRATIONS=1` 时，若库
 | `test` | 推送后**自动**执行 | `deploy-test` → 测试栈 `/docker/feishu_keyword-test` |
 | `master` | **MR 合并进 master** 后产生流水线 | 在流水线中**手动**运行 `deploy-prod` → 正式栈 `/docker/feishu_keyword` |
 
-推荐发布流程：个人分支 → **本地 merge `test`** → push `test` → 验收测试环境 → `build-public-prod.bat` 并提交 `public/*` → GitLab **MR** 合并 `master` → 手动 `deploy-prod`。分支规范见 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)。
+推荐发布流程：个人分支 → **本地 merge `test`** → push `test` → 验收测试环境 → GitLab **MR** 合并 `master` → 手动 `deploy-prod`。分支规范见 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)。
 
-- `deploy-prod` / `deploy-test` 均使用 `--profile admin --profile feishu --profile worker`，部署后校验 `feishu-web` → `sync-api:8765/api/v1/health`（避免 `/api/v1` 502）
-- 远端须有栈根 `.env.test`（测试）或 `.env.master`（正式）；CI 每次部署 **`cp -f` 覆盖 `.env`**
-- 部署前会检查 `tbpf-mysql` 是否运行；未运行则 WARN，需 `cd /docker/traefik && docker compose up -d mysql redis`
-- 测试：`build-public-test.bat`；**正式**：`build-public-prod.bat` 后再提交 `public/admin`、`public/feishu`
+**CI 流程**（Shell Runner）：`scripts/ci-build-frontend.sh` 编译 admin/feishu → `ci-pack-deploy.sh` 打 `deploy.pkg.tar.gz` → **scp** 到栈根 → `ci-deploy-remote.sh` 解压并 `docker compose up -d --build`（**不再使用 rsync**）。
+
+- `deploy-prod` / `deploy-test` 均使用 `--profile admin --profile feishu --profile worker`，部署后校验 `feishu-web` → `sync-api:8765/api/v1/health`
+- 远端须有栈根 `.env.test`（测试）或 `.env.master`（正式）；部署时 **`cp -f` 覆盖 `.env`**（包内占位模板仅在远端尚无该文件时落盘）
+- 部署前会检查 `tbpf-mysql` 是否运行；未运行则 WARN
+- **Runner 前置**：Node.js 18+、`npm`、`bash`、`tar`、`scp`、`ssh`；可选 CI 变量 `NPM_CONFIG_REGISTRY`
+- 本地 `build-public-*.bat` 仅用于离线预检，**非部署必要条件**
 
 ## 验收 curl
 
@@ -162,5 +165,5 @@ cd feishu && npm run dev:lan
 
 | 阶段 | 命令 |
 |------|------|
-| 测栈 | 本地 `git merge` 个人分支到 `test` → `.\build-public-test.bat` → `git push origin test`（自动 `deploy-test`，见 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)） |
-| 正式 | `.\build-public-prod.bat` → 提交 `public/*` → GitLab MR 合并 `master` → 流水线手动 `deploy-prod` |
+| 测栈 | 本地 `git merge` 个人分支到 `test` → `git push origin test`（CI 自动编译并 `deploy-test`） |
+| 正式 | GitLab MR 合并 `master` → 流水线手动 `deploy-prod`（CI 使用 `.env.master` 编译） |

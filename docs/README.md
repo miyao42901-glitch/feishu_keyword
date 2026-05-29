@@ -9,7 +9,7 @@
 
 推荐流程：个人分支（如 `hxp`）→ **本地 merge 到 `test`** → `git push origin test` → 验收 → `build-public-prod.bat` → GitLab **MR** `test`→`master` → 手动 `deploy-prod`。详见 **[GIT_WORKFLOW.md](./GIT_WORKFLOW.md)**。
 
-Runner **不安装 Node**；须在本地构建 `public/admin`、`public/feishu` 后提交，CI 仅 rsync。详见 **[DEPLOY.md](./DEPLOY.md)**。
+Runner 在流水线内编译 `public/admin`、`public/feishu` 后 **tar+scp** 部署。详见 **[DEPLOY.md](./DEPLOY.md)**、**[GIT_WORKFLOW.md](./GIT_WORKFLOW.md)**。
 
 **编排真源**：仓库根 [`docker-compose.yml`](../docker-compose.yml)、[`.gitlab-ci.yml`](../.gitlab-ci.yml)（仅此一份 compose，测试/正式靠主机目录与栈根 `.env` 区分）。
 

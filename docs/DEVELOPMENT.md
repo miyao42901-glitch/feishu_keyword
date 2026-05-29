@@ -75,17 +75,11 @@ cd server
 ## 8. 构建与验证
 
 - **不要求**在每次完成开发任务后固定执行前端生产构建；以任务说明、提测、CI 或协作方明确要求为准。
-- **GitLab CI**：本地 merge 到 **`test`** 并 `git push origin test` 后自动 `deploy-test`；**GitLab MR 合并 `master`** 后在流水线**手动** `deploy-prod`。分支流程见 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)。Runner **不安装 Node**；须本地构建并提交 `public/admin`、`public/feishu`（CI 只 rsync）。详见 [DEPLOY.md](./DEPLOY.md)。
+- **GitLab CI**：本地 merge 到 **`test`** 并 `git push origin test` 后，Runner 编译 `public/*` 并 **tar+scp** 部署（`deploy-test`）；**GitLab MR 合并 `master`** 后手动 `deploy-prod`。分支流程见 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)。详见 [DEPLOY.md](./DEPLOY.md)。
 
 ```powershell
-# 测试（推 test 前）
+# 本地预检（可选；CI 会在 Runner 上自动 build:public:*）
 .\build-public-test.bat
-
-# 或分别执行
-cd admin  && npm run build:public:test   # -> public/admin/
-cd feishu && npm run build:public:test   # -> public/feishu/
-
-# 正式（合并 master 前）
 .\build-public-prod.bat
 ```
 

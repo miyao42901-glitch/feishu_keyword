@@ -70,9 +70,9 @@ cd feishu && npm run dev:lan
 
 仅本机回环可用 `npm run dev:local`（`127.0.0.1`）。Docker/远端部署见 [docs/DEPLOY.md](docs/DEPLOY.md)（`.env.test` / `.env.master`）。
 
-**CI / 分支**：测试环境须在本地 merge 到 `test` 后 `git push origin test`（自动部署）；正式环境须 GitLab MR 合并 `master` 后手动 `deploy-prod`。详见 [docs/GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md) 与 [docs/DEPLOY.md](docs/DEPLOY.md)。
+**CI / 分支**：本地 merge 到 `test` 后 `git push origin test`（Runner 编译前端并 tar+scp 自动部署）；正式环境 GitLab MR 合并 `master` 后手动 `deploy-prod`。详见 [docs/GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md)、[docs/DEPLOY.md](docs/DEPLOY.md)。
 
-部署前预编译：测试在 merge 到 `test` 前/后执行 `build-public-test.bat`；正式发布用 `build-public-prod.bat` 后经 MR 合 `master`。
+本地 `build-public-*.bat` 可选，用于离线预检；**不必**为部署提交 `public/*`。
 
 ## 目录结构
 

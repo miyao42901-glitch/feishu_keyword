@@ -19,4 +19,4 @@
 ## 部署（摘要）
 
 - 个人分支开发 → **本地 merge 到 `test`** → `git push origin test` → 自动部署测试栈；**GitLab MR 合并 `master`** → 流水线手动 **`deploy-prod`**。
-- 发布前仓根 `build-public-test.bat` / `build-public-prod.bat`，提交 `public/admin`、`public/feishu`。详见 **`docs/GIT_WORKFLOW.md`**、**`docs/DEPLOY.md`**。
+- 发布前可选本地 `build-public-test.bat` / `build-public-prod.bat` 预检；CI 在 Runner 自动编译。详见 **`docs/GIT_WORKFLOW.md`**、**`docs/DEPLOY.md`**。

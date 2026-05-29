@@ -1,6 +1,7 @@
 # 鏈湴娈嬬暀鐩綍锛堝嬁鎻愪氦锛?/web/
 
-# public锛歛dmin / feishu 棰勭紪璇戜骇鐗╅殢涓讳粨鎻愪氦锛圕I 浠?rsync锛孯unner 鏃犻渶 Node锛?/public/*
+# public：admin / feishu 预编译产物（可提交；CI Runner 部署时会重新编译，非必须提交）
+/public/*
 !/public/admin/
 !/public/admin/**
 !/public/feishu/
