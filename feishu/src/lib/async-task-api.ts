@@ -995,15 +995,13 @@ export function isPendingAsyncResultsDue(
 
 /**
  * 是否对该 lifecycle 发起 `GET .../results`。
- * - `running` / `completed`：立即拉取
- * - `pending`：等待 `next_run_at + 2 分钟` 后拉取
+ * 仅在 `running` 状态时立即拉取结果。
  */
 export function shouldFetchAsyncResultsAfterStatus(
   lifecycle: AsyncTaskLifecycle,
   options?: { pendingResultsDue?: boolean },
 ): boolean {
-  if (lifecycle === 'running' || lifecycle === 'completed') return true
-  if (lifecycle === 'pending' && options?.pendingResultsDue) return true
+  if (lifecycle === 'running') return true
   return false
 }
 
