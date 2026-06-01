@@ -61,8 +61,30 @@ cp .env.master .env && cd feishu && npm run build:public:prod
 
 Traefik 另将 **`API_PUBLIC_HOST`**（如 `test-fskw.tbpf.com`）的 `/api/v1` 直接路由到 `api` 服务，供外部系统或 curl 探活。
 
+## 飞书插件 CDN 发版（GitHub → `ext.baseopendev.com`）
+
+多维表格插件静态资源托管在飞书 CDN（如 `ext.baseopendev.com`），**没有** Nginx 的 `/yddm-api` 反代。若构建时未设置 `VITE_YDDM_API_BASE`，浏览器会把 `/yddm-api/auth/login` 解析到 CDN 域名，触发对象存储 412（非 YDDM 接口错误）。
+
+**GitHub 发版**（`npm run build:github:*` / `release.bat`）前：
+
+```powershell
+cp .env.test .env   # 或 .env.master
+```
+
+`.env.test` / `.env.master` 已包含：
+
+```env
+VITE_YDDM_API_BASE=https://test-fskw-feishu.tbpf.com/yddm-api
+VITE_SYNC_API_BASE=https://test-fskw-feishu.tbpf.com
+```
+
+本地 `npm run dev` 请在 `.env.local` 中注释或清空上述两项，继续走 Vite 代理。
+
+`deploy/feishu-static/default.conf` 的 `/yddm-api/` 已加 CORS，供 CDN 页面跨域访问。
+
 ## 常见问题
 
+- **412 on `/yddm-api/auth/login`（ext.baseopendev.com）**：未写入 `VITE_YDDM_API_BASE` 重建插件包；或 Nginx 未 reload CORS 配置。
 - **仍跨域**：检查是否仍配置了 `VITE_SYNC_API_BASE` 指向独立 `:8765`；应去掉后重建前端，或确保页面与 API 同源（飞书静态域 + `/api/v1`）。
 - **404 on /api/v1**：未启动 `worker` profile（缺少 `api` 容器），或 nginx `location /api/v1/` 配置错误。
 - **502**：`api` 未就绪或 Celery/DB/Redis 配置错误；在栈内执行 `docker compose exec feishu-web wget -qO- http://api:8765/api/v1/health` 排查。

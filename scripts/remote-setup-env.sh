@@ -76,6 +76,8 @@ ASYNC_SEARCH_GUARDS_ASYNC_ONLY=1
 YDDM_PROXY_TARGET=https://api.yddm.com
 SYNC_PROXY_TARGET=https://test-fskw-feishu.tbpf.com
 VITE_ADMIN_API_ORIGIN=https://test-fskw.tbpf.com
+VITE_YDDM_API_BASE=https://test-fskw-feishu.tbpf.com/yddm-api
+VITE_SYNC_API_BASE=https://test-fskw-feishu.tbpf.com
 EOF
   chmod 600 "$TEST_ROOT/.env.test"
 }
@@ -134,6 +136,8 @@ ASYNC_SEARCH_GUARDS_ASYNC_ONLY=1
 YDDM_PROXY_TARGET=https://api.yddm.com
 SYNC_PROXY_TARGET=https://fskw-feishu.tbpf.com
 VITE_ADMIN_API_ORIGIN=https://fskw.tbpf.com
+VITE_YDDM_API_BASE=https://fskw-feishu.tbpf.com/yddm-api
+VITE_SYNC_API_BASE=https://fskw-feishu.tbpf.com
 EOF
   chmod 600 "$PROD_ROOT/.env.master"
 }
