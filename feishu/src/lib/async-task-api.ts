@@ -978,8 +978,8 @@ export async function getAsyncTaskStatus(
   return parseAsyncTaskStatusResponse(parsed, id)
 }
 
-/** 待运行定时任务：在 YDDM `next_run_at` 之后约 2 分钟再拉 results（各平台共用） */
-export const PENDING_RESULTS_AFTER_NEXT_RUN_MS = 2 * 60_000
+/** 待运行定时任务：在 YDDM `next_run_at` 之后约 3 分钟再拉 results（各平台共用） */
+export const PENDING_RESULTS_AFTER_NEXT_RUN_MS = 3 * 60_000
 
 /** 是否已到「pending 可拉 results」时刻（`next_run_at` + {@link PENDING_RESULTS_AFTER_NEXT_RUN_MS}） */
 export function isPendingAsyncResultsDue(
@@ -995,13 +995,14 @@ export function isPendingAsyncResultsDue(
 
 /**
  * 是否对该 lifecycle 发起 `GET .../results`。
- * 仅在 `running` 状态时立即拉取结果。
+ * `pending` 仅在列表轮询判定 `pendingResultsDue`（next_run_at+3min）时为 true。
  */
 export function shouldFetchAsyncResultsAfterStatus(
   lifecycle: AsyncTaskLifecycle,
   options?: { pendingResultsDue?: boolean },
 ): boolean {
-  if (lifecycle === 'running') return true
+  if (lifecycle === 'running' || lifecycle === 'completed') return true
+  if (lifecycle === 'pending' && options?.pendingResultsDue) return true
   return false
 }
 
