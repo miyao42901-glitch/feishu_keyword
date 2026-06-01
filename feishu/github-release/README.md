@@ -22,8 +22,12 @@ git clone <GitHub空仓URL> public/feishu
 
 ## 每次发测试包
 
+构建前确保仓根 `.env` 含 `VITE_YDDM_API_BASE`、`VITE_SYNC_API_BASE`（见 `.env.test` / `.env.master`）。  
+插件页面在飞书 CDN（`ext.baseopendev.com`）加载时，**不能**用相对路径 `/yddm-api`，否则会打到对象存储并返回 412。
+
 ```powershell
 # 仓库根
+cp .env.test .env
 .\release.bat
 
 # 或
