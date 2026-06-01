@@ -57,8 +57,8 @@ export function discountRateForPackage(
 export const DOUYIN_DISCOUNT_RATE = discountRateForPackage(DOUYIN_POINTS_PACKAGE)
 /** 小红书：2000 积分档 → discount_rate 20 */
 export const XHS_DISCOUNT_RATE = discountRateForPackage(XHS_POINTS_PACKAGE)
-/** 视频号 / 公众号：1500 积分档 → discount_rate 15（每条 100 积分） */
-export const WX_SOUSOU_DISCOUNT_RATE = discountRateForPackage(WX_SOUSOU_POINTS_PACKAGE)
+/** 视频号 / 公众号：固定 discount_rate 1（按后端要求） */
+export const WX_SOUSOU_DISCOUNT_RATE = 1
 
 /** 视频号 / 公众号单次 search-page 典型返回条数（翻页与积分预估；与 {@link WX_SOUSOU_DISCOUNT_RATE} 分离） */
 export const WX_SOUSOU_EXPECTED_PAGE_ROWS = 15
