@@ -379,7 +379,6 @@ export function mergeResultItems(input: {
       input.seenIds.add(dedupKey)
     }
     input.collected.push(item)
-    if (input.collected.length >= input.limit) return true
   }
   return input.collected.length >= input.limit
 }
