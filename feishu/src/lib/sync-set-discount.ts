@@ -126,7 +126,10 @@ export function resolveDiscountForSyncPath(
     }
   }
   if (p.includes('/wxvideo/') || p.includes('/wx/')) {
-    return null
+    return {
+      endpoint: WX_SOUSOU_DISCOUNT_ENDPOINT,
+      discount_rate: WX_SOUSOU_DISCOUNT_RATE,
+    }
   }
   return null
 }

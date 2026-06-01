@@ -173,7 +173,7 @@ export async function fetchDouyinSearchItems(
     if (collected.length >= limit) break
   }
 
-  return collected.slice(0, limit)
+  return collected
 }
 
 /** @deprecated 使用 `fetchDouyinSearchItems` */
