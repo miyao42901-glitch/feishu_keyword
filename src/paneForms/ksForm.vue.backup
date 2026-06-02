@@ -716,87 +716,175 @@
 </script>
 
 <template>
-  <div class="collect-panel">
-    <div class="section-title">采集内容</div>
-    <div class="collect-sub-panel">
-      <div class="section-block">
-        <div class="toggle-wrapper">
-          <el-tooltip content="将采集账号的ID、粉丝数、简介、点赞数等基础信息" placement="top">
-            <el-button type="info" class="toggle-btn" :class="{ active: paneData.getDataType === 0 }" @click="paneData.getDataType = 0">获取账号数据</el-button>
-          </el-tooltip>
-          <el-tooltip content="将采集作品的点赞、评论、查看、转发、发布时间等数据" placement="top">
-            <el-button type="info" class="toggle-btn" :class="{ active: paneData.getDataType === 1 }" @click="paneData.getDataType = 1">获取视频数据</el-button>
-          </el-tooltip>
-        </div>
-      </div>
+  <el-form class="ghForm" label-position="left" label-width="auto">  
 
-      <div class="section-block" v-show="paneData.getDataType !== 0">
-        <div class="field-label">快手视频表</div>
-        <TableSelect v-model="paneData.workTableId" placeholder="未选自动创建" />
-      </div>
+    <el-form-item label-width="null">
+      <el-radio-group v-model="paneData.getDataType" style="display: flex;">
+        <el-radio :label="0">获取账号数据</el-radio>
+        <el-radio :label="1">获取视频数据</el-radio>
+      </el-radio-group>
+    </el-form-item>
 
-      <div class="section-block" v-show="paneData.getDataType !== 0">
-        <div class="toggle-wrapper">
-          <el-button type="info" class="toggle-btn" :class="{ active: paneData.getWorksType === 1 }" @click="paneData.getWorksType = 1">根据账号id获取</el-button>
-          <el-button type="info" class="toggle-btn" :class="{ active: paneData.getWorksType === 0 }" @click="paneData.getWorksType = 0">根据账号表获取</el-button>
-        </div>
-      </div>
 
-      <div class="section-block" v-show="paneData.getDataType === 0 || paneData.getWorksType === 0">
-        <div class="field-label">快手账号表</div>
-        <TableSelect v-model="paneData.userTableId" :placeholder="paneData.getDataType === 0 ? '未选自动创建' : '请选择快手账号表'" />
-      </div>
+    <!-- <el-form-item label-width="null" v-show="paneData.getDataType !== 0">
+      <el-button 
+        type="primary" 
+        :disabled="isLocked"
+        @click="addWorkTableTemplate"
+        plain
+        style="flex: 1;"
+      >
+          创建快手视频表空模板
+      </el-button>
+    </el-form-item>
 
-      <div class="section-block" v-show="paneData.getDataType !== 0 && paneData.getWorksType !== 0">
-        <div class="field-label">快手账号id</div>
-        <el-input v-model="paneData.user_id" placeholder="请输入快手账号id" />
-      </div>
 
-      <div class="section-block" v-show="paneData.getDataType === 0">
-        <div class="field-label">账号分享链接</div>
-        <el-input v-model="paneData.shareLink" placeholder="请输入快手账号分享链接" />
-      </div>
+    <el-form-item label-width="null" v-show="paneData.getDataType === 0">
+      <el-button 
+        type="primary" 
+        :disabled="isLocked"
+        @click="addUserTableTemplate"
+        plain
+        style="flex: 1;"
+      >
+          创建快手账号表空模板
+      </el-button>
+    </el-form-item> -->
 
-      <div class="section-block" v-show="paneData.getDataType !== 0">
-        <div class="field-label">数据范围</div>
-        <el-select v-model="paneData.searchRange" class="custom-select" placeholder="请选择数据范围">
-          <el-option v-for="item in Object.keys(ranges)" :key="item" :label="item" :value="item" />
-        </el-select>
-      </div>
-    </div>
 
-    <div class="collect-btn-container">
-      <div class="collect-btn-item" v-show="paneData.getDataType === 0">
-        <el-button class="collect-btn" :disabled="isLocked || !formData.key || !paneData.shareLink" @click="upsertUser">
+    <el-form-item 
+      :label="'快手视频表'"
+      v-show="paneData.getDataType !== 0"
+    >
+      <TableSelect v-model="paneData.workTableId" :placeholder="'未选自动创建'" />
+    </el-form-item>
+
+
+    <el-form-item label-width="null" v-show="paneData.getDataType !== 0">
+      <el-radio-group v-model="paneData.getWorksType" style="display: flex;">
+        <el-radio :label="1">根据账号id获取</el-radio>
+        <el-radio :label="0">根据账号表获取</el-radio>
+      </el-radio-group>
+    </el-form-item>
+
+
+    <el-form-item 
+      :label="'快手账号表'"
+      v-show="paneData.getDataType === 0 || paneData.getWorksType === 0"
+    >
+      <TableSelect v-model="paneData.userTableId" :placeholder="paneData.getDataType === 0 ? '未选自动创建' : '请选择快手账号表'" />
+    </el-form-item>
+
+
+    <el-form-item
+      :label="'快手账号id'"
+      v-show="paneData.getDataType !== 0 && paneData.getWorksType !== 0"
+    >
+      <el-input 
+        v-model="paneData.user_id"
+        :placeholder="'请输入快手账号id'"
+      />
+    </el-form-item>
+
+
+    <el-form-item
+      :label="'账号分享链接'"
+      v-show="paneData.getDataType === 0"
+    >
+      <el-input 
+        v-model="paneData.shareLink"
+        :placeholder="'请输入快手账号分享链接'"
+      />
+    </el-form-item>
+
+
+    <el-form-item label-width="null" v-show="paneData.getDataType === 0">
+      <el-tooltip 
+        :content="isLocked || !formData.key || !paneData.shareLink
+          ? '需要登录、填写快手账号分享链接' : '写入快手账号数据' " 
+        effect="dark"
+        placement="top"
+      >
+        <el-button 
+          type="primary" 
+          :disabled="isLocked || !formData.key || !paneData.shareLink"
+          @click="upsertUser"
+          plain
+          style="flex: 1;"
+        >
           写入快手账号数据
         </el-button>
-      </div>
+      </el-tooltip>
+    </el-form-item>
 
-      <div class="collect-btn-item" v-show="paneData.getDataType === 0">
-        <el-button class="update-btn" :disabled="isLocked || !formData.key || !paneData.userTableId" @click="batchUpdateUser">
+
+    <el-form-item label-width="null"  v-show="paneData.getDataType === 0">
+      <el-tooltip 
+        :content="isLocked || !formData.key || !paneData.userTableId
+          ? '需要登录、选择快手账号表' : '批量更新快手账号数据' " 
+        effect="dark"
+        placement="top"
+      >
+        <el-button 
+          type="primary" 
+          :disabled="isLocked || !formData.key || !paneData.userTableId"
+          @click="batchUpdateUser"
+          plain
+          style="flex: 1;"
+        >
           批量更新快手账号数据
         </el-button>
-      </div>
+      </el-tooltip>
+    </el-form-item>
 
-      <div class="collect-btn-item" v-show="paneData.getDataType !== 0">
-        <el-button class="collect-btn" :disabled="isLocked || !formData.key || (!paneData.userTableId && paneData.getWorksType === 0) || (!paneData.user_id && paneData.getWorksType !== 0)" @click="getRecentWorks(paneData.searchRange, paneData.getWorksType)">
+
+    <el-form-item :label="'数据范围'"  v-show="paneData.getDataType !== 0">
+      <el-select v-model="paneData.searchRange" :placeholder="'请选择数据范围'">
+        <el-option v-for="item in Object.keys(ranges)" :key="item" :label="item" :value="item" />
+      </el-select>
+    </el-form-item>
+
+    <el-form-item label-width="null" v-show="paneData.getDataType !== 0">
+      <el-tooltip 
+        :content="isLocked || !formData.key || !paneData.userTableId && paneData.getWorksType === 0 || !paneData.user_id && paneData.getWorksType !== 0
+          ? '需要登录、选择快手账号表或输入快手账号id' : '获取发布视频' " 
+        effect="dark"
+        placement="top"
+      >
+        <el-button 
+          type="primary" 
+          :disabled="isLocked || !formData.key || !paneData.userTableId && paneData.getWorksType === 0 || !paneData.user_id && paneData.getWorksType !== 0"
+          @click="getRecentWorks(paneData.searchRange, paneData.getWorksType)"
+          plain
+          style="flex: 1;"
+        >
           {{ '获取' + paneData.searchRange + '发布视频'}}
         </el-button>
-      </div>
+      </el-tooltip>
+    </el-form-item>
 
-      <div class="collect-btn-item" v-show="paneData.getDataType !== 0">
-        <el-button class="update-btn" :disabled="isLocked || !formData.key || !paneData.workTableId" @click="updateWorks">
+    <el-form-item label-width="null"  v-show="paneData.getDataType !== 0">
+      <el-tooltip 
+        :content="isLocked || !formData.key || !paneData.workTableId
+          ? '需要登录、选择快手视频表' : '批量更新快手视频数据' " 
+        effect="dark"
+        placement="top"
+      >
+        <el-button 
+          type="primary" 
+          :disabled="isLocked || !formData.key || !paneData.workTableId"
+          @click="updateWorks"
+          plain
+          style="flex: 1;"
+        >
           批量更新快手视频数据
         </el-button>
-      </div>
-    </div>
-  </div>
+      </el-tooltip>
+    </el-form-item>
+
+    <!-- <p>{{ paneData }}</p> -->
+  </el-form>
 </template>
-
-
-
-
-
 
 <style scoped>
 </style>

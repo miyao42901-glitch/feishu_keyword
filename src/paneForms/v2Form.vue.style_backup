@@ -1,13 +1,10 @@
 <script>
   import { ref, computed } from 'vue';
   import { bitable, FieldType, NumberFormatter, DateFormatter } from '@lark-base-open/js-sdk';
-  import { ElSelect, ElOption, ElInput, ElIcon } from 'element-plus';
-  import { QuestionFilled, CirclePlus, Remove } from '@element-plus/icons-vue';
+  import { ElSelect, ElOption, ElInput } from 'element-plus';
   import pluginAPI from '@/utils/request'
   import { writeToTable, updateTable, getFirstRecordByField} from '@/utils/tableHelper'
   import TableSelect from '@/components/TableSelect.vue'
-  import generalSelect from '@/toolComponents/generalSelect.vue'
-  import platformTip from '@/tipDialogs/platformTip.vue'
   import { SectionTitle, CollectSection, FieldLabel, ToggleButtons, CollectButton } from '@/components/collect'
   import '@/assets/form-styles.css'
 
@@ -16,13 +13,7 @@
       ElSelect,
       ElOption,
       ElInput,
-      ElIcon,
-      QuestionFilled,
-      CirclePlus,
-      Remove,
       TableSelect,
-      generalSelect,
-      platformTip,
       SectionTitle,
       CollectSection,
       FieldLabel,
@@ -110,28 +101,6 @@
         getDataType: 0,
         getWorksType: 1,
       })
-
-      const searchValues = ref({
-        0: null,
-      })
-
-      const addSearchRow = () => {
-        const keys = Object.keys(searchValues.value).map(Number)
-        const maxKey = Math.max(...keys)
-        searchValues.value[maxKey + 1] = null
-      }
-
-      const removeSearchRow = (key) => {
-        delete searchValues.value[key]
-      }
-
-      const tipVisible = ref(false)
-
-      const openTip = () => {
-        tipVisible.value = true
-      }
-
-
 
       const getTimeFromStr = (dateStr) => {
         if (!dateStr) return 0;
@@ -628,11 +597,6 @@
         paneData,
         dateRange,
         ranges,
-        searchValues,
-        addSearchRow,
-        removeSearchRow,
-        tipVisible,
-        openTip,
         addUserTableTemplate,
         addWorkTableTemplate,
         upsertUser,
@@ -645,95 +609,174 @@
 </script>
 
 <template>
-  <div class="collect-panel">
-    <div class="section-title">采集内容</div>
-    <div class="collect-sub-panel">
-      <div class="section-block">
-        <div class="toggle-wrapper">
-          <el-tooltip content="将采集账号的ID、粉丝数、简介、点赞数等基础信息" placement="top">
-            <el-button type="info" class="toggle-btn" :class="{ active: paneData.getDataType === 0 }" @click="paneData.getDataType = 0">采集博主数据</el-button>
-          </el-tooltip>
-          <el-tooltip content="将采集作品的点赞、评论、查看、转发、发布时间等数据" placement="top">
-            <el-button type="info" class="toggle-btn" :class="{ active: paneData.getDataType === 1 }" @click="paneData.getDataType = 1">采集作品数据</el-button>
-          </el-tooltip>
-        </div>
-      </div>
+  <el-form class="ghForm" label-position="left" label-width="auto">  
 
-      <div class="section-block" v-if="paneData.getDataType === 1">
-        <div class="field-label">作品数据范围</div>
-        <el-select v-model="paneData.searchRange" class="custom-select" placeholder="请选择数据范围">
-          <el-option v-for="item in Object.keys(ranges)" :key="item" :label="item" :value="item" />
-        </el-select>
-      </div>
+    <el-form-item label-width="null">
+      <el-radio-group v-model="paneData.getDataType" style="display: flex;">
+        <el-radio :label="0">获取账号数据</el-radio>
+        <el-radio :label="1">获取视频数据</el-radio>
+      </el-radio-group>
+    </el-form-item>
 
-      <div class="section-block">
-        <div class="field-label">采集到表格</div>
-        <TableSelect v-model="paneData.userTableId" placeholder="默认新建表格" />
-      </div>
-    </div>
 
-    <div class="section-title">
-      采集账号
-      <el-icon class="icon-hint" @click="openTip"><QuestionFilled /></el-icon>
-    </div>
+    <!-- <el-form-item label-width="null" v-show="paneData.getDataType !== 0">
+      <el-button 
+        type="primary" 
+        :disabled="isLocked"
+        @click="addWorkTableTemplate"
+        plain
+        style="flex: 1;"
+      >
+          创建视频号视频表空模板
+      </el-button>
+    </el-form-item>
 
-    <div class="collect-sub-panel">
-      <div class="section-block">
-        <div 
-          v-for="key in Object.keys(searchValues)" 
-          :key="key" 
-          class="account-input-group"
+
+    <el-form-item label-width="null" v-show="paneData.getDataType === 0">
+      <el-button 
+        type="primary" 
+        :disabled="isLocked"
+        @click="addUserTableTemplate"
+        plain
+        style="flex: 1;"
+      >
+          创建视频号账号表空模板
+      </el-button>
+    </el-form-item> -->
+
+
+    <el-form-item 
+      :label="'视频号视频表'"
+      v-show="paneData.getDataType !== 0"
+    >
+      <TableSelect v-model="paneData.workTableId" :placeholder="'未选自动创建'" />
+    </el-form-item>
+
+
+    <el-form-item label-width="null" v-show="paneData.getDataType !== 0">
+      <el-radio-group v-model="paneData.getWorksType" style="display: flex;">
+        <el-radio :label="1">根据视频号id获取</el-radio>
+        <el-radio :label="0">根据账号表获取</el-radio>
+      </el-radio-group>
+    </el-form-item>
+
+
+    <el-form-item 
+      :label="'视频号账号表'"
+      v-show="paneData.getDataType === 0 || paneData.getWorksType === 0"
+    >
+      <TableSelect v-model="paneData.userTableId" :placeholder="paneData.getDataType === 0 ? '未选自动创建' : '请选择视频号账号表'" />
+    </el-form-item>
+
+
+    <el-form-item
+      :label="'视频号名称'"
+      v-show="paneData.getDataType === 0"
+    >
+      <el-input 
+        v-model="paneData.keywords"
+        :placeholder="'请输入视频号名称'"
+      />
+    </el-form-item>
+
+
+    <el-form-item
+      :label="'视频号id'"
+      v-show="paneData.getDataType !== 0 && paneData.getWorksType !== 0"
+    >
+      <el-input 
+        v-model="paneData.username"
+        :placeholder="'请输入视频号id'"
+      />
+    </el-form-item>
+
+
+    <el-form-item label-width="null" v-show="paneData.getDataType === 0">
+      <el-tooltip 
+        :content="isLocked || !formData.key || !paneData.keywords
+          ? '需要登录、填写视频号名称' : '写入视频号账号数据' " 
+        effect="dark"
+        placement="top"
+      >
+        <el-button 
+          type="primary" 
+          :disabled="isLocked || !formData.key || !paneData.keywords"
+          @click="upsertUser"
+          plain
+          style="flex: 1;"
         >
-          <generalSelect
-            v-model="searchValues[key]"
-            placeholder="输入账号主页链接，或选择已有表格"
-          />
-          <span
-            v-if="key === Object.keys(searchValues)[0]"
-            class="account-add-btn"
-            @click="addSearchRow"
-          >
-            <el-icon size="16"><CirclePlus /></el-icon>
-          </span>
-          <span
-            v-else
-            class="account-add-btn"
-            style="color: #ff4d4f; border-color: #ffccc7;"
-            @click="removeSearchRow(key)"
-          >
-            <el-icon size="16"><Remove /></el-icon>
-          </span>
-        </div>
-      </div>
-    </div>
-
-    <div class="collect-btn-container">
-      <div class="collect-btn-item">
-        <el-button class="collect-btn" :disabled="isLocked || !formData.key" @click="paneData.getDataType === 0 ? upsertUser() : getRecentWorks(paneData.searchRange, paneData.getWorksType)">
-          采集数据
+          写入视频号账号数据
         </el-button>
-      </div>
+      </el-tooltip>
+    </el-form-item>
 
-      <div class="collect-btn-item" v-if="paneData.getDataType === 1">
-        <el-button class="update-btn" :disabled="isLocked || !formData.key || !paneData.workTableId" @click="updateWorks()">
-          批量更新作品数据
+
+    <el-form-item :label="'数据范围'"  v-show="paneData.getDataType !== 0">
+      <el-select v-model="paneData.searchRange" :placeholder="'请选择数据范围'">
+        <el-option v-for="item in Object.keys(ranges)" :key="item" :label="item" :value="item" />
+      </el-select>
+    </el-form-item>
+
+    <el-form-item label-width="null" v-show="paneData.getDataType !== 0">
+      <el-tooltip 
+        :content="isLocked || !formData.key || !paneData.userTableId && paneData.getWorksType === 0 || !paneData.username && paneData.getWorksType !== 0
+          ? '需要登录、选择视频号账号表' : '获取发布视频' " 
+        effect="dark"
+        placement="top"
+      >
+        <el-button 
+          type="primary" 
+          :disabled="isLocked || !formData.key || !paneData.userTableId && paneData.getWorksType === 0 || !paneData.username && paneData.getWorksType !== 0"
+          @click="getRecentWorks(paneData.searchRange, paneData.getWorksType)"
+          plain
+          style="flex: 1;"
+        >
+          {{ '获取' + paneData.searchRange + '发布视频'}}
         </el-button>
-      </div>
-    </div>
-  </div>
+      </el-tooltip>
+    </el-form-item>
 
+    <el-form-item label-width="null"  v-show="paneData.getDataType !== 0">
+      <el-tooltip 
+        :content="isLocked || !formData.key || !paneData.workTableId
+          ? '需要登录、选择视频号视频表' : '批量更新视频号视频数据' " 
+        effect="dark"
+        placement="top"
+      >
+        <el-button 
+          type="primary" 
+          :disabled="isLocked || !formData.key || !paneData.workTableId"
+          @click="updateWorks(9)"
+          plain
+          style="flex: 1;"
+        >
+          批量更新视频号视频数据
+        </el-button>
+      </el-tooltip>
+    </el-form-item>
 
-  <platformTip
-    v-model:visible="tipVisible"
-    platform-name="视频号"
-    account-field-name="视频号ID"
-  />
+    <el-form-item label-width="null"  v-show="paneData.getDataType !== 0">
+      <el-tooltip 
+        :content="isLocked || !formData.key || !paneData.workTableId
+          ? '需要登录、选择视频号视频表' : '批量更新视频号视频数据' " 
+        effect="dark"
+        placement="top"
+      >
+        <el-button 
+          type="primary" 
+          :disabled="isLocked || !formData.key || !paneData.workTableId"
+          @click="updateWorks(3)"
+          plain
+          style="flex: 1;"
+        >
+          批量更新视频号视频数据(包含下载链接)
+        </el-button>
+      </el-tooltip>
+    </el-form-item>
 
+    <!-- <p>{{ paneData }}</p> -->
+  </el-form>
 </template>
-
-
-
-
 
 <style scoped>
 </style>

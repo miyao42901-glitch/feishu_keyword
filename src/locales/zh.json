@@ -1,4 +1,4 @@
-{
+﻿{
   "title": "标题",
   "dyForm": {
     "userFields": {
@@ -391,6 +391,7 @@
   },
   "loginDialog": {
     "title": "账号登录",
+    "loginPrompt": "请先登录，以获取采集资格",
     "fields": {
       "username": "用户名",
       "password": "密码"
@@ -451,6 +452,7 @@
   },
   "wechatLoginDialog": {
     "title": "微信扫码登录",
+    "loginPrompt": "请先登录，以获取采集资格",
     "protocol": "我已阅读并同意",
     "agreeProtocol": "请先阅读并同意协议",
     "tip": "请使用微信扫码登录",

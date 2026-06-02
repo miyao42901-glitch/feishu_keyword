@@ -6,6 +6,7 @@
     :close-on-click-modal="false"
     :close-on-press-escape="false"
   >
+    <p class="login-prompt">{{ t('loginDialog.loginPrompt') }}</p>
     <el-form :model="loginForm" :rules="rules" ref="loginFormRef" label-width="80px">
       <el-alert
         v-if="errorMessage"
@@ -81,7 +82,6 @@ const clearError = () => {
 }
 
 const handleLogin = async () => {
-  // 清除之前的错误信息
   errorMessage.value = ''
   
   if (!loginFormRef.value) return
@@ -94,17 +94,11 @@ const handleLogin = async () => {
           errorMessage.value = t('loginDialog.messages.agreeProtocol')
         }
         else{
-        // 以form形式传参数
           const formData = new FormData();
           formData.append('username', loginForm.value.username);
           formData.append('password', loginForm.value.password);
           formData.append('agree_protocol', agreeProtocol.value ? 1 : 0);
           
-          // const res = await axios.post('https://www.dajiala.com/fbmain/account/v1/login', formData, {
-          //   headers: {
-          //     'Content-Type': 'multipart/form-data'
-          //   }
-          // })
           const res = await pluginAPI.post('/plugin_login_forward', formData)
           
           if (res.data && res.data.error_code === 0) {
@@ -115,7 +109,7 @@ const handleLogin = async () => {
           }
         }
       } catch (error) {
-        console.error('登录失败:', error)
+        console.error('????:', error)
         errorMessage.value = t('loginDialog.messages.networkError')
       } finally {
         loading.value = false
@@ -124,21 +118,17 @@ const handleLogin = async () => {
   })
 }
 
-// 监听visible变化
 import { watch } from 'vue'
 watch(() => props.visible, (newVal) => {
   dialogVisible.value = newVal
-  // 当对话框关闭时重置表单
   if (!newVal && loginFormRef.value) {
     loginFormRef.value.resetFields()
     errorMessage.value = ''
   }
 })
 
-// 当对话框关闭时通知父组件
 watch(dialogVisible, (newVal) => {
   emit('update:visible', newVal)
-  // 当对话框关闭时重置表单
   if (!newVal && loginFormRef.value) {
     loginFormRef.value.resetFields()
     errorMessage.value = ''
@@ -153,7 +143,6 @@ watch(dialogVisible, (newVal) => {
   gap: 8px;
 }
 
-
 .protocol-section {
   margin-top: 16px;
 }
@@ -165,5 +154,13 @@ watch(dialogVisible, (newVal) => {
 
 .protocol-section .el-link {
   font-size: 12px;
+}
+
+.login-prompt {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--el-color-primary);
+  margin: 0 0 20px 0;
+  text-align: center;
 }
 </style>

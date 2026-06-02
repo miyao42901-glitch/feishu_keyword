@@ -278,10 +278,14 @@
     background-image: linear-gradient(#d4def8, #e8eefa);
     padding: 12px;
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
     gap: 8px;
     margin-bottom: 15px;
+}
+
+.info-panel.is-logged-in {
+    justify-content: space-between;
 }
 
 .info-left {

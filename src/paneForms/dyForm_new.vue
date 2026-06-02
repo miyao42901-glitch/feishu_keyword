@@ -19,7 +19,7 @@
   import TableSelect from '@/components/TableSelect.vue'
   import { Plus, ArrowDown, CircleClose, Remove, CirclePlus, QuestionFilled } from '@element-plus/icons-vue'
   import generalSelect from '@/toolComponents/generalSelect.vue'
-  import douyinTip from '@/tipDialogs/douyinTip.vue'
+  import platformTip from '@/tipDialogs/platformTip.vue'
   import '@/assets/form-styles.css'
 
   export default {
@@ -41,7 +41,7 @@
       CirclePlus,
       QuestionFilled,
       generalSelect,
-      douyinTip
+      platformTip
     },
     props: {
       formData: {
@@ -722,8 +722,12 @@
       <div class="section-block">
         <div class="toggle-wrapper">
           <!-- 使用 :class 动态控制高亮状态 -->
-          <el-button type="info" class="toggle-btn" :class="{ active: paneData.collectionType === 'blogger' }" @click="changecollectionType('blogger')">采集博主数据</el-button>
-          <el-button type="info" class="toggle-btn" :class="{ active: paneData.collectionType === 'post' }" @click="changecollectionType('post')">采集作品数据</el-button>
+          <el-tooltip content="将采集账号的ID、粉丝数、简介、点赞数等基础信息" placement="top">
+            <el-button type="info" class="toggle-btn" :class="{ active: paneData.collectionType === 'blogger' }" @click="changecollectionType('blogger')">采集博主数据</el-button>
+          </el-tooltip>
+          <el-tooltip content="将采集作品的点赞、评论、查看、转发、发布时间等数据" placement="top">
+            <el-button type="info" class="toggle-btn" :class="{ active: paneData.collectionType === 'post' }" @click="changecollectionType('post')">采集作品数据</el-button>
+          </el-tooltip>
         </div>
       </div>
 
@@ -805,7 +809,11 @@
     </div>
   </div>
 
-  <douyinTip v-model:visible="tipVisible" />
+  <platformTip
+    v-model:visible="tipVisible"
+    platform-name="抖音"
+    account-field-name="抖音账号ID"
+  />
 
   <!-- <p>{{ searchValues }}</p>
   <p>{{ paneData }}</p> -->

@@ -205,10 +205,13 @@
       }
 
       async function logout() {
-        const confirm = await ElMessageBox.confirm('确定退出登录吗？', '提示', {
+        const confirm = await ElMessageBox.confirm('退出登录后将无法使用数据采集功能，确定要退出吗？', '退出登录确认', {
           confirmButtonText: '确定',
           cancelButtonText: '取消',
-          type: 'warning'
+          customClass: 'custom-logout-dialog',
+          showClose: true,
+          closeOnClickModal: false,
+          closeOnPressEscape: false
         })
         if (!confirm) {
           return;
@@ -339,7 +342,7 @@
             </div>
         </div>
 
-        <div class="info-panel">
+        <div class="info-panel" :class="{ 'is-logged-in': formData.isLogin }">
             <div class="info-left" v-if="formData.isLogin">
                 <div class="info-row">
                     <span class="info-label">用户:</span>
@@ -358,8 +361,13 @@
             </div>
 
             <button class="info-btn" v-if="formData.isLogin" @click="openRechargeDialog">余额充值</button>
-            <button class="info-btn" v-if="!formData.isLogin" @click="openWechatLoginDialog">微信扫码登录/注册</button>
-            <button class="info-btn" v-if="!formData.isLogin" @click="openLoginDialog">账号密码登录</button>
+            <div v-if="!formData.isLogin" class="login-section">
+                <p class="login-prompt-text">请先登录，以获取采集资格</p>
+                <div class="login-buttons">
+                    <button class="info-btn" @click="openWechatLoginDialog">微信扫码登录/注册</button>
+                    <button class="info-btn" @click="openLoginDialog">账号密码登录</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -492,4 +500,83 @@
   .my-custom-tabs :deep(.el-tabs__item:hover) {
     color: #1a2a5f;
   }
+
+  /* 登录提示样式 */
+  .login-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 12px;
+    padding-bottom: 9px;
+  }
+
+  .login-prompt-text {
+    font-size: 14px;
+    font-weight: 500;
+    color: #1a2a5f;
+    margin: 0 0 12px 0;
+    text-align: center;
+  }
+
+  .login-buttons {
+    display: flex;
+    gap: 8px;
+  }
+</style>
+
+<style>
+/* 退出登录弹框样式 */
+.custom-logout-dialog {
+  border-radius: 8px;
+}
+
+.custom-logout-dialog .el-message-box__header {
+  padding: 16px 20px;
+}
+
+.custom-logout-dialog .el-message-box__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.custom-logout-dialog .el-message-box__content {
+  padding: 20px;
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.custom-logout-dialog .el-message-box__btns {
+  padding: 16px 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.custom-logout-dialog .el-button--default {
+  background-color: #ffffff;
+  border: 1px solid #d1d5db;
+  color: #374151;
+  padding: 8px 20px;
+  border-radius: 4px;
+}
+
+.custom-logout-dialog .el-button--default:hover {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.custom-logout-dialog .el-button--primary {
+  background-color: #0e1e3d;
+  border-color: #0e1e3d;
+  color: #ffffff;
+  padding: 8px 20px;
+  border-radius: 4px;
+}
+
+.custom-logout-dialog .el-button--primary:hover {
+  background-color: #1a2f58;
+  border-color: #1a2f58;
+}
 </style>
