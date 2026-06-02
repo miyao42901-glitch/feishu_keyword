@@ -17,6 +17,7 @@
   import { writeToTable, updateTable, getFirstRecordByField} from '@/utils/tableHelper'
   import TableSelect from '@/components/TableSelect.vue'
   import '@/assets/form-styles.css'
+  import { setCollectResultTable, getCollectResultTableId } from '@/utils/collectResult'
 
   export default {
     components: {
@@ -262,6 +263,7 @@
             
             props.formData.message = '新增抖音账号完成，消耗：' + res.data.price
             props.formData.messageType = 'success';
+            setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'user'))
           }
           else{
             props.formData.message = '操作失败:' + (res.data.msg || '未知错误');
@@ -355,6 +357,7 @@
           if(recordIdList.length > 0){
             props.formData.message = '更新用户信息完成，'+'尝试更新'+ recordIdList.length + '条账号信息，成功'+ successCount + '条，消耗' + totalCost.toFixed(3) + '元'
             props.formData.messageType = 'success';
+            setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'user'))
           }
         } catch (error) {
           console.error('操作失败:', error);
@@ -602,6 +605,7 @@
             }
             props.formData.message = '获取视频完成，尝试获取' + userInfoList.length + '个账号，成功操作'+userSuccessCount+'个账号，共写入' + workSuccessCount + '条视频信息，共消耗' + totalCost.toFixed(3);
             props.formData.messageType = 'success';
+            setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'work'))
           }
 
         } catch (error) {
@@ -697,6 +701,7 @@
           if(recordIdList.length > 0){
             props.formData.message = '更新抖音视频完成, 共尝试更新'+recordIdList.length+'条, 成功'+successCount+'条, 消耗'+totalCost.toFixed(3);
             props.formData.messageType = 'success';
+            setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'work'))
           }
         } catch (error) {
           console.error('操作失败:', error);

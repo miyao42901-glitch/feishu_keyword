@@ -10,6 +10,8 @@
   import platformTip from '@/tipDialogs/platformTip.vue'
   import { SectionTitle, CollectSection, FieldLabel, ToggleButtons, CollectButton } from '@/components/collect'
   import '@/assets/form-styles.css'
+  import { setCollectResultTable, getCollectResultTableId } from '@/utils/collectResult'
+  import { hasAllAccountInputs, isAccountRowFilled, resetAccountInputsAfterSuccess } from '@/utils/accountInput'
 
   export default {
     components: {
@@ -154,14 +156,7 @@
           .map((item) => item.data.inputValue.trim())
       }
 
-      const hasAccountInput = () => {
-        return Object.values(searchValues.value).some((item) => {
-          if (!item) return false
-          if (item.dataType === 'input') return !!item.data?.inputValue?.trim()
-          if (item.dataType === 'table') return item.data?.recordIdList?.length > 0
-          return false
-        })
-      }
+      const hasAccountInput = () => hasAllAccountInputs(searchValues.value)
 
       const isValidV2Id = (value) => value?.trim().length === V2_ACCOUNT_ID_LENGTH
 
@@ -172,7 +167,16 @@
         if (paneData.value.getWorksType === 0) {
           return !!paneData.value.userTableId
         }
-        return getAccountInputValues().some(isValidV2Id)
+        const rows = Object.values(searchValues.value)
+        if (rows.length === 0) {
+          return false
+        }
+        return rows.every((item) => {
+          if (item?.dataType === 'input') {
+            return isValidV2Id(item.data?.inputValue)
+          }
+          return isAccountRowFilled(item)
+        })
       }
 
       const tipVisible = ref(false)
@@ -325,6 +329,10 @@
             if (failmsg) returnMessage += '，失败原因：' + failmsg
             props.formData.message = returnMessage
             props.formData.messageType = failmsg ? 'warning' : 'success'
+            resetAccountInputsAfterSuccess(searchValues)
+            if (props.formData.messageType === 'success') {
+              setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'user'))
+            }
           } else {
             props.formData.message = resolveWxvideoErrorMessage(failmsg)
             props.formData.messageType = 'error'
@@ -587,6 +595,9 @@
               }
               props.formData.message = returnMessage
               props.formData.messageType = (userSuccessCount < userInfoList.length || (workSuccessCount === 0 && lastApiError)) ? 'warning' : 'success'
+              if (props.formData.messageType === 'success') {
+                setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'work'))
+              }
             }
           }
 
@@ -696,6 +707,7 @@
           if(recordIdList.length > 0){
             props.formData.message = '更新视频号视频完成, 共尝试更新'+recordIdList.length+'条, 成功'+successCount+'条, 消耗'+totalCost.toFixed(3);
             props.formData.messageType = 'success';
+            setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'work'))
           }
         } catch (error) {
           console.error('操作失败:', error);

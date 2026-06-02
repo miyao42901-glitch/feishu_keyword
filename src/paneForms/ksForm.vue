@@ -16,6 +16,8 @@
   import generalSelect from '@/toolComponents/generalSelect.vue'
   import platformTip from '@/tipDialogs/platformTip.vue'
   import '@/assets/form-styles.css'
+  import { setCollectResultTable, getCollectResultTableId } from '@/utils/collectResult'
+  import { hasAllAccountInputs, resetAccountInputsAfterSuccess } from '@/utils/accountInput'
 
   export default {
     components: {
@@ -155,14 +157,7 @@
           .map((item) => item.data.inputValue.trim())
       }
 
-      const hasAccountInput = () => {
-        return Object.values(searchValues.value).some((item) => {
-          if (!item) return false
-          if (item.dataType === 'input') return !!item.data?.inputValue?.trim()
-          if (item.dataType === 'table') return item.data?.recordIdList?.length > 0
-          return false
-        })
-      }
+      const hasAccountInput = () => hasAllAccountInputs(searchValues.value)
 
 
       const addUserTableTemplate = async() => {
@@ -314,6 +309,12 @@
             if (failmsg) returnMessage += '，失败原因：' + failmsg
             props.formData.message = returnMessage
             props.formData.messageType = failmsg && successCount === 0 ? 'error' : failmsg ? 'warning' : 'success'
+            if (successCount > 0) {
+              resetAccountInputsAfterSuccess(searchValues)
+            }
+            if (props.formData.messageType === 'success') {
+              setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'user'))
+            }
           }
         } catch (error) {
           console.error('操作失败:', error);
@@ -398,6 +399,7 @@
           if(recordIdList.length > 0){
             props.formData.message = '更新快手账号信息完成，'+'尝试更新'+ recordIdList.length + '条账号信息，成功'+ successCount + '条，消耗' + totalCost.toFixed(3) + '元'
             props.formData.messageType = 'success';
+            setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'user'))
           }
         } catch (error) {
           console.error('操作失败:', error);
@@ -646,6 +648,7 @@
             }
             props.formData.message = '获取视频完成，尝试获取' + userInfoList.length + '个账号，成功操作'+userSuccessCount+'个账号，共写入' + workSuccessCount + '条视频信息，共消耗' + totalCost.toFixed(3);
             props.formData.messageType = 'success';
+            setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'work'))
           }
 
         } catch (error) {
@@ -739,6 +742,7 @@
           if(recordIdList.length > 0){
             props.formData.message = '更新快手视频完成, 共尝试更新'+recordIdList.length+'条, 成功'+successCount+'条, 消耗'+totalCost.toFixed(3);
             props.formData.messageType = 'success';
+            setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'work'))
           }
         } catch (error) {
           console.error('操作失败:', error);

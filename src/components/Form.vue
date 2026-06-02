@@ -37,7 +37,19 @@
   import RechargeDialog from './RechargeDialog.vue'
   import WechatLoginDialog from './WechatLoginDialog.vue'
   import PostConfirm from '@/tipDialogs/postConfirm.vue'
-  import { formatFormMessage } from '@/utils/errorMessage'
+  import BalanceInsufficient from '@/tipDialogs/balanceInsufficient.vue'
+  import CollectFailed from '@/tipDialogs/collectFailed.vue'
+  import OperationError from '@/tipDialogs/operationError.vue'
+  import {
+    formatFormMessage,
+    isInsufficientBalanceMessage,
+    isNetworkErrorMessage,
+    isOperationErrorMessage,
+    parseAddAccountStatsFromMessage,
+    parseCollectStatsFromMessage,
+    parseUpdateAccountStatsFromMessage,
+    parseUpdateWorksStatsFromMessage,
+  } from '@/utils/errorMessage'
   import axios from 'axios'
   import { RefreshRight, Switch } from '@element-plus/icons-vue'
   import '@/assets/form-styles.css'
@@ -81,6 +93,9 @@
       Switch,
 
       PostConfirm,
+      BalanceInsufficient,
+      CollectFailed,
+      OperationError,
     },
     setup() {
       const { t } = useI18n();
@@ -108,11 +123,24 @@
       const isShow = ref(false);
 
       const postConfirmVisible = ref(false);
+      const balanceInsufficientVisible = ref(false);
+      const collectFailedVisible = ref(false);
+      const operationErrorVisible = ref(false);
 
       const postConfirmProps = ref({
         resultTableId: '',
         displayInfo: '',
         resultType: 'success',
+        title: '提示',
+        showStatsLayout: false,
+        statsLayoutType: 'collect',
+        successAccounts: null,
+        newAccounts: null,
+        updatedWorks: null,
+        updatedAccounts: null,
+        workCount: null,
+        cost: null,
+        remainMoney: null,
       })
 
       watch(isLocked, async (newVal, oldVal) => {
@@ -126,10 +154,59 @@
             const messageType = formData.value.messageType
 
             if (messageType === 'success') {
+              const addAccountStats = parseAddAccountStatsFromMessage(displayMessage);
+              const updateAccountStats = addAccountStats
+                ? null
+                : parseUpdateAccountStatsFromMessage(displayMessage);
+              const updateWorksStats = addAccountStats || updateAccountStats
+                ? null
+                : parseUpdateWorksStatsFromMessage(displayMessage);
+              const collectStats = addAccountStats || updateAccountStats || updateWorksStats
+                ? null
+                : parseCollectStatsFromMessage(displayMessage);
+              const showStatsLayout = !!(
+                addAccountStats ||
+                updateAccountStats ||
+                updateWorksStats ||
+                collectStats
+              );
+
+              let statsLayoutType = 'collect';
+              if (addAccountStats) {
+                statsLayoutType = 'addAccount';
+              } else if (updateAccountStats) {
+                statsLayoutType = 'updateAccount';
+              } else if (updateWorksStats) {
+                statsLayoutType = 'updateWorks';
+              }
+
               postConfirmProps.value.displayInfo = displayMessage;
               postConfirmProps.value.resultType = messageType;
               postConfirmProps.value.resultTableId = formData.value.resultTableId || '';
+              postConfirmProps.value.title = showStatsLayout ? '采集成功' : '提示';
+              postConfirmProps.value.showStatsLayout = showStatsLayout;
+              postConfirmProps.value.statsLayoutType = statsLayoutType;
+              postConfirmProps.value.newAccounts =
+                addAccountStats?.newAccounts ?? updateAccountStats?.newAccounts ?? null;
+              postConfirmProps.value.updatedAccounts =
+                updateAccountStats?.updatedAccounts ?? null;
+              postConfirmProps.value.updatedWorks = updateWorksStats?.updatedWorks ?? null;
+              postConfirmProps.value.successAccounts = collectStats?.successAccounts ?? null;
+              postConfirmProps.value.workCount = collectStats?.workCount ?? null;
+              postConfirmProps.value.cost =
+                addAccountStats?.cost ??
+                updateAccountStats?.cost ??
+                updateWorksStats?.cost ??
+                collectStats?.cost ??
+                null;
+              postConfirmProps.value.remainMoney = formData.value.remainMoney ?? null;
               postConfirmVisible.value = true;
+            } else if (isInsufficientBalanceMessage(displayMessage)) {
+              balanceInsufficientVisible.value = true;
+            } else if (isNetworkErrorMessage(displayMessage)) {
+              collectFailedVisible.value = true;
+            } else if (isOperationErrorMessage(displayMessage)) {
+              operationErrorVisible.value = true;
             } else {
               await ElMessageBox.alert(displayMessage, '提示', {
                 type: messageType,
@@ -307,6 +384,9 @@
         rechargeDialogVisible,
         postConfirmVisible,
         postConfirmProps,
+        balanceInsufficientVisible,
+        collectFailedVisible,
+        operationErrorVisible,
         refreshBalance,
         // tenantAuth,
         getRemainMoney,
@@ -421,11 +501,30 @@
     @recharge="handleRecharge"
   />
 
+  <BalanceInsufficient
+    v-model:visible="balanceInsufficientVisible"
+    @recharge="openRechargeDialog"
+  />
+
+  <CollectFailed v-model:visible="collectFailedVisible" />
+
+  <OperationError v-model:visible="operationErrorVisible" />
+
   <PostConfirm
     v-model:visible="postConfirmVisible"
     :resultTableId="postConfirmProps.resultTableId"
     :displayInfo="postConfirmProps.displayInfo"
     :resultType="postConfirmProps.resultType"
+    :title="postConfirmProps.title"
+    :show-stats-layout="postConfirmProps.showStatsLayout"
+    :stats-layout-type="postConfirmProps.statsLayoutType"
+    :new-accounts="postConfirmProps.newAccounts"
+    :updated-works="postConfirmProps.updatedWorks"
+    :updated-accounts="postConfirmProps.updatedAccounts"
+    :success-accounts="postConfirmProps.successAccounts"
+    :work-count="postConfirmProps.workCount"
+    :cost="postConfirmProps.cost"
+    :remain-money="postConfirmProps.remainMoney"
   />
 
 </template>

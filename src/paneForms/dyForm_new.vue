@@ -21,6 +21,8 @@
   import generalSelect from '@/toolComponents/generalSelect.vue'
   import platformTip from '@/tipDialogs/platformTip.vue'
   import '@/assets/form-styles.css'
+  import { setCollectResultTable, getCollectResultTableId } from '@/utils/collectResult'
+  import { hasAllAccountInputs, resetAccountInputsAfterSuccess } from '@/utils/accountInput'
 
   export default {
     components: {
@@ -173,14 +175,7 @@
         delete searchValues.value[id];
       }
 
-      const hasAccountInput = () => {
-        return Object.values(searchValues.value).some((item) => {
-          if (!item) return false
-          if (item.dataType === 'input') return !!item.data?.inputValue?.trim()
-          if (item.dataType === 'table') return item.data?.recordIdList?.length > 0
-          return false
-        })
-      }
+      const hasAccountInput = () => hasAllAccountInputs(searchValues.value)
 
 
       const changecollectionType = async (newCollectionType) => {
@@ -688,7 +683,15 @@
         try{
           [props.formData.message, props.formData.messageType] = await collect()
           if (props.formData.messageType === 'success') {
-            props.formData.resultTableId = paneData.value.selectedTableId || null
+            const isWorkOp =
+              paneData.value.collectionType === 'post' ||
+              /批量更新完成|更新.*作品|作品数据/.test(props.formData.message || '')
+            const target = isWorkOp ? 'work' : 'user'
+            setCollectResultTable(
+              props.formData,
+              getCollectResultTableId(paneData.value, target),
+            )
+            resetAccountInputsAfterSuccess(searchValues)
           } else {
             props.formData.resultTableId = null
           }

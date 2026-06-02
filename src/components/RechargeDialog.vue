@@ -56,7 +56,7 @@
 </template>
 
 <script setup>
-import { ref, defineProps, defineEmits, computed } from 'vue'
+import { ref, defineProps, defineEmits, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 import pluginAPI from '@/utils/request'
@@ -138,28 +138,39 @@ const giftAmount = computed(() => {
   return 0
 })
 
-const checkPaymentStatus = async(order_no, accessToken) => {
-  let count = 0
-  while(count < 100 && dialogVisible.value){
-    count++
-    await new Promise(resolve => setTimeout(resolve, 3000)) // 每3秒检测一次
+const MAX_PAYMENT_CHECK_COUNT = 100
+const PAYMENT_CHECK_INTERVAL_MS = 3000
+
+const checkPaymentStatus = async (order_no, accessToken, shouldContinue) => {
+  for (let count = 0; count < MAX_PAYMENT_CHECK_COUNT; count++) {
+    if (!shouldContinue()) {
+      return false
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, PAYMENT_CHECK_INTERVAL_MS))
+
+    if (!shouldContinue()) {
+      return false
+    }
+
     try {
       const res = await axios.get('https://www.dajiala.com/fbmain/account/v1/api_check_order_status', {
         headers: {
           accesstoken: accessToken,
         },
         params: {
-          order_no: order_no
-        }
+          order_no: order_no,
+        },
       })
-      if (res.data && res.data.error_code === 0 && res.data.data.status === 1){
+      if (res.data?.error_code === 0 && res.data?.data?.status === 1) {
         return true
       }
     } catch (error) {
       console.error('支付检测失败:', error)
     }
   }
-  if(dialogVisible.value){
+
+  if (shouldContinue()) {
     ElMessage.error(t('rechargeDialog.messages.timeout'))
   }
   return false
@@ -167,93 +178,113 @@ const checkPaymentStatus = async(order_no, accessToken) => {
 
 const handleRecharge = async () => {
   if (!rechargeFormRef.value) return
-  
-  clearError()
-  
-  await rechargeFormRef.value.validate(async (valid) => {
-    if (valid) {
-      try {
-        // 显示确认对话框
-        await ElMessageBox.confirm(
-          t('rechargeDialog.confirm.message', { amount: rechargeForm.value.amount }),
-          t('rechargeDialog.confirm.title'),
-          {
-            confirmButtonText: t('rechargeDialog.confirm.confirm'),
-            cancelButtonText: t('rechargeDialog.confirm.cancel'),
-            type: 'warning'
-          }
-        )
-        
-        loading.value = true
-        const accessToken = localStorage.getItem('user_access_token');
-        if (accessToken) {
-          const formData = new FormData();
-          formData.append('money', rechargeForm.value.amount);
-          formData.append('accesstoken', accessToken);
-          // const res = await axios.post('https://www.dajiala.com/fbmain/account/v1/api_create_order', formData, {
-          //   headers: {
-          //     'Content-Type': 'multipart/form-data',
-          //     accesstoken: accessToken,
-          //   }
-          // })
 
-          const res = await pluginAPI.post('/plugin_order_forward', formData)
-          
-          if (res.data && res.data.error_code === 0){
-            const order_no = res.data.data.order_no
-            const res_info = await axios.get('https://www.dajiala.com/fbmain/account/v1/api_pay_info', {
-              headers: {
-                accesstoken: accessToken,
-              },
-              params: {
-                order_no: order_no
-              }
-            })
-            if (res_info.data && res_info.data.error_code === 0){
-              const pay_url = res_info.data.data.pay_url
-              window.open(pay_url, '_blank')
-              const isPaid = await checkPaymentStatus(order_no, accessToken)
-              if(isPaid){
-                emit('recharge', { amount: rechargeForm.value.amount, gift: giftAmount.value })
-                dialogVisible.value = false
-              }
-            }else{
-              errorMessage.value = res_info.data.msg
-            }
-          }else{
-            errorMessage.value = res.data.msg
-          }
-        } else {
-            errorMessage.value = t('rechargeDialog.messages.loginFirst')
-          }
-      } catch (error) {
-        // 如果是用户取消确认，不显示错误信息
-        if (error !== 'cancel') {
-          console.error('充值失败:', error)
-          errorMessage.value = t('rechargeDialog.messages.rechargeFailed')
-        }
-      } finally {
-        loading.value = false
-      }
+  clearError()
+
+  try {
+    await rechargeFormRef.value.validate()
+  } catch {
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      t('rechargeDialog.confirm.message', { amount: rechargeForm.value.amount }),
+      t('rechargeDialog.confirm.title'),
+      {
+        confirmButtonText: t('rechargeDialog.confirm.confirm'),
+        cancelButtonText: t('rechargeDialog.confirm.cancel'),
+        type: 'warning',
+      },
+    )
+  } catch (error) {
+    if (error === 'cancel') {
+      return
     }
-  })
+    console.error('充值确认失败:', error)
+    errorMessage.value = t('rechargeDialog.messages.rechargeFailed')
+    return
+  }
+
+  const accessToken = localStorage.getItem('user_access_token')
+  if (!accessToken) {
+    errorMessage.value = t('rechargeDialog.messages.loginFirst')
+    return
+  }
+
+  loading.value = true
+  let orderNo = null
+
+  try {
+    const formData = new FormData()
+    formData.append('money', rechargeForm.value.amount)
+    formData.append('accesstoken', accessToken)
+
+    const res = await pluginAPI.post('/plugin_order_forward', formData)
+
+    if (res.data?.error_code !== 0) {
+      errorMessage.value = res.data?.msg || t('rechargeDialog.messages.rechargeFailed')
+      return
+    }
+
+    orderNo = res.data?.data?.order_no
+    if (!orderNo) {
+      errorMessage.value = t('rechargeDialog.messages.rechargeFailed')
+      return
+    }
+
+    const res_info = await axios.get('https://www.dajiala.com/fbmain/account/v1/api_pay_info', {
+      headers: {
+        accesstoken: accessToken,
+      },
+      params: {
+        order_no: orderNo,
+      },
+    })
+
+    if (res_info.data?.error_code !== 0) {
+      errorMessage.value = res_info.data?.msg || t('rechargeDialog.messages.rechargeFailed')
+      return
+    }
+
+    const pay_url = res_info.data?.data?.pay_url
+    if (!pay_url) {
+      errorMessage.value = t('rechargeDialog.messages.rechargeFailed')
+      return
+    }
+
+    window.open(pay_url, '_blank')
+  } catch (error) {
+    console.error('充值失败:', error)
+    errorMessage.value = t('rechargeDialog.messages.rechargeFailed')
+    return
+  } finally {
+    loading.value = false
+  }
+
+  if (!orderNo) {
+    return
+  }
+
+  const isPaid = await checkPaymentStatus(orderNo, accessToken, () => dialogVisible.value)
+  if (isPaid) {
+    emit('recharge', { amount: rechargeForm.value.amount, gift: giftAmount.value })
+    dialogVisible.value = false
+  }
 }
 
-// 监听visible变化
-import { watch } from 'vue'
 watch(() => props.visible, (newVal) => {
   dialogVisible.value = newVal
-  // 当对话框关闭时重置表单
+  loading.value = false
   if (!newVal && rechargeFormRef.value) {
     rechargeFormRef.value.resetFields()
     errorMessage.value = ''
   }
 })
 
-// 当对话框关闭时通知父组件
 watch(dialogVisible, (newVal) => {
   emit('update:visible', newVal)
-  // 当对话框关闭时重置表单
+  loading.value = false
   if (!newVal && rechargeFormRef.value) {
     rechargeFormRef.value.resetFields()
     errorMessage.value = ''
