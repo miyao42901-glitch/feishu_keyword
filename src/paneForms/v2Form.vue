@@ -131,6 +131,29 @@
         delete searchValues.value[key]
       }
 
+      const V2_ACCOUNT_ID_LENGTH = 86
+
+      const formatWxvideoError = (msg) => {
+        if (!msg) return null
+        if (msg === 'Error, please check v2_name!' || msg.includes('v2_name')) {
+          return '视频号id不正确'
+        }
+        return null
+      }
+
+      const resolveWxvideoErrorMessage = (msg) => {
+        const friendly = formatWxvideoError(msg)
+        if (friendly) return friendly
+        if (msg === '视频号id不正确') return msg
+        return '操作失败:' + (msg || '未知错误')
+      }
+
+      const getAccountInputValues = () => {
+        return Object.values(searchValues.value)
+          .filter((item) => item?.dataType === 'input' && item.data?.inputValue?.trim())
+          .map((item) => item.data.inputValue.trim())
+      }
+
       const hasAccountInput = () => {
         return Object.values(searchValues.value).some((item) => {
           if (!item) return false
@@ -138,6 +161,18 @@
           if (item.dataType === 'table') return item.data?.recordIdList?.length > 0
           return false
         })
+      }
+
+      const isValidV2Id = (value) => value?.trim().length === V2_ACCOUNT_ID_LENGTH
+
+      const canCollect = () => {
+        if (paneData.value.getDataType === 0) {
+          return hasAccountInput()
+        }
+        if (paneData.value.getWorksType === 0) {
+          return !!paneData.value.userTableId
+        }
+        return getAccountInputValues().some(isValidV2Id)
       }
 
       const tipVisible = ref(false)
@@ -222,62 +257,77 @@
             }
           }
 
-          const get_time = Date.now()
-
-          const res = await pluginAPI.post('/plugin_forward', {
-            url: '/fbmain/monitor/v3/wxvideo',
-            body: {
-              keywords: paneData.value.keywords,
-              type: 6,
-              key: props.formData.key,
-            }
-          })
+          const inputValues = getAccountInputValues()
+          if (inputValues.length === 0) {
+            props.formData.message = '请给出采集账号'
+            props.formData.messageType = 'warning'
+            return
+          }
 
           const tmpUserFields = userFields()
-          
-          if (res && res.data && res.data.code === 0) {
-            if (!res.data.v2_info_list) {
-              props.formData.message = '操作失败：没找到有关视频号';
-              props.formData.messageType = 'error';
-            }
-            else{
-              const username = res.data.v2_info_list.contact.username
-              const [record, fieldMap] = await getFirstRecordByField(paneData.value.userTableId, tmpUserFields.username.label, username)
-              if (record) {
-                const result = await updateTable(
-                  paneData.value.userTableId,
-                  [{
-                    recordId: record.recordId,
-                    data: {
-                      username: username, 
+          let successCount = 0
+          let totalCost = 0
+          let failmsg = ''
+
+          for (const keywords of inputValues) {
+            const res = await pluginAPI.post('/plugin_forward', {
+              url: '/fbmain/monitor/v3/wxvideo',
+              body: {
+                keywords,
+                type: 6,
+                key: props.formData.key,
+              }
+            })
+
+            if (res && res.data && res.data.code === 0) {
+              if (!res.data.v2_info_list) {
+                failmsg = '没找到有关视频号'
+              } else {
+                totalCost += res.data.cost || 0
+                const username = res.data.v2_info_list.contact.username
+                const [record, fieldMap] = await getFirstRecordByField(paneData.value.userTableId, tmpUserFields.username.label, username)
+                if (record) {
+                  const result = await updateTable(
+                    paneData.value.userTableId,
+                    [{
+                      recordId: record.recordId,
+                      data: {
+                        username: username,
+                        nickname: res.data.v2_info_list.contact.nickname,
+                        signature: res.data.v2_info_list.contact.signature,
+                      }
+                    }],
+                    tmpUserFields,
+                  );
+                  if (result.success) successCount++
+                } else {
+                  const result = await writeToTable(
+                    paneData.value.userTableId,
+                    [{
+                      username: username,
                       nickname: res.data.v2_info_list.contact.nickname,
                       signature: res.data.v2_info_list.contact.signature,
-                    }
-                  }],
-                  tmpUserFields,
-                );
+                      get_work_flag: 'unknow',
+                    }],
+                    tmpUserFields,
+                  );
+                  if (result.success) successCount++
+                }
               }
-              else{
-                const result = await writeToTable(
-                  paneData.value.userTableId,
-                  [{
-                    username: username, 
-                    nickname: res.data.v2_info_list.contact.nickname,
-                    signature: res.data.v2_info_list.contact.signature,
-                    get_work_flag: 'unknow',
-                  }],
-                  tmpUserFields,
-                );
-              }
-
-              
-              props.formData.message = '新增视频号账号完成，消耗：' + res.data.cost
-              props.formData.messageType = 'success';
+            } else {
+              const apiMsg = res?.data?.msg
+              failmsg = formatWxvideoError(apiMsg) || apiMsg || failmsg || '未知错误'
             }
           }
-          else{
-            props.formData.message = '操作失败:' + (res.data.msg || '未知错误');
-            props.formData.messageType = 'error';
+
+          if (successCount > 0) {
+            let returnMessage = '新增视频号账号完成，尝试采集' + inputValues.length + '条，成功' + successCount + '条，消耗：' + totalCost
+            if (failmsg) returnMessage += '，失败原因：' + failmsg
+            props.formData.message = returnMessage
+            props.formData.messageType = failmsg ? 'warning' : 'success'
+          } else {
+            props.formData.message = resolveWxvideoErrorMessage(failmsg)
+            props.formData.messageType = 'error'
           }
         } catch (error) {
           console.error('操作失败:', error);
@@ -389,6 +439,7 @@
           let workSuccessCount = 0
           let singleUserSuccess = 1
           let totalCost = 0
+          let lastApiError = ''
 
           const range = ranges.value[rangeKey]
           let min_time = 0
@@ -425,7 +476,13 @@
             }
           }
           else{
-            userInfoList = [{ username: paneData.value.username}]
+            const idList = getAccountInputValues().filter(isValidV2Id)
+            if (idList.length === 0) {
+              props.formData.message = '视频号id不正确'
+              props.formData.messageType = 'error'
+              return
+            }
+            userInfoList = idList.map((username) => ({ username }))
           }
           
           for (const userInfo of userInfoList){
@@ -450,12 +507,13 @@
               })
 
               if (!(res && res.data && res.data.code === 0)) {
+                lastApiError = res?.data?.msg || lastApiError
                 if (getWorksType === 0 && userInfo.recordId){
                   totalLastTime[userInfo.recordId] = {
                     recordId: userInfo.recordId, 
                     data: {
                       get_work_flag: i > 1 ? 'partial_success' : 'fail',
-                      work_fail_reason: res.data.msg || '未知错误',
+                      work_fail_reason: formatWxvideoError(lastApiError) || lastApiError || '未知错误',
                     }
                   }
                 }
@@ -519,8 +577,17 @@
             if (getWorksType === 0){
               userSuccessCount = Object.values(totalLastTime).filter(item => item.data.get_work_flag === 'success').length;
             }
-            props.formData.message = '获取视频完成，尝试获取' + userInfoList.length + '个账号，成功操作'+userSuccessCount+'个账号，共写入' + workSuccessCount + '条视频信息，共消耗' + totalCost.toFixed(3);
-            props.formData.messageType = 'success';
+            if (userSuccessCount === 0 && workSuccessCount === 0) {
+              props.formData.message = resolveWxvideoErrorMessage(lastApiError)
+              props.formData.messageType = 'error'
+            } else {
+              let returnMessage = '获取视频完成，尝试获取' + userInfoList.length + '个账号，成功操作'+userSuccessCount+'个账号，共写入' + workSuccessCount + '条视频信息，共消耗' + totalCost.toFixed(3)
+              if (lastApiError && (userSuccessCount < userInfoList.length || workSuccessCount === 0)) {
+                returnMessage += '，部分失败原因：' + (formatWxvideoError(lastApiError) || lastApiError)
+              }
+              props.formData.message = returnMessage
+              props.formData.messageType = (userSuccessCount < userInfoList.length || (workSuccessCount === 0 && lastApiError)) ? 'warning' : 'success'
+            }
           }
 
         } catch (error) {
@@ -647,6 +714,7 @@
         addSearchRow,
         removeSearchRow,
         hasAccountInput,
+        canCollect,
         tipVisible,
         openTip,
         addUserTableTemplate,
@@ -702,7 +770,7 @@
         >
           <generalSelect
             v-model="searchValues[key]"
-            placeholder="输入账号主页链接，或选择已有表格"
+            placeholder="请输入视频号名称或id，或选择已有表格"
           />
           <span
             v-if="key === Object.keys(searchValues)[0]"
@@ -725,14 +793,20 @@
 
     <div class="collect-btn-container">
       <div class="collect-btn-item">
-        <el-button class="collect-btn" :disabled="isLocked || !formData.key || (paneData.getDataType === 0 ? !hasAccountInput() : ((!paneData.userTableId && paneData.getWorksType === 0) || (!hasAccountInput() && paneData.getWorksType !== 0)))" @click="paneData.getDataType === 0 ? upsertUser() : getRecentWorks(paneData.searchRange, paneData.getWorksType)">
+        <el-button class="collect-btn" :disabled="isLocked || !formData.key || !canCollect()" @click="paneData.getDataType === 0 ? upsertUser() : getRecentWorks(paneData.searchRange, paneData.getWorksType)">
           采集数据
         </el-button>
       </div>
 
       <div class="collect-btn-item" v-if="paneData.getDataType === 1 && paneData.workTableId">
-        <el-button class="update-btn" :disabled="isLocked || !formData.key" @click="updateWorks()">
-          批量更新作品数据
+        <el-button class="update-btn" :disabled="isLocked || !formData.key" @click="updateWorks(9)">
+          批量更新视频号视频数据
+        </el-button>
+      </div>
+
+      <div class="collect-btn-item" v-if="paneData.getDataType === 1 && paneData.workTableId">
+        <el-button class="update-btn" :disabled="isLocked || !formData.key" @click="updateWorks(3)">
+          批量更新视频号视频数据(包含下载链接)
         </el-button>
       </div>
     </div>

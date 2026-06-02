@@ -16,6 +16,10 @@
       placeholder: {
         type: String,
         default: '请选择数据表或手动输入'
+      },
+      maxlength: {
+        type: Number,
+        default: undefined
       }
     },
     emits: ['update:modelValue'],
@@ -94,6 +98,7 @@
       @select="handleSelect"
       :placeholder="placeholder"
       :readonly="isReadOnly"
+      :maxlength="maxlength"
     >
     <template #suffix>
       <el-icon 
