@@ -115,7 +115,7 @@ class Settings(BaseSettings):
         default=900.0, validation_alias="ASYNC_SEARCH_ALL_MAX_RUN_SECONDS"
     )
     async_search_duplicate_page_threshold: int = Field(
-        default=5, validation_alias="ASYNC_SEARCH_DUPLICATE_PAGE_THRESHOLD"
+        default=2, validation_alias="ASYNC_SEARCH_DUPLICATE_PAGE_THRESHOLD"
     )
     async_search_guards_async_only: bool = Field(
         default=True, validation_alias="ASYNC_SEARCH_GUARDS_ASYNC_ONLY"
