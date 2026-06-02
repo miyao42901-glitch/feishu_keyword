@@ -1071,7 +1071,7 @@ function resolvePlatformFromResultsMeta(meta: AsyncTaskResultsMeta): SyncCollect
   return mapYddmPlatformToSyncId(meta.platform ?? meta.source)
 }
 
-/** 拉取单任务全部结果页（`GET .../results?page=`；抖音约 10 条/页，需翻页凑满 fetch_count） */
+/** 拉取单任务全部结果页（`GET .../results?page=`）；达到选择条数后不再翻页，末页超出条数不截断 */
 export async function fetchAllAsyncTaskResults(
   ctx: SyncFetchContext,
   taskId: string,
@@ -1125,9 +1125,8 @@ export async function fetchAllAsyncTaskResults(
   }
 
   const platform = resolvePlatformFromResultsMeta(meta)
-  const items =
-    maxItems != null && collected.length > maxItems ? collected.slice(0, maxItems) : collected
-  return { items, meta, platform }
+  /* 不按选择条数截断：末页若多于上限则全部保留；翻页仅在 collected.length < maxItems 时继续 */
+  return { items: collected, meta, platform }
 }
 
 /** @deprecated 使用 `fetchAllAsyncTaskResults` */

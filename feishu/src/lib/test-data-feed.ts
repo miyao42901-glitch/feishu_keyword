@@ -553,10 +553,10 @@ async function buildTestDataFeedFromAsyncResults(params: {
   shipinhaoRows.sort((a, b) => b.publishMs - a.publishMs)
   gzhRows.sort((a, b) => b.publishMs - a.publishMs)
   const rows = [
-    ...dedupeTestFeedRows(douyinRows).slice(0, limit),
-    ...dedupeTestFeedRows(xhsRows).slice(0, limit),
-    ...dedupeTestFeedRows(shipinhaoRows).slice(0, limit),
-    ...dedupeTestFeedRows(gzhRows).slice(0, limit),
+    ...dedupeTestFeedRows(douyinRows),
+    ...dedupeTestFeedRows(xhsRows),
+    ...dedupeTestFeedRows(shipinhaoRows),
+    ...dedupeTestFeedRows(gzhRows),
   ]
   void refreshYddmUserBalance()
 
@@ -721,10 +721,10 @@ export async function buildTestDataFeedFromConfig(params: {
   shipinhaoRows.sort((a, b) => b.publishMs - a.publishMs)
   gzhRows.sort((a, b) => b.publishMs - a.publishMs)
   const rows = [
-    ...dedupeTestFeedRows(douyinRows).slice(0, limit),
-    ...dedupeTestFeedRows(xhsRows).slice(0, limit),
-    ...dedupeTestFeedRows(shipinhaoRows).slice(0, limit),
-    ...dedupeTestFeedRows(gzhRows).slice(0, limit),
+    ...dedupeTestFeedRows(douyinRows),
+    ...dedupeTestFeedRows(xhsRows),
+    ...dedupeTestFeedRows(shipinhaoRows),
+    ...dedupeTestFeedRows(gzhRows),
   ]
 
   if (import.meta.env.DEV) {
