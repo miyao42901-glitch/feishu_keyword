@@ -103,5 +103,5 @@ export async function fetchWxSearchPageItems(input: {
     if (collected.length >= limit) break
   }
 
-  return collected.slice(0, limit)
+  return collected
 }

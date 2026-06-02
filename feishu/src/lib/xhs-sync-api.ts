@@ -129,5 +129,5 @@ export async function fetchXhsSearchItems(
     if (collected.length >= limit) break
   }
 
-  return collected.slice(0, limit)
+  return collected
 }

@@ -57,7 +57,7 @@ export function discountRateForPackage(
 export const DOUYIN_DISCOUNT_RATE = discountRateForPackage(DOUYIN_POINTS_PACKAGE)
 /** 小红书：2000 积分档 → discount_rate 20 */
 export const XHS_DISCOUNT_RATE = discountRateForPackage(XHS_POINTS_PACKAGE)
-/** 视频号 / 公众号：按需求固定 discount_rate 1（仅 `set_discount`，勿用于翻页/预估条数） */
+/** 视频号 / 公众号：固定 discount_rate 1（按后端要求） */
 export const WX_SOUSOU_DISCOUNT_RATE = 1
 
 /** 视频号 / 公众号单次 search-page 典型返回条数（翻页与积分预估；与 {@link WX_SOUSOU_DISCOUNT_RATE} 分离） */
@@ -126,7 +126,10 @@ export function resolveDiscountForSyncPath(
     }
   }
   if (p.includes('/wxvideo/') || p.includes('/wx/')) {
-    return null
+    return {
+      endpoint: WX_SOUSOU_DISCOUNT_ENDPOINT,
+      discount_rate: WX_SOUSOU_DISCOUNT_RATE,
+    }
   }
   return null
 }
