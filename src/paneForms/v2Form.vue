@@ -112,17 +112,32 @@
       })
 
       const searchValues = ref({
-        0: null,
+        0: {
+          dataType: 'input',
+          data: { inputValue: '' },
+        },
       })
 
       const addSearchRow = () => {
         const keys = Object.keys(searchValues.value).map(Number)
         const maxKey = Math.max(...keys)
-        searchValues.value[maxKey + 1] = null
+        searchValues.value[maxKey + 1] = {
+          dataType: 'input',
+          data: { inputValue: '' },
+        }
       }
 
       const removeSearchRow = (key) => {
         delete searchValues.value[key]
+      }
+
+      const hasAccountInput = () => {
+        return Object.values(searchValues.value).some((item) => {
+          if (!item) return false
+          if (item.dataType === 'input') return !!item.data?.inputValue?.trim()
+          if (item.dataType === 'table') return item.data?.recordIdList?.length > 0
+          return false
+        })
       }
 
       const tipVisible = ref(false)
@@ -631,6 +646,7 @@
         searchValues,
         addSearchRow,
         removeSearchRow,
+        hasAccountInput,
         tipVisible,
         openTip,
         addUserTableTemplate,
@@ -709,13 +725,13 @@
 
     <div class="collect-btn-container">
       <div class="collect-btn-item">
-        <el-button class="collect-btn" :disabled="isLocked || !formData.key" @click="paneData.getDataType === 0 ? upsertUser() : getRecentWorks(paneData.searchRange, paneData.getWorksType)">
+        <el-button class="collect-btn" :disabled="isLocked || !formData.key || (paneData.getDataType === 0 ? !hasAccountInput() : ((!paneData.userTableId && paneData.getWorksType === 0) || (!hasAccountInput() && paneData.getWorksType !== 0)))" @click="paneData.getDataType === 0 ? upsertUser() : getRecentWorks(paneData.searchRange, paneData.getWorksType)">
           采集数据
         </el-button>
       </div>
 
-      <div class="collect-btn-item" v-if="paneData.getDataType === 1">
-        <el-button class="update-btn" :disabled="isLocked || !formData.key || !paneData.workTableId" @click="updateWorks()">
+      <div class="collect-btn-item" v-if="paneData.getDataType === 1 && paneData.workTableId">
+        <el-button class="update-btn" :disabled="isLocked || !formData.key" @click="updateWorks()">
           批量更新作品数据
         </el-button>
       </div>

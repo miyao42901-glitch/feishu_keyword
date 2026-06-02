@@ -2,35 +2,35 @@
   import { ref, computed } from 'vue';
   import { bitable, FieldType, NumberFormatter, DateFormatter } from '@lark-base-open/js-sdk';
   import {
-    ElForm,
-    ElFormItem,
     ElSelect,
     ElOption,
     ElInput,
     ElButton,
     ElTooltip,
-    ElAlert,
-    ElTabs,
-    ElTabPane,
+    ElIcon,
   } from 'element-plus';
+  import { QuestionFilled, CirclePlus, Remove } from '@element-plus/icons-vue';
   import pluginAPI from '@/utils/request'
   import { writeToTable, updateTable, getFirstRecordByField} from '@/utils/tableHelper'
   import TableSelect from '@/components/TableSelect.vue'
+  import generalSelect from '@/toolComponents/generalSelect.vue'
+  import platformTip from '@/tipDialogs/platformTip.vue'
   import '@/assets/form-styles.css'
 
   export default {
     components: {
-      ElForm,
-      ElFormItem,
       ElSelect,
       ElOption,
       ElInput,
       ElButton,
-      TableSelect,
       ElTooltip,
-      ElAlert,
-      ElTabs,
-      ElTabPane,
+      ElIcon,
+      QuestionFilled,
+      CirclePlus,
+      Remove,
+      TableSelect,
+      generalSelect,
+      platformTip,
     },
     props: {
       formData: {
@@ -124,6 +124,46 @@
         getWorksType: 1,
       })
 
+      const tipVisible = ref(false)
+
+      const openTip = () => {
+        tipVisible.value = true
+      }
+
+      const searchValues = ref({
+        0: {
+          dataType: 'input',
+          data: { inputValue: '' },
+        },
+      })
+
+      const addSearchRow = () => {
+        const newId = Number(Object.keys(searchValues.value)[Object.keys(searchValues.value).length - 1]) + 1
+        searchValues.value[newId] = {
+          dataType: 'input',
+          data: { inputValue: '' },
+        }
+      }
+
+      const removeSearchRow = (id) => {
+        delete searchValues.value[id]
+      }
+
+      const getAccountInputValues = () => {
+        return Object.values(searchValues.value)
+          .filter((item) => item?.dataType === 'input' && item.data?.inputValue?.trim())
+          .map((item) => item.data.inputValue.trim())
+      }
+
+      const hasAccountInput = () => {
+        return Object.values(searchValues.value).some((item) => {
+          if (!item) return false
+          if (item.dataType === 'input') return !!item.data?.inputValue?.trim()
+          if (item.dataType === 'table') return item.data?.recordIdList?.length > 0
+          return false
+        })
+      }
+
 
       const addUserTableTemplate = async() => {
         if (props.isLocked) return;
@@ -194,76 +234,86 @@
           }
 
           const get_time = Date.now()
-          const res = await pluginAPI.post('/plugin_forward', {
-            url: '/fbmain/monitor/v3/ks_user_data_v2',
-            body: {
-              share_text: paneData.value.shareLink,
-              key: props.formData.key,
-            }
-          })
+          const inputValues = getAccountInputValues()
+          if (inputValues.length === 0) {
+            props.formData.message = '请给出采集账号'
+            props.formData.messageType = 'warning'
+            return
+          }
 
-          const tmpUserFields = userFields()
-          if (res && res.data && res.data.code === 0) {
-            const user_id = res.data.data.profile.user_id
-            const [record, fieldMap] = await getFirstRecordByField(paneData.value.userTableId, tmpUserFields.user_id.label, user_id)
-            if (record) {
-              const last_get_time = record.fields[fieldMap[tmpUserFields.current_get_time.label]?.id] || null
-              const last_fan = record.fields[fieldMap[tmpUserFields.fan.label]?.id] || 0
-              const last_photo = record.fields[fieldMap[tmpUserFields.photo.label]?.id] || 0
-              const result = await updateTable(
-                paneData.value.userTableId,
-                [{
-                  recordId: record.recordId,
-                  data: {
-                    user_id: user_id, 
+          let successCount = 0
+          let totalCost = 0
+          let failmsg = ''
+
+          for (const shareLink of inputValues) {
+            const res = await pluginAPI.post('/plugin_forward', {
+              url: '/fbmain/monitor/v3/ks_user_data_v2',
+              body: {
+                share_text: shareLink,
+                key: props.formData.key,
+              }
+            })
+
+            const tmpUserFields = userFields()
+            if (res && res.data && res.data.code === 0) {
+              totalCost += res.data.price || 0
+              const user_id = res.data.data.profile.user_id
+              const [record, fieldMap] = await getFirstRecordByField(paneData.value.userTableId, tmpUserFields.user_id.label, user_id)
+              if (record) {
+                const last_get_time = record.fields[fieldMap[tmpUserFields.current_get_time.label]?.id] || null
+                const last_fan = record.fields[fieldMap[tmpUserFields.fan.label]?.id] || 0
+                const last_photo = record.fields[fieldMap[tmpUserFields.photo.label]?.id] || 0
+                const result = await updateTable(
+                  paneData.value.userTableId,
+                  [{
+                    recordId: record.recordId,
+                    data: {
+                      user_id: user_id,
+                      user_name: res.data.data.profile.user_name,
+                      eid: res.data.data.profile.eid,
+                      kwaiId: res.data.data.profile.kwaiId,
+                      user_text: res.data.data.profile.user_text,
+                      fan: res.data.data.ownerCount.fan,
+                      photo: res.data.data.ownerCount.photo,
+                      fan_diff: res.data.data.ownerCount.fan - last_fan,
+                      photo_diff: res.data.data.ownerCount.photo - last_photo,
+                      shareLink: shareLink,
+                      current_get_time: get_time,
+                      last_get_time: last_get_time,
+                    }
+                  }],
+                  tmpUserFields,
+                );
+                if (result.success) successCount++
+              } else {
+                const result = await writeToTable(
+                  paneData.value.userTableId,
+                  [{
+                    user_id: user_id,
                     user_name: res.data.data.profile.user_name,
                     eid: res.data.data.profile.eid,
                     kwaiId: res.data.data.profile.kwaiId,
                     user_text: res.data.data.profile.user_text,
-
                     fan: res.data.data.ownerCount.fan,
                     photo: res.data.data.ownerCount.photo,
-
-                    fan_diff: res.data.data.ownerCount.fan - last_fan,
-                    photo_diff: res.data.data.ownerCount.photo - last_photo,
-
-                    shareLink: paneData.value.shareLink,
-
+                    shareLink: shareLink,
                     current_get_time: get_time,
-                    last_get_time: last_get_time,
-                  }
-                }],
-                tmpUserFields,
-              );
+                    get_work_flag: 'unknow',
+                  }],
+                  tmpUserFields,
+                );
+                if (result.success) successCount++
+              }
+            } else {
+              failmsg = res?.data?.msg || failmsg || '未知错误'
             }
-            else{
-              console.log(paneData.value.userTableId)
-              const result = await writeToTable(
-                paneData.value.userTableId,
-                [{
-                  user_id: user_id, 
-                  user_name: res.data.data.profile.user_name,
-                  eid: res.data.data.profile.eid,
-                  kwaiId: res.data.data.profile.kwaiId,
-                  user_text: res.data.data.profile.user_text,
-
-                  fan: res.data.data.ownerCount.fan,
-                  photo: res.data.data.ownerCount.photo,
-
-                  shareLink: paneData.value.shareLink,
-                  current_get_time: get_time,
-                  get_work_flag: 'unknow',
-                }],
-                tmpUserFields,
-              );
-            }
-
-            props.formData.message = '新增快手账号完成，消耗：' + res.data.price
-            props.formData.messageType = 'success';
           }
-          else{
-            props.formData.message = '操作失败:' + (res.data.msg || '未知错误');
-            props.formData.messageType = 'error';
+
+          if (inputValues.length > 0) {
+            let returnMessage = '新增快手账号完成，尝试采集' + inputValues.length + '条，成功' + successCount + '条，消耗：' + totalCost
+            if (failmsg) returnMessage += '，失败原因：' + failmsg
+            props.formData.message = returnMessage
+            props.formData.messageType = failmsg && successCount === 0 ? 'error' : failmsg ? 'warning' : 'success'
           }
         } catch (error) {
           console.error('操作失败:', error);
@@ -504,7 +554,7 @@
             }
           }
           else{
-            userInfoList = [{ user_id: paneData.value.user_id }]
+            userInfoList = [{ user_id: getAccountInputValues()[0] }]
           }
           
           for (const userInfo of userInfoList){
@@ -703,6 +753,12 @@
         paneData,
         dateRange,
         ranges,
+        searchValues,
+        tipVisible,
+        openTip,
+        addSearchRow,
+        removeSearchRow,
+        hasAccountInput,
         addUserTableTemplate,
         addWorkTableTemplate,
         upsertUser,
@@ -722,10 +778,10 @@
       <div class="section-block">
         <div class="toggle-wrapper">
           <el-tooltip content="将采集账号的ID、粉丝数、简介、点赞数等基础信息" placement="top">
-            <el-button type="info" class="toggle-btn" :class="{ active: paneData.getDataType === 0 }" @click="paneData.getDataType = 0">获取账号数据</el-button>
+            <el-button type="info" class="toggle-btn" :class="{ active: paneData.getDataType === 0 }" @click="paneData.getDataType = 0">采集博主数据</el-button>
           </el-tooltip>
           <el-tooltip content="将采集作品的点赞、评论、查看、转发、发布时间等数据" placement="top">
-            <el-button type="info" class="toggle-btn" :class="{ active: paneData.getDataType === 1 }" @click="paneData.getDataType = 1">获取视频数据</el-button>
+            <el-button type="info" class="toggle-btn" :class="{ active: paneData.getDataType === 1 }" @click="paneData.getDataType = 1">采集作品数据</el-button>
           </el-tooltip>
         </div>
       </div>
@@ -742,55 +798,89 @@
         </div>
       </div>
 
-      <div class="section-block" v-show="paneData.getDataType === 0 || paneData.getWorksType === 0">
+      <div class="section-block" v-show="paneData.getDataType !== 0 && paneData.getWorksType === 0">
         <div class="field-label">快手账号表</div>
-        <TableSelect v-model="paneData.userTableId" :placeholder="paneData.getDataType === 0 ? '未选自动创建' : '请选择快手账号表'" />
-      </div>
-
-      <div class="section-block" v-show="paneData.getDataType !== 0 && paneData.getWorksType !== 0">
-        <div class="field-label">快手账号id</div>
-        <el-input v-model="paneData.user_id" placeholder="请输入快手账号id" />
+        <TableSelect v-model="paneData.userTableId" placeholder="请选择快手账号表" />
       </div>
 
       <div class="section-block" v-show="paneData.getDataType === 0">
-        <div class="field-label">账号分享链接</div>
-        <el-input v-model="paneData.shareLink" placeholder="请输入快手账号分享链接" />
+        <div class="field-label">采集到表格</div>
+        <TableSelect v-model="paneData.userTableId" placeholder="默认新建表格" />
       </div>
 
       <div class="section-block" v-show="paneData.getDataType !== 0">
-        <div class="field-label">数据范围</div>
+        <div class="field-label">作品数据范围</div>
         <el-select v-model="paneData.searchRange" class="custom-select" placeholder="请选择数据范围">
           <el-option v-for="item in Object.keys(ranges)" :key="item" :label="item" :value="item" />
         </el-select>
       </div>
     </div>
 
+    <div class="section-title">
+      采集账号
+      <el-icon class="icon-hint" @click="openTip"><QuestionFilled /></el-icon>
+    </div>
+
+    <div class="collect-sub-panel">
+      <div class="section-block">
+        <div
+          v-for="key in Object.keys(searchValues)"
+          :key="key"
+          class="account-input-group"
+        >
+          <generalSelect
+            v-model="searchValues[key]"
+            placeholder="输入账号主页链接，或选择已有表格"
+          />
+          <span
+            v-if="key === Object.keys(searchValues)[0]"
+            class="account-add-btn"
+            @click="addSearchRow"
+          >
+            <el-icon size="16"><CirclePlus /></el-icon>
+          </span>
+          <span
+            v-else
+            class="account-add-btn"
+            style="color: #ff4d4f; border-color: #ffccc7;"
+            @click="removeSearchRow(key)"
+          >
+            <el-icon size="16"><Remove /></el-icon>
+          </span>
+        </div>
+      </div>
+    </div>
+
     <div class="collect-btn-container">
-      <div class="collect-btn-item" v-show="paneData.getDataType === 0">
-        <el-button class="collect-btn" :disabled="isLocked || !formData.key || !paneData.shareLink" @click="upsertUser">
-          写入快手账号数据
+      <div class="collect-btn-item">
+        <el-button
+          class="collect-btn"
+          :disabled="isLocked || !formData.key || (paneData.getDataType === 0 ? !hasAccountInput() : ((!paneData.userTableId && paneData.getWorksType === 0) || (!hasAccountInput() && paneData.getWorksType !== 0)))"
+          @click="paneData.getDataType === 0 ? upsertUser() : getRecentWorks(paneData.searchRange, paneData.getWorksType)"
+        >
+          采集数据
         </el-button>
       </div>
 
-      <div class="collect-btn-item" v-show="paneData.getDataType === 0">
-        <el-button class="update-btn" :disabled="isLocked || !formData.key || !paneData.userTableId" @click="batchUpdateUser">
+      <div class="collect-btn-item" v-if="paneData.getDataType === 0 && paneData.userTableId">
+        <el-button class="update-btn" :disabled="isLocked || !formData.key" @click="batchUpdateUser">
           批量更新快手账号数据
         </el-button>
       </div>
 
-      <div class="collect-btn-item" v-show="paneData.getDataType !== 0">
-        <el-button class="collect-btn" :disabled="isLocked || !formData.key || (!paneData.userTableId && paneData.getWorksType === 0) || (!paneData.user_id && paneData.getWorksType !== 0)" @click="getRecentWorks(paneData.searchRange, paneData.getWorksType)">
-          {{ '获取' + paneData.searchRange + '发布视频'}}
-        </el-button>
-      </div>
-
-      <div class="collect-btn-item" v-show="paneData.getDataType !== 0">
-        <el-button class="update-btn" :disabled="isLocked || !formData.key || !paneData.workTableId" @click="updateWorks">
+      <div class="collect-btn-item" v-if="paneData.getDataType !== 0 && paneData.workTableId">
+        <el-button class="update-btn" :disabled="isLocked || !formData.key" @click="updateWorks">
           批量更新快手视频数据
         </el-button>
       </div>
     </div>
   </div>
+
+  <platformTip
+    v-model:visible="tipVisible"
+    platform-name="快手"
+    account-field-name="快手账号ID"
+  />
 </template>
 
 

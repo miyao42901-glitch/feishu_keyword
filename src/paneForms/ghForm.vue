@@ -1,11 +1,13 @@
 <script>
   import { ref, computed } from 'vue';
   import { bitable, FieldType, NumberFormatter, DateFormatter } from '@lark-base-open/js-sdk';
-  import { ElSelect, ElOption, ElInput } from 'element-plus';
+  import { ElSelect, ElOption, ElInput, ElIcon } from 'element-plus';
+  import { QuestionFilled, CirclePlus, Remove } from '@element-plus/icons-vue';
   import pluginAPI, { directAPI } from '@/utils/request'
   import { writeToTable, updateTable, getFirstRecordByField} from '@/utils/tableHelper'
   import TableSelect from '@/components/TableSelect.vue'
-  import { SectionTitle, CollectSection, FieldLabel, ToggleButtons, CollectButton } from '@/components/collect'
+  import generalSelect from '@/toolComponents/generalSelect.vue'
+  import platformTip from '@/tipDialogs/platformTip.vue'
   import '@/assets/form-styles.css'
 
   export default {
@@ -13,12 +15,13 @@
       ElSelect,
       ElOption,
       ElInput,
+      ElIcon,
+      QuestionFilled,
+      CirclePlus,
+      Remove,
       TableSelect,
-      SectionTitle,
-      CollectSection,
-      FieldLabel,
-      ToggleButtons,
-      CollectButton,
+      generalSelect,
+      platformTip,
     },
     props: {
       formData: {
@@ -125,6 +128,46 @@
         getWorksType: 1,
       })
 
+      const tipVisible = ref(false)
+
+      const openTip = () => {
+        tipVisible.value = true
+      }
+
+      const searchValues = ref({
+        0: {
+          dataType: 'input',
+          data: { inputValue: '' },
+        },
+      })
+
+      const addSearchRow = () => {
+        const newId = Number(Object.keys(searchValues.value)[Object.keys(searchValues.value).length - 1]) + 1
+        searchValues.value[newId] = {
+          dataType: 'input',
+          data: { inputValue: '' },
+        }
+      }
+
+      const removeSearchRow = (id) => {
+        delete searchValues.value[id]
+      }
+
+      const getAccountInputValues = () => {
+        return Object.values(searchValues.value)
+          .filter((item) => item?.dataType === 'input' && item.data?.inputValue?.trim())
+          .map((item) => item.data.inputValue.trim())
+      }
+
+      const hasAccountInput = () => {
+        return Object.values(searchValues.value).some((item) => {
+          if (!item) return false
+          if (item.dataType === 'input') return !!item.data?.inputValue?.trim()
+          if (item.dataType === 'table') return item.data?.recordIdList?.length > 0
+          return false
+        })
+      }
+
 
       const addUserTableTemplate = async() => {
         if (props.isLocked) return;
@@ -195,53 +238,66 @@
           }
 
           const get_time = Date.now()
-          const res = await pluginAPI.post('/plugin_forward', {
-            url: '/fbmain/monitor/v3/avatar_type',
-            body: {
-              name: paneData.value.name,
-              key: props.formData.key,
-            },
-          })
+          const inputValues = getAccountInputValues()
+          if (inputValues.length === 0) {
+            props.formData.message = '请给出采集账号'
+            props.formData.messageType = 'warning'
+            return
+          }
 
-          const tmpUserFields = userFields()
-          if (res && res.data && res.data.code === 0) {
-            const biz = res.data.data.biz
-            const [record, fieldMap] = await getFirstRecordByField(paneData.value.userTableId, tmpUserFields.biz.label, biz)
-            if (record) {
-              const result = await updateTable(
-                paneData.value.userTableId,
-                [{
-                  recordId: record.recordId,
-                  data: {
-                    biz: biz,
-                    name: res.data.data.name,
-                    desc: res.data.data.desc,
-                  }
-                }],
-                tmpUserFields,
-              );
-            }
-            else{
-              console.log(paneData.value.userTableId)
-              const result = await writeToTable(
-                paneData.value.userTableId,
-                [{
+          let successCount = 0
+          let failmsg = ''
+
+          for (const name of inputValues) {
+            const res = await pluginAPI.post('/plugin_forward', {
+              url: '/fbmain/monitor/v3/avatar_type',
+              body: {
+                name,
+                key: props.formData.key,
+              },
+            })
+
+            const tmpUserFields = userFields()
+            if (res && res.data && res.data.code === 0) {
+              const biz = res.data.data.biz
+              const [record, fieldMap] = await getFirstRecordByField(paneData.value.userTableId, tmpUserFields.biz.label, biz)
+              if (record) {
+                const result = await updateTable(
+                  paneData.value.userTableId,
+                  [{
+                    recordId: record.recordId,
+                    data: {
+                      biz: biz,
+                      name: res.data.data.name,
+                      desc: res.data.data.desc,
+                    }
+                  }],
+                  tmpUserFields,
+                );
+                if (result.success) successCount++
+              } else {
+                const result = await writeToTable(
+                  paneData.value.userTableId,
+                  [{
                     biz: biz,
                     name: res.data.data.name,
                     desc: res.data.data.desc,
                     get_work_flag: 'unknow',
-                }],
-                tmpUserFields,
-              );
+                  }],
+                  tmpUserFields,
+                );
+                if (result.success) successCount++
+              }
+            } else {
+              failmsg = res?.data?.msg || failmsg || '未知错误'
             }
-
-            
-            props.formData.message = '新增公众号账号完成，消耗：0.5'
-            props.formData.messageType = 'success';
           }
-          else{
-            props.formData.message = '操作失败:' + (res.data.msg || '未知错误');
-            props.formData.messageType = 'error';
+
+          if (inputValues.length > 0) {
+            let returnMessage = '新增公众号账号完成，尝试采集' + inputValues.length + '条，成功' + successCount + '条，消耗：' + (successCount * 0.5).toFixed(1)
+            if (failmsg) returnMessage += '，失败原因：' + failmsg
+            props.formData.message = returnMessage
+            props.formData.messageType = failmsg && successCount === 0 ? 'error' : failmsg ? 'warning' : 'success'
           }
         } catch (error) {
           console.error('操作失败:', error);
@@ -414,7 +470,7 @@
             }
           }
           else{
-            userInfoList = [{ biz: paneData.value.biz }]
+            userInfoList = [{ biz: getAccountInputValues()[0] }]
           }
           
           for (const userInfo of userInfoList){
@@ -628,6 +684,12 @@
         paneData,
         dateRange,
         ranges,
+        searchValues,
+        tipVisible,
+        openTip,
+        addSearchRow,
+        removeSearchRow,
+        hasAccountInput,
         addUserTableTemplate,
         addWorkTableTemplate,
         upsertUser,
@@ -646,10 +708,10 @@
       <div class="section-block">
         <div class="toggle-wrapper">
           <el-tooltip content="将采集账号的ID、粉丝数、简介、点赞数等基础信息" placement="top">
-            <el-button type="info" class="toggle-btn" :class="{ active: paneData.getDataType === 0 }" @click="paneData.getDataType = 0">获取公众号数据</el-button>
+            <el-button type="info" class="toggle-btn" :class="{ active: paneData.getDataType === 0 }" @click="paneData.getDataType = 0">采集博主数据</el-button>
           </el-tooltip>
           <el-tooltip content="将采集作品的点赞、评论、查看、转发、发布时间等数据" placement="top">
-            <el-button type="info" class="toggle-btn" :class="{ active: paneData.getDataType === 1 }" @click="paneData.getDataType = 1">获取文章数据</el-button>
+            <el-button type="info" class="toggle-btn" :class="{ active: paneData.getDataType === 1 }" @click="paneData.getDataType = 1">采集作品数据</el-button>
           </el-tooltip>
         </div>
       </div>
@@ -659,50 +721,90 @@
         <TableSelect v-model="paneData.workTableId" placeholder="未选自动创建" />
       </div>
 
-      <div class="section-block" v-show="paneData.getDataType === 0 || paneData.getWorksType === 0">
+      <div class="section-block" v-show="paneData.getDataType !== 0">
+        <div class="toggle-wrapper">
+          <el-button type="info" class="toggle-btn" :class="{ active: paneData.getWorksType === 1 }" @click="paneData.getWorksType = 1">根据公众号biz获取</el-button>
+          <el-button type="info" class="toggle-btn" :class="{ active: paneData.getWorksType === 0 }" @click="paneData.getWorksType = 0">根据账号表获取</el-button>
+        </div>
+      </div>
+
+      <div class="section-block" v-show="paneData.getDataType !== 0 && paneData.getWorksType === 0">
         <div class="field-label">公众号表</div>
-        <TableSelect v-model="paneData.userTableId" :placeholder="paneData.getDataType === 0 ? '未选自动创建' : '请选择公众号表'" />
+        <TableSelect v-model="paneData.userTableId" placeholder="请选择公众号表" />
       </div>
 
       <div class="section-block" v-show="paneData.getDataType === 0">
-        <div class="field-label">公众号链接</div>
-        <el-input v-model="paneData.shareLink" placeholder="请输入公众号文章链接" />
+        <div class="field-label">采集到表格</div>
+        <TableSelect v-model="paneData.userTableId" placeholder="默认新建表格" />
       </div>
 
       <div class="section-block" v-show="paneData.getDataType !== 0">
-        <div class="field-label">数据范围</div>
+        <div class="field-label">作品数据范围</div>
         <el-select v-model="paneData.searchRange" class="custom-select" placeholder="请选择数据范围">
           <el-option v-for="item in Object.keys(ranges)" :key="item" :label="item" :value="item" />
         </el-select>
       </div>
     </div>
 
+    <div class="section-title">
+      采集账号
+      <el-icon class="icon-hint" @click="openTip"><QuestionFilled /></el-icon>
+    </div>
+
+    <div class="collect-sub-panel">
+      <div class="section-block">
+        <div
+          v-for="key in Object.keys(searchValues)"
+          :key="key"
+          class="account-input-group"
+        >
+          <generalSelect
+            v-model="searchValues[key]"
+            placeholder="输入账号主页链接，或选择已有表格"
+          />
+          <span
+            v-if="key === Object.keys(searchValues)[0]"
+            class="account-add-btn"
+            @click="addSearchRow"
+          >
+            <el-icon size="16"><CirclePlus /></el-icon>
+          </span>
+          <span
+            v-else
+            class="account-add-btn"
+            style="color: #ff4d4f; border-color: #ffccc7;"
+            @click="removeSearchRow(key)"
+          >
+            <el-icon size="16"><Remove /></el-icon>
+          </span>
+        </div>
+      </div>
+    </div>
+
     <div class="collect-btn-container">
-      <div class="collect-btn-item" v-show="paneData.getDataType === 0">
-        <el-button class="collect-btn" :disabled="isLocked || !formData.key || !paneData.shareLink" @click="upsertUser">
-          写入公众号数据
+      <div class="collect-btn-item">
+        <el-button
+          class="collect-btn"
+          :disabled="isLocked || !formData.key || (paneData.getDataType === 0 ? !hasAccountInput() : ((!paneData.userTableId && paneData.getWorksType === 0) || (!hasAccountInput() && paneData.getWorksType !== 0)))"
+          @click="paneData.getDataType === 0 ? upsertUser() : getRecentWorks(paneData.searchRange, paneData.getWorksType)"
+        >
+          采集数据
         </el-button>
       </div>
 
-      <div class="collect-btn-item" v-show="paneData.getDataType === 0">
-        <el-button class="update-btn" :disabled="isLocked || !formData.key || !paneData.userTableId" @click="batchUpdateUser">
-          批量更新公众号数据
-        </el-button>
-      </div>
-
-      <div class="collect-btn-item" v-show="paneData.getDataType !== 0">
-        <el-button class="collect-btn" :disabled="isLocked || !formData.key || !paneData.userTableId" @click="getRecentWorks(paneData.searchRange)">
-          {{ '获取' + paneData.searchRange + '文章'}}
-        </el-button>
-      </div>
-
-      <div class="collect-btn-item" v-show="paneData.getDataType !== 0">
-        <el-button class="update-btn" :disabled="isLocked || !formData.key || !paneData.workTableId" @click="updateWorks">
+      <div class="collect-btn-item" v-if="paneData.getDataType !== 0 && paneData.workTableId">
+        <el-button class="update-btn" :disabled="isLocked || !formData.key" @click="updateWorks">
           批量更新文章数据
         </el-button>
       </div>
     </div>
   </div>
+
+  <platformTip
+    v-model:visible="tipVisible"
+    platform-name="公众号"
+    account-field-name="公众号账号ID"
+  />
 </template>
 
 

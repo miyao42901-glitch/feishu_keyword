@@ -173,6 +173,15 @@
         delete searchValues.value[id];
       }
 
+      const hasAccountInput = () => {
+        return Object.values(searchValues.value).some((item) => {
+          if (!item) return false
+          if (item.dataType === 'input') return !!item.data?.inputValue?.trim()
+          if (item.dataType === 'table') return item.data?.recordIdList?.length > 0
+          return false
+        })
+      }
+
 
       const changecollectionType = async (newCollectionType) => {
         paneData.value.collectionType = newCollectionType
@@ -705,6 +714,7 @@
         changecollectionType,
         addSearchRow,
         removeSearchRow,
+        hasAccountInput,
         updateWorks,
         collectData,
         executeCollect,
@@ -790,7 +800,7 @@
       <div class="collect-btn-item">
         <el-button
           class="collect-btn"
-          :disabled="isLocked"
+          :disabled="isLocked || !formData.key || !hasAccountInput()"
           @click="executeCollect(collectData)"
         >
           采集数据
