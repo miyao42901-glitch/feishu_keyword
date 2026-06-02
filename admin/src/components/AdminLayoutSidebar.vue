@@ -20,6 +20,42 @@
           <span>工作台</span>
         </el-menu-item>
 
+        <el-sub-menu index="data-root">
+          <template #title>
+            <span>数据</span>
+          </template>
+          <el-menu-item index="/data/overview">
+            <span>数据概览</span>
+          </el-menu-item>
+        </el-sub-menu>
+
+        <el-sub-menu index="business-root">
+          <template #title>
+            <span>业务</span>
+          </template>
+          <el-menu-item index="/business/tasks">
+            <span>任务管理</span>
+          </el-menu-item>
+          <el-menu-item index="/business/exec-monitor">
+            <span>执行监控</span>
+          </el-menu-item>
+          <el-menu-item index="/business/api-monitor">
+            <span>API 监控</span>
+          </el-menu-item>
+          <el-menu-item index="/business/push-monitor">
+            <span>推送监控</span>
+          </el-menu-item>
+        </el-sub-menu>
+
+        <el-sub-menu index="operation-root">
+          <template #title>
+            <span>运营</span>
+          </template>
+          <el-menu-item index="/operation/users">
+            <span>用户管理</span>
+          </el-menu-item>
+        </el-sub-menu>
+
         <el-sub-menu index="keyword-root">
           <template #title>
             <span>关键词管理</span>
@@ -103,6 +139,9 @@ import http from '@/api/http'
 import { useSessionStore } from '@/stores/session'
 
 function submenuRootForPath(path: string): string | null {
+  if (path.startsWith('/data/')) return 'data-root'
+  if (path.startsWith('/business/')) return 'business-root'
+  if (path.startsWith('/operation/')) return 'operation-root'
   if (path.startsWith('/keyword/')) return 'keyword-root'
   if (path.startsWith('/rule/')) return 'rule-root'
   if (path.startsWith('/hit/')) return 'hit-root'
@@ -113,6 +152,9 @@ function submenuRootForPath(path: string): string | null {
 }
 
 const SUB_MENU_ROOTS = [
+  'data-root',
+  'business-root',
+  'operation-root',
   'keyword-root',
   'rule-root',
   'hit-root',
@@ -166,6 +208,24 @@ onMounted(() => {
 const menuActive = computed(() => {
   if (route.path.startsWith('/dashboard')) {
     return '/dashboard'
+  }
+  if (route.path.startsWith('/data/overview')) {
+    return '/data/overview'
+  }
+  if (route.path.startsWith('/business/tasks')) {
+    return '/business/tasks'
+  }
+  if (route.path.startsWith('/business/exec-monitor')) {
+    return '/business/exec-monitor'
+  }
+  if (route.path.startsWith('/business/api-monitor')) {
+    return '/business/api-monitor'
+  }
+  if (route.path.startsWith('/business/push-monitor')) {
+    return '/business/push-monitor'
+  }
+  if (route.path.startsWith('/operation/users')) {
+    return '/operation/users'
   }
   if (route.path.startsWith('/keyword/list')) {
     return '/keyword/list'

@@ -17,6 +17,36 @@ const router = createRouter({
           component: () => import('@/views/DashboardView.vue'),
         },
         {
+          path: 'data/overview',
+          name: 'data-overview',
+          component: () => import('@/views/data/DataOverviewView.vue'),
+        },
+        {
+          path: 'business/tasks',
+          name: 'business-tasks',
+          component: () => import('@/views/business/TaskManageView.vue'),
+        },
+        {
+          path: 'business/exec-monitor',
+          name: 'business-exec-monitor',
+          component: () => import('@/views/business/ExecMonitorView.vue'),
+        },
+        {
+          path: 'business/api-monitor',
+          name: 'business-api-monitor',
+          component: () => import('@/views/business/ApiMonitorView.vue'),
+        },
+        {
+          path: 'business/push-monitor',
+          name: 'business-push-monitor',
+          component: () => import('@/views/business/PushMonitorView.vue'),
+        },
+        {
+          path: 'operation/users',
+          name: 'operation-users',
+          component: () => import('@/views/operation/UserManageView.vue'),
+        },
+        {
           path: 'keyword/list',
           name: 'keyword-list',
           component: () => import('@/views/keyword/KeywordListView.vue'),
