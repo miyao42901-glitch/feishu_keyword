@@ -12,6 +12,7 @@ import { getCustomerServiceQrUrl } from '@/lib/insufficient-balance'
 import { homeHeroAccountPointsIconImgAttrs, homeHeroBannerBg } from '@/lib/home-hero-media'
 import { useAccountPointsStore } from '@/stores/accountPoints'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
+import { flushAnalytics, trackPageView, trackUserProfile } from '@/lib/analytics'
 import { useYddmAuthStore } from '@/stores/yddmAuth'
 
 const activeTab = ref<'tasks' | 'yddmAuth'>('tasks')
@@ -28,6 +29,7 @@ const tasksViewRef = ref<{ leaveCreateToList: () => Promise<void> } | null>(null
 const loginDialogVisible = ref(false)
 
 watch(activeTab, (t) => {
+  if (t === 'yddmAuth') trackPageView('登录注册页', 'tab')
   if (t !== 'tasks') inTaskCreate.value = false
 })
 
@@ -104,11 +106,16 @@ watch(
 )
 
 onMounted(() => {
+  trackPageView('首页', 'app_load')
   const tok = yddmAuth.accessToken?.trim()
   if (!tok) return
   void yddmAuth.refreshMe().then((u) => {
     const key = u?.api_key?.trim()
     if (key) globalSettings.authCode = key
+    if (u?.id != null) {
+      trackUserProfile({ userId: u.id, phone: u.phone_num })
+      void flushAnalytics()
+    }
   }).catch(() => {
     /* 保留本地 token，由任务请求或用户手动重试 */
   })

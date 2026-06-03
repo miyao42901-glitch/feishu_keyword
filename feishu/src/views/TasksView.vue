@@ -31,6 +31,7 @@ import {
   pruneTestFeedAppendState,
 } from '@/lib/feishu-bitable-append-feed'
 import { createTestFeedBitableDeps, syncTaskCollectionToBitable } from '@/lib/feishu-bitable-task-sync'
+import { trackPageView } from '@/lib/analytics'
 import { readSyncCollectionPlatforms } from '@/lib/sync-collection-platforms'
 import {
   applyCollectionResultToConfig,
@@ -920,6 +921,7 @@ onMounted(() => {
 })
 
 function onCreateTask() {
+  trackPageView('新建任务', 'tasks_list')
   editingTaskId.value = null
   editingTaskStatus.value = null
   taskDetail.value = null
