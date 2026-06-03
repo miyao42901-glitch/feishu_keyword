@@ -44,10 +44,8 @@ function onHeaderNavClick() {
   }
 }
 
-const heroBannerBgStyle = {
-  '--hero-bg-1x': `url(${homeHeroBannerBg['1x']})`,
-  '--hero-bg-2x': `url(${homeHeroBannerBg['2x']})`,
-} as Record<string, string>
+const heroBannerBg1xUrl = homeHeroBannerBg['1x']
+const heroBannerBg2xUrl = homeHeroBannerBg['2x']
 const DEFAULT_OPERATIONS_DOC_URL =
   'https://lcnnrhjmwxym.feishu.cn/wiki/Hnstw1DDgi3sswkMwh6cyn2lnlc'
 
@@ -159,7 +157,15 @@ onMounted(() => {
       />
     </el-dialog>
     <div class="home-hero">
-      <div class="home-hero__bg" :style="heroBannerBgStyle" aria-hidden="true" />
+      <img 
+        class="home-hero__bg" 
+        :src="heroBannerBg1xUrl"
+        :srcset="`${heroBannerBg2xUrl} 2x`"
+        alt=""
+        aria-hidden="true"
+        loading="lazy"
+        decoding="async"
+      />
       <div class="home-hero__inner">
         <div class="home-hero__copy">
           <div class="home-hero__title-row">
@@ -294,23 +300,17 @@ onMounted(() => {
   position: absolute;
   inset: 0;
   z-index: 0;
-  background-color: transparent;
-  background-image: var(--hero-bg-1x);
-  background-repeat: no-repeat;
-  background-position: right center;
-  background-size: auto 100%;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: right center;
   pointer-events: none;
 }
 
-@media (min-width: 768px) {
+@media (max-width: 767px) {
   .home-hero__bg {
-    background-size: cover;
-  }
-}
-
-@media (min-resolution: 2dppx) {
-  .home-hero__bg {
-    background-image: var(--hero-bg-2x);
+    object-fit: contain;
+    object-position: right center;
   }
 }
 

@@ -1608,7 +1608,7 @@ async function confirmDeleteTask() {
 
 .task-list-empty__img {
   display: block;
-  width: min(200px, 72vw);
+  width: min(100px, 72vw);
   height: auto;
   margin: 0 auto 0.75rem;
   object-fit: contain;
