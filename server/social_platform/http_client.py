@@ -6,6 +6,7 @@ import asyncio
 import logging
 import time
 from typing import Any, Optional
+from uuid import uuid4
 
 import aiohttp
 import requests
@@ -16,6 +17,51 @@ logger = logging.getLogger(__name__)
 
 class HttpClientError(Exception):
     """网络层重试用尽或响应非 JSON。"""
+
+
+def _resolve_platform_from_url(url: str) -> Optional[str]:
+    url_lower = url.lower()
+    if "douyin" in url_lower:
+        return "douyin"
+    if "xhs" in url_lower or "xiaohongshu" in url_lower:
+        return "xhs"
+    if "weixin" in url_lower or "wechat" in url_lower or "wx" in url_lower:
+        return "wx"
+    if "mp" in url_lower:
+        return "mp"
+    return None
+
+
+def _track_api_call(
+    *,
+    request_id: str,
+    url: str,
+    result: str,
+    error_code: Optional[str],
+    latency_ms: int,
+) -> None:
+    try:
+        from social_platform.api_call_context import get_api_call_context
+        ctx = get_api_call_context()
+        if ctx is None:
+            return
+        db = ctx.get("db")
+        if db is None:
+            return
+        from social_platform.services import analytics_service
+        platform = ctx.get("platform") or _resolve_platform_from_url(url)
+        analytics_service.write_api_call(
+            db,
+            request_id=request_id,
+            task_id=ctx.get("task_id"),
+            exec_id=ctx.get("exec_id"),
+            platform=platform,
+            result=result,
+            error_code=error_code,
+            latency_ms=latency_ms,
+        )
+    except Exception:
+        logger.debug("analytics api_call tracking failed", exc_info=True)
 
 
 class BaseHttpClient:
@@ -43,6 +89,8 @@ class BaseHttpClient:
         """
         last_exc: Optional[Exception] = None
         req_headers = dict(headers or {})
+        request_id = uuid4().hex
+        t0 = time.monotonic()
         for attempt in range(self.max_retries):
             try:
                 logger.debug("HTTP POST url=%s payload=%s", url, payload)
@@ -56,6 +104,14 @@ class BaseHttpClient:
                 data = resp.json()
                 if not isinstance(data, dict):
                     raise HttpClientError(f"响应 JSON 非对象: {type(data)!s}")
+                latency = int((time.monotonic() - t0) * 1000)
+                _track_api_call(
+                    request_id=request_id,
+                    url=url,
+                    result="成功",
+                    error_code=None,
+                    latency_ms=latency,
+                )
                 return data
             except (RequestException, ValueError, TypeError) as e:
                 last_exc = e
@@ -68,6 +124,14 @@ class BaseHttpClient:
                 )
                 if attempt < self.max_retries - 1:
                     time.sleep(self.retry_sleep_sec)
+        latency = int((time.monotonic() - t0) * 1000)
+        _track_api_call(
+            request_id=request_id,
+            url=url,
+            result="失败",
+            error_code="network_error",
+            latency_ms=latency,
+        )
         raise HttpClientError(
             f"POST 重试{self.max_retries}次仍失败: {last_exc!s}"
         ) from last_exc

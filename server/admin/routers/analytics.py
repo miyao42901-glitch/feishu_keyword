@@ -31,3 +31,83 @@ def analytics_overview(
         return admin_ok(data={"range": range, "kpis": {}, "charts": {}, "funnel": {}, "empty": True})
     data = analytics_service.get_overview(session, range)
     return admin_ok(data=data)
+
+
+@router.get("/exec-runs")
+def analytics_exec_runs(
+    range: Literal["day", "week", "month"] = Query(default="day"),
+    db: Session = Depends(get_db),
+):
+    """执行监控（Phase 2）。"""
+    session = _db_or_none(db)
+    if session is None:
+        return admin_ok(data={"range": range, "total": 0, "success": 0, "successRate": "-", "avgDurationMs": 0, "records": []})
+    data = analytics_service.get_exec_runs(session, range)
+    return admin_ok(data=data)
+
+
+@router.get("/api-calls")
+def analytics_api_calls(
+    range: Literal["day", "week", "month"] = Query(default="day"),
+    db: Session = Depends(get_db),
+):
+    """API 监控（Phase 2）。"""
+    session = _db_or_none(db)
+    if session is None:
+        return admin_ok(data={"range": range, "total": 0, "success": 0, "successRate": "-", "avgLatencyMs": 0, "platformStats": [], "records": []})
+    data = analytics_service.get_api_calls(session, range)
+    return admin_ok(data=data)
+
+
+@router.get("/push-logs")
+def analytics_push_logs(
+    range: Literal["day", "week", "month"] = Query(default="day"),
+    db: Session = Depends(get_db),
+):
+    """推送监控（Phase 3）。"""
+    session = _db_or_none(db)
+    if session is None:
+        return admin_ok(data={"range": range, "total": 0, "sendSuccess": 0, "callbackSuccess": 0, "deliveryRate": "-", "notifyOnCount": 0, "notifyOffCount": 0, "records": []})
+    data = analytics_service.get_push_logs(session, range)
+    return admin_ok(data=data)
+
+
+@router.get("/users")
+def analytics_users(
+    range: Literal["day", "week", "month"] = Query(default="month"),
+    db: Session = Depends(get_db),
+):
+    """用户管理（Phase 3）。"""
+    session = _db_or_none(db)
+    if session is None:
+        return admin_ok(data={"range": range, "totalUsers": 0, "activeUsers": 0, "newUsers": 0, "retention": "-", "records": []})
+    data = analytics_service.get_users(session, range)
+    return admin_ok(data=data)
+
+
+@router.put("/users/{user_id}/remark")
+def update_user_remark(
+    user_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+):
+    """更新用户运营备注（Phase 3）。"""
+    session = _db_or_none(db)
+    if session is None:
+        return admin_ok(data={"updated": False})
+    remark = str(body.get("remark") or "")[:255]
+    analytics_service.update_user_remark(session, user_id=user_id, remark=remark)
+    return admin_ok(data={"updated": True})
+
+
+@router.get("/users/{user_id}/detail")
+def analytics_user_detail(
+    user_id: str,
+    db: Session = Depends(get_db),
+):
+    """用户详情（Phase 3）。"""
+    session = _db_or_none(db)
+    if session is None:
+        return admin_ok(data=None)
+    data = analytics_service.get_user_detail(session, user_id=user_id)
+    return admin_ok(data=data)

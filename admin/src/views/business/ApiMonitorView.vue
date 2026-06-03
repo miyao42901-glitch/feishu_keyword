@@ -2,18 +2,15 @@
   <div class="ops-page">
     <OpsStatGrid
       :stats="[
-        { label: '今日调用次数', value: '12,486', sub: '↑ 3.1% vs 昨日', tone: 'up' },
-        { label: '成功率', value: '99.1%', sub: '↑ 0.3% vs 上月', tone: 'up' },
-        { label: '平均响应耗时', value: '1.8s', sub: '↑ 0.1s vs 上月', tone: 'down' },
+        { label: '今日调用次数', value: data?.total ?? 0, sub: '', tone: 'neutral' },
+        { label: '成功率', value: data?.successRate ?? '-', sub: '', tone: 'neutral' },
+        { label: '平均响应耗时', value: data?.avgLatencyMs ? `${(data.avgLatencyMs / 1000).toFixed(2)}s` : '-', sub: '', tone: 'neutral' },
       ]"
     />
 
-    <el-row :gutter="16" class="ops-chart-row">
+    <el-row :gutter="16" class="ops-chart-row" v-if="data && data.platformStats.length">
       <el-col :xs="24" :lg="12">
         <OpsChartCard title="各平台调用成功率" :option="platformOption" />
-      </el-col>
-      <el-col :xs="24" :lg="12">
-        <OpsChartCard title="错误码分布（近30天）" :option="errorCodeOption" />
       </el-col>
     </el-row>
 
@@ -21,34 +18,42 @@
       <div class="ops-table-head">
         <h3>API 调用记录</h3>
         <div class="ops-table-toolbar">
-          <el-input v-model="keyword" placeholder="搜索 API 请求ID..." clearable style="width: 220px" />
+          <el-select v-model="range" style="width: 100px; margin-right: 12px" @change="loadData">
+            <el-option label="今日" value="day" />
+            <el-option label="本周" value="week" />
+            <el-option label="本月" value="month" />
+          </el-select>
+          <el-input v-model="keyword" placeholder="搜索请求ID..." clearable style="width: 220px" />
         </div>
       </div>
       <div class="admin-table-scroll">
-        <el-table :data="pagedRows" stripe>
-          <el-table-column prop="id" label="请求ID" width="100" />
-          <el-table-column prop="taskId" label="任务ID" min-width="150">
+        <el-table :data="pagedRows" stripe v-loading="loading">
+          <el-table-column prop="requestId" label="请求ID" width="160" />
+          <el-table-column prop="taskId" label="任务ID" min-width="120">
             <template #default="{ row }">
-              <el-link type="primary" :underline="false">{{ row.taskId }}</el-link>
+              <el-link type="primary" :underline="false">{{ row.taskId || '-' }}</el-link>
             </template>
           </el-table-column>
           <el-table-column prop="platform" label="平台" width="120">
             <template #default="{ row }">
-              <el-tag size="small" effect="plain">{{ row.platform }}</el-tag>
+              <el-tag v-if="row.platform" size="small" effect="plain">{{ row.platform }}</el-tag>
+              <span v-else>-</span>
             </template>
           </el-table-column>
-          <el-table-column prop="time" label="调用时间" width="160" />
+          <el-table-column prop="calledAt" label="调用时间" width="160" />
           <el-table-column prop="result" label="结果" width="80">
             <template #default="{ row }">
               <el-tag :type="row.result === '成功' ? 'success' : 'danger'" size="small">{{ row.result }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="code" label="失败码" width="100">
+          <el-table-column prop="errorCode" label="失败码" width="120">
             <template #default="{ row }">
-              <span :style="{ color: row.code !== '-' ? '#f53f3f' : undefined }">{{ row.code }}</span>
+              <span :style="{ color: row.errorCode ? '#f53f3f' : undefined }">{{ row.errorCode || '-' }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="latency" label="响应耗时" width="100" />
+          <el-table-column label="响应耗时" width="100">
+            <template #default="{ row }">{{ row.latencyMs ? `${(row.latencyMs / 1000).toFixed(2)}s` : '-' }}</template>
+          </el-table-column>
         </el-table>
       </div>
       <el-pagination
@@ -65,22 +70,35 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import type { OpsChartOption } from '@/types/opsCharts'
 import OpsChartCard from '@/components/ops/OpsChartCard.vue'
 import OpsStatGrid from '@/components/ops/OpsStatGrid.vue'
 import { useOpsEcharts } from '@/composables/useOpsEcharts'
-import { API_RECORDS } from '@/mock/opsMockData'
+import { fetchApiCalls, type ApiCallsData, type AnalyticsRange } from '@/api/analytics'
 
 useOpsEcharts()
 
 const keyword = ref('')
 const page = ref(1)
 const pageSize = 10
+const range = ref<AnalyticsRange>('day')
+const loading = ref(false)
+const data = ref<ApiCallsData | null>(null)
+
+async function loadData() {
+  loading.value = true
+  try {
+    data.value = await fetchApiCalls(range.value)
+  } finally {
+    loading.value = false
+  }
+}
 
 const filteredRows = computed(() => {
+  if (!data.value) return []
   const q = keyword.value.trim().toLowerCase()
-  return API_RECORDS.filter((row) => !q || row.id.toLowerCase().includes(q))
+  return data.value.records.filter((row) => !q || row.requestId.toLowerCase().includes(q))
 })
 
 const pagedRows = computed(() => {
@@ -88,38 +106,34 @@ const pagedRows = computed(() => {
   return filteredRows.value.slice(start, start + pageSize)
 })
 
-const platformOption = computed(
-  (): OpsChartOption => ({
+const platformOption = computed((): OpsChartOption => {
+  const stats = data.value?.platformStats ?? []
+  return {
     tooltip: { trigger: 'axis' },
     legend: { top: 0 },
     grid: { left: 48, right: 24, top: 40, bottom: 40 },
-    xAxis: { type: 'category', data: ['微博', '抖音', '百度', '知乎', '小红书', '微信公众号', '政府网'] },
+    xAxis: { type: 'category', data: stats.map((s) => s.platform) },
     yAxis: { type: 'value' },
     series: [
-      { name: '成功', type: 'bar', stack: 'total', data: [3168, 2772, 2079, 1485, 1188, 960, 698], itemStyle: { color: '#00b42a' } },
-      { name: '失败', type: 'bar', stack: 'total', data: [32, 28, 21, 15, 12, 20, 8], itemStyle: { color: '#f53f3f' } },
-    ],
-  }),
-)
-
-const errorCodeOption = computed(
-  (): OpsChartOption => ({
-    tooltip: { trigger: 'item' },
-    legend: { bottom: 0, type: 'scroll' },
-    series: [
       {
-        type: 'pie',
-        radius: ['40%', '65%'],
-        data: [
-          { name: 'E40301 (权限不足)', value: 35 },
-          { name: 'E40401 (资源不存在)', value: 28 },
-          { name: 'E50001 (服务异常)', value: 18 },
-          { name: 'E42901 (频率限制)', value: 12 },
-          { name: '其他', value: 7 },
-        ],
-        color: ['#f53f3f', '#ff7d00', '#4073fa', '#ffb700', '#9ca3af'],
+        name: '成功',
+        type: 'bar',
+        stack: 'total',
+        data: stats.map((s) => s.success),
+        itemStyle: { color: '#00b42a' },
+      },
+      {
+        name: '失败',
+        type: 'bar',
+        stack: 'total',
+        data: stats.map((s) => s.total - s.success),
+        itemStyle: { color: '#f53f3f' },
       },
     ],
-  }),
-)
+  }
+})
+
+onMounted(() => {
+  loadData()
+})
 </script>
