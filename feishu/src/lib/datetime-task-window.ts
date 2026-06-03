@@ -17,6 +17,13 @@ export function parseTaskDateTimeString(value: unknown): Dayjs | null {
   return d.isValid() ? d : null
 }
 
+/** 采集窗口是否已结束（`expireAt` / `task_end_time`）；无结束时间则视为未过期 */
+export function isTaskWindowExpired(expireAt: unknown, nowMs = Date.now()): boolean {
+  const end = parseTaskDateTimeString(expireAt)
+  if (!end) return false
+  return nowMs >= end.valueOf()
+}
+
 /** 不可选今天之前的日期（与 `el-date-picker` `disabled-date` 签名一致） */
 export function disabledPastDateForPicker(time: Date): boolean {
   return dayjs(time).startOf('day').isBefore(dayjs().startOf('day'))

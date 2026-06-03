@@ -29,6 +29,7 @@ import {
 } from '@/lib/sync-search-shared'
 import { fetchDouyinSearchItems } from '@/lib/douyin-sync-api'
 import { refreshYddmUserBalance } from '@/lib/refresh-yddm-balance'
+import { isTaskWindowExpired } from '@/lib/datetime-task-window'
 import { estimatePointsFromItemsByPlatform } from '@/lib/task-estimate-points'
 import {
   isSyncCollectionPlatform,
@@ -985,7 +986,9 @@ export const PENDING_RESULTS_AFTER_NEXT_RUN_MS = 3 * 60_000
 export function isPendingAsyncResultsDue(
   nextRunAtRaw: string | null | undefined,
   nowMs = Date.now(),
+  expireAtRaw?: string | null,
 ): boolean {
+  if (isTaskWindowExpired(expireAtRaw, nowMs)) return false
   const raw = nextRunAtRaw?.trim()
   if (!raw) return false
   const nextRunAtMs = Date.parse(raw.replace(' ', 'T'))

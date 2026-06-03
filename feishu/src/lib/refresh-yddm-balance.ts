@@ -7,7 +7,7 @@ import { maybeNotifyLowBalance } from '@/lib/feishu-webhook-notify'
 import { useAccountPointsStore } from '@/stores/accountPoints'
 import { useYddmAuthStore } from '@/stores/yddmAuth'
 
-const MIN_REFRESH_INTERVAL_MS = 1500
+const MIN_REFRESH_INTERVAL_MS = 30_000
 
 let inflight: Promise<void> | null = null
 let lastSuccessAt = 0

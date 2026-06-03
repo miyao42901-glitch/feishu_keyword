@@ -46,6 +46,7 @@ import { buildCollectionFetchContext } from '@/lib/collection-context'
 import { readCrawlPollIntervalMs } from '@/lib/feishu-webhook-notify'
 import {
   isScheduledFeedPollDue,
+  isTaskWindowExpired,
   msUntilNextScheduledRunPoll,
   scheduledRunPolledMarkThrough,
 } from '@/lib/datetime-task-window'
@@ -89,7 +90,7 @@ let testFeedPollTimeout: ReturnType<typeof setTimeout> | null = null
 /** 列表 `GET /api/v1/async/tasks` 定时轮询（与后端 `ASYNC_DISPATCH_POLL_SECONDS` 默认 15s 对齐） */
 const ASYNC_TASK_LIST_POLL_RUNNING_MS = 30_000
 const ASYNC_TASK_LIST_POLL_PENDING_MS = 15_000
-const ASYNC_TASK_LIST_POLL_PENDING_MIN_MS = 5_000
+const ASYNC_TASK_LIST_POLL_PENDING_MIN_MS = 30_000
 /** force 刷新最短间隔；定时轮询走 `listPollIntervalMs()` 不受此限制 */
 const ASYNC_TASK_LIST_MIN_FETCH_MS = 15_000
 let lastTaskListFetchedAt = 0
@@ -108,6 +109,8 @@ const testFeedSyncInFlight = new Set<number>()
 const lastRealtimeFeedPollAtByTaskId = new Map<number, number>()
 /** 定时任务：已拉取到的最大采集时刻（对齐 14:29 / 14:34 …） */
 const lastScheduledRunPolledAtByTaskId = new Map<number, number>()
+/** 各任务上次拉 `GET .../results` 的时刻（pending / running 节流） */
+const lastAsyncResultsPollAtByTaskId = new Map<number, number>()
 /** 轮询用任务配置缓存（含开始/结束/频率） */
 const feedPollConfigByTaskId = new Map<number, Record<string, unknown>>()
 
@@ -115,20 +118,40 @@ const testFeedBitableDeps = createTestFeedBitableDeps()
 
 /** 仅 `running` 卡片拉 results 的最小间隔 */
 const RUNNING_FEED_POLL_MS = 120_000
+/** `pending_run` 已过 next_run_at+3min 后拉 results 的最小间隔 */
+const PENDING_FEED_POLL_MS = 120_000
+/** 列表 feed 轮询最短周期（避免每秒空转） */
+const MIN_FEED_POLL_CYCLE_MS = 30_000
 let syncPollTimerDebounce: ReturnType<typeof setTimeout> | null = null
 let refreshTestDataFeedInFlight: Promise<void> | null = null
 let runningFeedWatchDebounce: ReturnType<typeof setTimeout> | null = null
+let lastRefreshTestDataFeedAt = 0
 
-/** 定时任务 pending_run：各平台在 next_run_at+3min 拉 `GET .../results` */
+/** 定时任务采集窗口是否已结束（YDDM `task_end_time` / 卡片 `expireAtRaw`） */
+function isScheduledListCardExpired(row: TaskCardModel, now = Date.now()): boolean {
+  if (row.taskTypeLabel === '单次任务') return false
+  return isTaskWindowExpired(row.expireAtRaw, now)
+}
+
+/** 列表页仍需轮询 / 拉 results 的非过期活动卡片 */
+function isNonExpiredActiveListCard(row: TaskCardModel, now = Date.now()): boolean {
+  if (row.status === 'running') return true
+  if (row.status === 'pending_run' && !isScheduledListCardExpired(row, now)) return true
+  return false
+}
+
+/** 定时任务 pending_run：各平台在 next_run_at+3min 拉 `GET .../results`（窗口未结束） */
 function isPendingTaskResultsDue(row: TaskCardModel, now = Date.now()): boolean {
   if (row.status !== 'pending_run' || row.taskTypeLabel === '单次任务') return false
-  return isPendingAsyncResultsDue(row.nextRunAtRaw, now)
+  if (isScheduledListCardExpired(row, now)) return false
+  return isPendingAsyncResultsDue(row.nextRunAtRaw, now, row.expireAtRaw)
 }
 
 function listRunningFeedTargets(): TaskCardModel[] {
+  const now = Date.now()
   return tasks.value.filter(
     (t) =>
-      (t.status === 'running' || t.status === 'pending_run') &&
+      isNonExpiredActiveListCard(t, now) &&
       taskUsesOnlyTestDataPlatforms(t.platformKeys),
   )
 }
@@ -150,9 +173,28 @@ function pruneFeedPollState(runningIds: Set<number>): void {
   for (const id of [...lastScheduledRunPolledAtByTaskId.keys()]) {
     if (!runningIds.has(id)) lastScheduledRunPolledAtByTaskId.delete(id)
   }
+  for (const id of [...lastAsyncResultsPollAtByTaskId.keys()]) {
+    if (!runningIds.has(id)) lastAsyncResultsPollAtByTaskId.delete(id)
+  }
   for (const id of [...feedPollConfigByTaskId.keys()]) {
     if (!runningIds.has(id)) feedPollConfigByTaskId.delete(id)
   }
+}
+
+function minIntervalMsForResultsPoll(card: TaskCardModel): number {
+  if (card.status === 'pending_run') return PENDING_FEED_POLL_MS
+  if (card.status === 'running') return RUNNING_FEED_POLL_MS
+  return RUNNING_FEED_POLL_MS
+}
+
+function msUntilResultsPollAllowed(taskId: number, minIntervalMs: number, now: number): number {
+  const last = lastAsyncResultsPollAtByTaskId.get(taskId)
+  if (last == null) return 0
+  return Math.max(0, minIntervalMs - (now - last))
+}
+
+function markAsyncResultsPolled(taskId: number, now = Date.now()): void {
+  lastAsyncResultsPollAtByTaskId.set(taskId, now)
 }
 
 function readScheduleFields(cfg: Record<string, unknown>) {
@@ -171,18 +213,18 @@ function computeMsUntilNextFeedPoll(): number {
   let minWait = Number.POSITIVE_INFINITY
   for (const t of targets) {
     if (t.status === 'pending_run') {
-      minWait = Math.min(minWait, 0)
+      minWait = Math.min(minWait, msUntilResultsPollAllowed(t.id, PENDING_FEED_POLL_MS, now))
       continue
     }
     if (t.status === 'running') {
-      const last =
-        lastRealtimeFeedPollAtByTaskId.get(t.id) ?? lastScheduledRunPolledAtByTaskId.get(t.id)
-      if (last == null) minWait = Math.min(minWait, 0)
-      else minWait = Math.min(minWait, Math.max(0, RUNNING_FEED_POLL_MS - (now - last)))
+      minWait = Math.min(
+        minWait,
+        msUntilResultsPollAllowed(t.id, RUNNING_FEED_POLL_MS, now),
+      )
     }
     const cfg = feedPollConfigByTaskId.get(t.id)
     if (!cfg) {
-      minWait = Math.min(minWait, 0)
+      minWait = Math.min(minWait, msUntilResultsPollAllowed(t.id, minIntervalMsForResultsPoll(t), now))
       continue
     }
     if (isRealtimeTaskConfig(cfg)) {
@@ -200,17 +242,25 @@ function computeMsUntilNextFeedPoll(): number {
       lastScheduledRunPolledAtByTaskId.get(t.id),
       now,
     )
-    if (ms === 0) minWait = 0
-    else if (ms != null) minWait = Math.min(minWait, ms)
+    if (ms === 0) {
+      minWait = Math.min(
+        minWait,
+        msUntilResultsPollAllowed(t.id, minIntervalMsForResultsPoll(t), now),
+      )
+    } else if (ms != null) minWait = Math.min(minWait, ms)
     else minWait = Math.min(minWait, 60_000)
   }
   if (!Number.isFinite(minWait)) return 10 * 60_000
-  return Math.max(minWait, 1_000)
+  return Math.max(minWait, MIN_FEED_POLL_CYCLE_MS)
 }
 
 function isFeedPollDueForTask(t: TaskCardModel, cfg: Record<string, unknown>, now: number): boolean {
-  if (t.status === 'pending_run') return isPendingTaskResultsDue(t, now)
+  if (t.status === 'pending_run') {
+    if (!isPendingTaskResultsDue(t, now)) return false
+    return msUntilResultsPollAllowed(t.id, PENDING_FEED_POLL_MS, now) === 0
+  }
   if (t.status === 'running') {
+    if (msUntilResultsPollAllowed(t.id, RUNNING_FEED_POLL_MS, now) > 0) return false
     const last =
       lastRealtimeFeedPollAtByTaskId.get(t.id) ?? lastScheduledRunPolledAtByTaskId.get(t.id)
     return last == null || now - last >= RUNNING_FEED_POLL_MS
@@ -221,17 +271,24 @@ function isFeedPollDueForTask(t: TaskCardModel, cfg: Record<string, unknown>, no
     return last == null || now - last >= interval
   }
   const { effectiveAt, expireAt, intervalMinutes } = readScheduleFields(cfg)
-  return isScheduledFeedPollDue(
-    effectiveAt,
-    expireAt,
-    intervalMinutes,
-    lastScheduledRunPolledAtByTaskId.get(t.id),
-    now,
-  )
+  if (
+    !isScheduledFeedPollDue(
+      effectiveAt,
+      expireAt,
+      intervalMinutes,
+      lastScheduledRunPolledAtByTaskId.get(t.id),
+      now,
+    )
+  ) {
+    return false
+  }
+  return msUntilResultsPollAllowed(t.id, RUNNING_FEED_POLL_MS, now) === 0
 }
 
 function markTaskFeedPolled(taskId: number, cfg: Record<string, unknown>, cardStatus?: TaskRunStatus): void {
   const now = Date.now()
+  markAsyncResultsPolled(taskId, now)
+  if (cardStatus === 'pending_run') return
   if (cardStatus === 'running') {
     lastRealtimeFeedPollAtByTaskId.set(taskId, now)
     return
@@ -295,18 +352,22 @@ function scheduleNextTestFeedPoll(): void {
   }, delay)
 }
 
-/** 存在未结束活动任务时需定时拉列表（含 summary.pending，避免筛选「已完成」后停轮询） */
+/** 存在未结束活动任务时需定时拉列表（过期 pending 不计入，避免僵尸任务空转） */
 function shouldPollAsyncTaskList(): boolean {
+  const now = Date.now()
+  if (tasks.value.some((t) => isNonExpiredActiveListCard(t, now))) return true
   const s = asyncListSummary.value
-  if (s && (s.pending > 0 || s.running > 0 || s.active > 0)) return true
-  return tasks.value.some((t) => t.status === 'running' || t.status === 'pending_run')
+  if (s && s.running > 0) return true
+  return false
 }
 
 function listPollIntervalMs(): number {
+  const now = Date.now()
   if (tasks.value.some((t) => t.status === 'running')) return ASYNC_TASK_LIST_POLL_RUNNING_MS
-  const pendingCards = tasks.value.filter((t) => t.status === 'pending_run')
+  const pendingCards = tasks.value.filter(
+    (t) => t.status === 'pending_run' && !isScheduledListCardExpired(t, now),
+  )
   if (pendingCards.length) {
-    const now = Date.now()
     let wait = ASYNC_TASK_LIST_POLL_PENDING_MS
     for (const t of pendingCards) {
       const raw = t.nextRunAtRaw
@@ -319,7 +380,6 @@ function listPollIntervalMs(): number {
     }
     return wait
   }
-  if ((asyncListSummary.value?.pending ?? 0) > 0) return ASYNC_TASK_LIST_POLL_PENDING_MS
   return ASYNC_TASK_LIST_POLL_PENDING_MS
 }
 
@@ -382,10 +442,24 @@ function syncDetailDialogRowFromList() {
   if (next) detailDialogRow.value = next
 }
 
-type RefreshTestDataFeedOptions = { /** 忽略采集频率节流（保存/执行后立即同步） */ forceAll?: boolean }
+type RefreshTestDataFeedOptions = {
+  /** 保存/执行后立即同步：忽略采集时刻表，仍受 results 最短间隔约束 */
+  forceAll?: boolean
+  /** 执行采集后立即拉 results（忽略 per-task 最短间隔） */
+  bypassResultsThrottle?: boolean
+}
 
 async function refreshTestDataFeed(options?: RefreshTestDataFeedOptions) {
   if (screen.value !== 'list') return
+  const now = Date.now()
+  if (
+    !options?.bypassResultsThrottle &&
+    !options?.forceAll &&
+    now - lastRefreshTestDataFeedAt < MIN_FEED_POLL_CYCLE_MS
+  ) {
+    syncTestFeedPollTimer()
+    return refreshTestDataFeedInFlight ?? Promise.resolve()
+  }
   if (refreshTestDataFeedInFlight) return refreshTestDataFeedInFlight
 
   refreshTestDataFeedInFlight = refreshTestDataFeedInner(options).finally(() => {
@@ -394,8 +468,18 @@ async function refreshTestDataFeed(options?: RefreshTestDataFeedOptions) {
   return refreshTestDataFeedInFlight
 }
 
+function isResultsPollAllowedForCard(
+  t: TaskCardModel,
+  now: number,
+  bypassThrottle?: boolean,
+): boolean {
+  if (bypassThrottle) return true
+  return msUntilResultsPollAllowed(t.id, minIntervalMsForResultsPoll(t), now) === 0
+}
+
 async function refreshTestDataFeedInner(options?: RefreshTestDataFeedOptions) {
   if (screen.value !== 'list') return
+  lastRefreshTestDataFeedAt = Date.now()
   const scopeTargets = listRunningFeedTargets()
   /** `running` 立即拉 results；`pending_run` 在 next_run_at+3min 且 YDDM 为 pending 时拉 results */
   const resultsTargets = listActiveRunningFeedTargets()
@@ -403,11 +487,15 @@ async function refreshTestDataFeedInner(options?: RefreshTestDataFeedOptions) {
   pruneFeedPollState(new Set(scopeTargets.map((t) => t.id)))
 
   const now = Date.now()
+  const bypassThrottle = options?.bypassResultsThrottle === true
   const targets = options?.forceAll
-    ? resultsTargets
+    ? resultsTargets.filter((t) => isResultsPollAllowedForCard(t, now, bypassThrottle))
     : resultsTargets.filter((t) => {
+        if (!isResultsPollAllowedForCard(t, now, false)) return false
         const cfg = feedPollConfigByTaskId.get(t.id)
-        if (!cfg) return true
+        if (!cfg) {
+          return t.status === 'running' || isPendingTaskResultsDue(t, now)
+        }
         return isFeedPollDueForTask(t, cfg, now)
       })
 
@@ -570,6 +658,7 @@ async function refreshTestDataFeedInner(options?: RefreshTestDataFeedOptions) {
       const cfg = configByTaskId.get(id) ?? feedPollConfigByTaskId.get(id)
       const card = tasks.value.find((t) => t.id === id)
       if (cfg) markTaskFeedPolled(id, cfg, card?.status)
+      else markAsyncResultsPolled(id)
     }
     if (targetIds.length) void refreshYddmUserBalance()
     syncTestFeedPollTimer()
@@ -580,7 +669,7 @@ function scheduleRefreshTestDataFeed() {
   if (testFeedDebounce != null) clearTimeout(testFeedDebounce)
   testFeedDebounce = setTimeout(() => {
     testFeedDebounce = null
-    void refreshTestDataFeed({ forceAll: true })
+    void refreshTestDataFeed({ forceAll: true, bypassResultsThrottle: true })
   }, 350)
 }
 
@@ -877,7 +966,7 @@ watch(
     if (runningFeedWatchDebounce != null) clearTimeout(runningFeedWatchDebounce)
     runningFeedWatchDebounce = setTimeout(() => {
       runningFeedWatchDebounce = null
-      void refreshTestDataFeed({ forceAll: true })
+      void refreshTestDataFeed()
     }, 1500)
   },
 )
@@ -900,7 +989,7 @@ watch(screen, (s) => {
   if (s === 'list') {
     void loadTaskList()
     if (listActiveRunningFeedTargets().length) {
-      void refreshTestDataFeed({ forceAll: true })
+      void refreshTestDataFeed()
     }
     ensureActiveTaskListPolling()
   } else {
