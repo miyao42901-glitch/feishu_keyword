@@ -72,9 +72,9 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=proxy
-      - traefik.http.services.fkw-admin-web.loadbalancer.server.scheme=http
-      - traefik.http.services.fkw-admin-web.loadbalancer.server.port=80
-      - traefik.http.routers.${TRAEFIK_ADMIN_ROUTER_NAME:-fkw-admin}.service=fkw-admin-web
+      - traefik.http.services.${TRAEFIK_ADMIN_ROUTER_NAME:-fkw-admin}-web.loadbalancer.server.scheme=http
+      - traefik.http.services.${TRAEFIK_ADMIN_ROUTER_NAME:-fkw-admin}-web.loadbalancer.server.port=80
+      - traefik.http.routers.${TRAEFIK_ADMIN_ROUTER_NAME:-fkw-admin}.service=${TRAEFIK_ADMIN_ROUTER_NAME:-fkw-admin}-web
       - traefik.http.routers.${TRAEFIK_ADMIN_ROUTER_NAME:-fkw-admin}.rule=Host(`${ADMIN_PUBLIC_HOST:?}`)
       - traefik.http.routers.${TRAEFIK_ADMIN_ROUTER_NAME:-fkw-admin}.entrypoints=websecure
       - traefik.http.routers.${TRAEFIK_ADMIN_ROUTER_NAME:-fkw-admin}.tls.certresolver=dnspod
@@ -93,9 +93,9 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=proxy
-      - traefik.http.services.fkw-feishu-web.loadbalancer.server.scheme=http
-      - traefik.http.services.fkw-feishu-web.loadbalancer.server.port=80
-      - traefik.http.routers.${TRAEFIK_FEISHU_ROUTER_NAME:-fkw-feishu}.service=fkw-feishu-web
+      - traefik.http.services.${TRAEFIK_FEISHU_ROUTER_NAME:-fkw-feishu}-web.loadbalancer.server.scheme=http
+      - traefik.http.services.${TRAEFIK_FEISHU_ROUTER_NAME:-fkw-feishu}-web.loadbalancer.server.port=80
+      - traefik.http.routers.${TRAEFIK_FEISHU_ROUTER_NAME:-fkw-feishu}.service=${TRAEFIK_FEISHU_ROUTER_NAME:-fkw-feishu}-web
       - traefik.http.routers.${TRAEFIK_FEISHU_ROUTER_NAME:-fkw-feishu}.rule=Host(`${FEISHU_PUBLIC_HOST:?}`)
       - traefik.http.routers.${TRAEFIK_FEISHU_ROUTER_NAME:-fkw-feishu}.entrypoints=websecure
       - traefik.http.routers.${TRAEFIK_FEISHU_ROUTER_NAME:-fkw-feishu}.tls.certresolver=dnspod
