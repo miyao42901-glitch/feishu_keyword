@@ -1,5 +1,5 @@
 /**
- * 采集同步服务（如 192.168.1.11:8765）通用：基址、请求头、响应解析。
+ * 采集同步服务（如 test-fskw.tbpf.com）通用：基址、请求头、响应解析。
  */
 
 /** 采集服务请求头（YDDM 要求 `X-User-Id` 必填） */
@@ -42,7 +42,7 @@ export function isSyncHttpError(err: unknown): err is SyncHttpError {
 /**
  * 同步采集 API 根地址（无末尾 `/`）。
  * - 未配置 `VITE_SYNC_API_BASE`：空字符串，请求走同源 `/api/v1/...`（Vite 或飞书静态 Nginx 反代到 8765）
- * - 已配置：直连，如 `http://192.168.1.11:8765`（需上游开 CORS）
+ * - 已配置：直连，如 `https://test-fskw-feishu.tbpf.com`（需上游开 CORS）
  */
 export function getSyncApiBase(): string {
   const raw = (import.meta.env.VITE_SYNC_API_BASE as string | undefined)?.trim()

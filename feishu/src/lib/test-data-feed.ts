@@ -16,7 +16,6 @@ import {
   type AsyncTaskStatusResult,
 } from '@/lib/async-task-api'
 import { applyTaskTypeFromListCard } from '@/lib/feishu-async-task-config'
-import { refreshYddmUserBalance } from '@/lib/refresh-yddm-balance'
 import { resetPlatformSyncBillingSession } from '@/lib/sync-set-discount'
 import { fetchDouyinSearchItems } from '@/lib/douyin-sync-api'
 import type { SyncFetchContext } from '@/lib/sync-api-common'
@@ -558,7 +557,6 @@ async function buildTestDataFeedFromAsyncResults(params: {
     ...dedupeTestFeedRows(shipinhaoRows),
     ...dedupeTestFeedRows(gzhRows),
   ]
-  void refreshYddmUserBalance()
 
   if (import.meta.env.DEV) {
     console.log('[feed-build-async]', {
@@ -758,6 +756,5 @@ export async function buildTestDataFeedFromConfig(params: {
     }
   }
 
-  void refreshYddmUserBalance()
   return { rows }
 }

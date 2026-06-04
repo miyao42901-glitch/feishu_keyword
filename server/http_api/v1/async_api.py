@@ -535,7 +535,7 @@ def build_async_router() -> APIRouter:
     @r.get(
         "/tasks/{task_id}/results",
         dependencies=[
-            ip_rate_limit(max_requests=120, window_seconds=60, scope=ASYNC_TASK_RESULTS)
+            ip_rate_limit(max_requests=60, window_seconds=60, scope=ASYNC_TASK_RESULTS)
         ],
     )
     def get_task_results(

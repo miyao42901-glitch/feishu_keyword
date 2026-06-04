@@ -19,13 +19,13 @@ function resolveYddmProxyTarget(env: Record<string, string>): string {
   return DEFAULT_YDDM_UPSTREAM_ORIGIN
 }
 
-/** 抖音/小红书同步采集服务（仓根 SYNC_PROXY_TARGET 或 VITE_SYNC_API_BASE） */
+/** 抖音/小红书同步采集服务（仓根 SYNC_PROXY_TARGET / VITE_SYNC_API_BASE） */
 function resolveSyncApiProxyTarget(env: Record<string, string>): string {
-  return (
-    env.SYNC_PROXY_TARGET?.trim().replace(/\/$/, '') ||
-    env.VITE_SYNC_API_BASE?.trim().replace(/\/$/, '') ||
-    'http://127.0.0.1:8765'
-  )
+  const sync = env.SYNC_PROXY_TARGET?.trim()
+  if (sync) return sync.replace(/\/$/, '')
+  const viteSync = env.VITE_SYNC_API_BASE?.trim()
+  if (viteSync) return viteSync.replace(/\/$/, '')
+  return 'http://127.0.0.1:8765'
 }
 
 // https://vite.dev/config/

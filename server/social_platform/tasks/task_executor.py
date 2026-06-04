@@ -22,7 +22,7 @@ from social_platform.services.search_persist import (
     unbind_search_all_async_persist,
 )
 from social_platform.schedule_time import naive_dt, schedule_now_wall_naive
-from social_platform.services import async_task_redis, task_service
+from social_platform.services import analytics_service, async_task_redis, task_service
 
 
 _SEARCH_ALL_WORKER_ACTIONS = frozenset(
@@ -148,8 +148,34 @@ def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
         },
     )
 
+    try:
+        analytics_service.write_exec_run_start(
+            db,
+            exec_id=run_id,
+            task_id=str(task_id),
+            user_id=str(task.user_id or ""),
+            task_type="定时任务",
+            run_no=int(task.success_count or 0) + int(task.failed_count or 0) + 1,
+        )
+    except Exception:
+        logger.warning("failed to write exec_run_start for task %s", task_id, exc_info=True)
+
     body = task_service.body_for_worker_execution(task)
     ok = False
+    collected_count = 0
+    points_consumed = 0
+
+    from social_platform.api_call_context import clear_api_call_context, set_api_call_context
+    from social_platform.actions.registry import get_action_spec as _get_spec
+    _spec = _get_spec(str(task.action or ""))
+    _platform = str(_spec.worker_action if _spec else task.action or "").split("_")[0] if (task.action or "") else None
+    api_ctx_token = set_api_call_context(
+        db=db,
+        task_id=str(task_id),
+        exec_id=run_id,
+        platform=_platform,
+    )
+
     try:
         token: Any = None
         if _async_search_all_should_bind_context(str(task.action or "")):
@@ -192,10 +218,16 @@ def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
         )
         if stats:
             apply_search_persist_stats_to_async_task(db, task_id, stats)
+            collected_count = int(stats.get("inserted_count") or 0)
             db.commit()
 
         api_body = from_worker_run(raw)
         ok = int(api_body.get("code", -1)) == CODE_SUCCESS
+
+        if isinstance(raw, dict) and isinstance(raw.get("data"), dict):
+            data = raw["data"]
+            if isinstance(data.get("total_count"), int):
+                collected_count = max(collected_count, int(data.get("total_count") or 0))
 
         task = db.get(AsyncTask, task_id)
         if task is None:
@@ -220,6 +252,19 @@ def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
         db.add(task)
         db.commit()
         ok = False
+    finally:
+        clear_api_call_context(api_ctx_token)
+
+    try:
+        analytics_service.write_exec_run_end(
+            db,
+            exec_id=run_id,
+            result="成功" if ok else "失败",
+            fail_reason=task.error_message if not ok else None,
+            collect_count=collected_count,
+        )
+    except Exception:
+        logger.warning("failed to write exec_run_end for task %s", task_id, exc_info=True)
 
     task_service.schedule_next_async_run(
         db,

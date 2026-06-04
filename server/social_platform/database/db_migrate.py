@@ -158,9 +158,19 @@ def apply_feishu_async_tasks_migrations(engine: Engine) -> None:
             cols.add("task_name")
 
 
+def apply_analytics_migrations(engine: Engine) -> None:
+    """埋点事实表（幂等）。"""
+    if _table_exists(engine, "analytics_user"):
+        return
+    path = _MIGRATIONS_DIR / "014_analytics_tracking.sql"
+    _execute_sql_file(engine, path)
+    logger.info("analytics tracking schema applied")
+
+
 def apply_pending_migrations(engine: Engine) -> None:
     try:
         apply_admin_backoffice_migrations(engine)
+        apply_analytics_migrations(engine)
         apply_feishu_async_tasks_migrations(engine)
         apply_p0_index_optimizations(engine)
     except Exception:

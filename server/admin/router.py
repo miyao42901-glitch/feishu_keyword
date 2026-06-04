@@ -5,11 +5,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, FastAPI
 
 from admin.deps import AdminContext, require_admin
-from admin.routers import system
+from admin.routers import analytics, system
 from admin.schemas.response import admin_ok
 
 admin_router = APIRouter()
 admin_router.include_router(system.router)
+admin_router.include_router(analytics.router)
 
 
 @admin_router.get("/health", tags=["管理端-探活"])
