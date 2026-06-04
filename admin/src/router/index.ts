@@ -10,12 +10,7 @@ const router = createRouter({
       component: () => import('@/views/LayoutView.vue'),
       meta: { requiresAuth: true },
       children: [
-        { path: '', redirect: '/dashboard' },
-        {
-          path: 'dashboard',
-          name: 'dashboard',
-          component: () => import('@/views/DashboardView.vue'),
-        },
+        { path: '', redirect: '/data/overview' },
         {
           path: 'data/overview',
           name: 'data-overview',
@@ -45,43 +40,6 @@ const router = createRouter({
           path: 'operation/users',
           name: 'operation-users',
           component: () => import('@/views/operation/UserManageView.vue'),
-        },
-        {
-          path: 'keyword/list',
-          name: 'keyword-list',
-          component: () => import('@/views/keyword/KeywordListView.vue'),
-        },
-        {
-          path: 'keyword/group',
-          name: 'keyword-group',
-          component: () => import('@/views/keyword/KeywordGroupView.vue'),
-        },
-        {
-          path: 'rule/list',
-          name: 'rule-list',
-          component: () => import('@/views/rule/RuleListView.vue'),
-        },
-        {
-          path: 'rule/edit/:id',
-          name: 'rule-edit',
-          component: () => import('@/views/rule/RuleEditView.vue'),
-          props: true,
-        },
-        {
-          path: 'hit/list',
-          name: 'hit-list',
-          component: () => import('@/views/hit/HitListView.vue'),
-        },
-        {
-          path: 'hit/:id',
-          name: 'hit-detail',
-          component: () => import('@/views/hit/HitDetailView.vue'),
-          props: true,
-        },
-        {
-          path: 'notify/bot',
-          name: 'notify-bot',
-          component: () => import('@/views/notify/NotifyBotView.vue'),
         },
         {
           path: 'notify/template',

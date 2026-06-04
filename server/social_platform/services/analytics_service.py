@@ -1249,6 +1249,140 @@ def update_user_remark(db: Session, *, user_id: str, remark: str) -> None:
     db.commit()
 
 
+def get_tasks(
+    db: Session,
+    *,
+    page: int = 1,
+    limit: int = 20,
+    keyword: Optional[str] = None,
+    status: Optional[str] = None,
+    created_start: Optional[str] = None,
+    created_end: Optional[str] = None,
+) -> dict[str, Any]:
+    """任务管理页数据：直接读 feishu_async_tasks 表。"""
+    from social_platform.models.async_task import AsyncTask
+    from sqlalchemy import select, func, case
+
+    conditions = []
+    if status:
+        conditions.append(f"status = :status")
+    if keyword:
+        conditions.append("(task_name LIKE :kw OR CAST(id AS CHAR) LIKE :kw OR user_id LIKE :kw)")
+    if created_start:
+        conditions.append("create_time >= :created_start")
+    if created_end:
+        conditions.append("create_time <= :created_end")
+
+    where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    params: dict[str, Any] = {}
+    if status:
+        params["status"] = status
+    if keyword:
+        params["kw"] = f"%{keyword}%"
+    if created_start:
+        params["created_start"] = created_start
+    if created_end:
+        params["created_end"] = created_end
+
+    total = int(
+        db.execute(
+            text(f"SELECT COUNT(*) FROM feishu_async_tasks {where_clause}"),
+            params,
+        ).scalar() or 0
+    )
+
+    offset = (page - 1) * limit
+    rows = db.execute(
+        text(
+            f"""
+            SELECT id, user_id, task_name, status, action, body_json,
+                   api_key, error_message, success_count, failed_count,
+                   task_start_time, task_end_time, next_run_at,
+                   interval_minutes, fetch_count, create_time, update_time
+            FROM feishu_async_tasks
+            {where_clause}
+            ORDER BY id DESC
+            LIMIT :limit OFFSET :offset
+            """
+        ),
+        {**params, "limit": limit, "offset": offset},
+    ).mappings().all()
+
+    _PLATFORM_MAP = {
+        "douyin": "抖音",
+        "xhs": "小红书",
+        "wx": "视频号",
+        "mp": "公众号",
+    }
+
+    def _platform_from_action(action: str) -> str:
+        a = (action or "").lower()
+        for key, label in _PLATFORM_MAP.items():
+            if a.startswith(key) or f"-{key}-" in a or a.endswith(f"-{key}"):
+                return label
+        return action.split("-")[0] if action else ""
+
+    def _status_label(s: str) -> str:
+        return {
+            "pending": "待执行",
+            "running": "运行中",
+            "success": "已完成",
+            "failed": "已失败",
+            "cancelled": "已取消",
+        }.get(s, s)
+
+    records = []
+    for r in rows:
+        body = r["body_json"] if isinstance(r["body_json"], dict) else {}
+        keyword_val = body.get("keyword") or body.get("keywords") or body.get("q") or ""
+        keywords = [keyword_val] if isinstance(keyword_val, str) and keyword_val else (keyword_val if isinstance(keyword_val, list) else [])
+        platform = _platform_from_action(str(r["action"] or ""))
+        records.append({
+            "id": str(r["id"]),
+            "taskName": str(r["task_name"] or ""),
+            "status": _status_label(str(r["status"] or "")),
+            "statusRaw": str(r["status"] or ""),
+            "action": str(r["action"] or ""),
+            "platform": platform,
+            "keywords": keywords,
+            "userId": str(r["user_id"] or ""),
+            "intervalMinutes": int(r["interval_minutes"] or 60),
+            "fetchCount": int(r["fetch_count"] or 100),
+            "successCount": int(r["success_count"] or 0),
+            "failedCount": int(r["failed_count"] or 0),
+            "errorMessage": str(r["error_message"] or ""),
+            "taskStartTime": r["task_start_time"].isoformat() if r["task_start_time"] else "",
+            "taskEndTime": r["task_end_time"].isoformat() if r["task_end_time"] else "",
+            "nextRunAt": r["next_run_at"].isoformat() if r["next_run_at"] else "",
+            "createdAt": r["create_time"].isoformat() if r["create_time"] else "",
+            "updatedAt": r["update_time"].isoformat() if r["update_time"] else "",
+        })
+
+    status_counts_rows = db.execute(
+        text("SELECT status, COUNT(*) AS cnt FROM feishu_async_tasks GROUP BY status")
+    ).mappings().all()
+    status_counts: dict[str, int] = {r["status"]: int(r["cnt"]) for r in status_counts_rows}
+
+    total_all = sum(status_counts.values())
+    running = status_counts.get("running", 0) + status_counts.get("pending", 0)
+    stopped = status_counts.get("cancelled", 0) + status_counts.get("failed", 0)
+    completed = status_counts.get("success", 0)
+
+    return {
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "records": records,
+        "stats": {
+            "total": total_all,
+            "running": running,
+            "stopped": stopped,
+            "completed": completed,
+        },
+    }
+
+
 def get_user_detail(db: Session, *, user_id: str) -> Optional[dict[str, Any]]:
     """用户详情（Phase 3）。"""
     user_row = db.execute(

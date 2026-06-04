@@ -22,7 +22,13 @@
       </div>
       <div class="admin-table-scroll">
         <el-table :data="pagedRows" stripe v-loading="loading">
-          <el-table-column prop="execId" label="执行ID" width="120" />
+          <el-table-column label="执行ID" width="120">
+            <template #default="{ row }">
+              <el-tooltip :content="row.execId" placement="top">
+                <span class="exec-id-short">{{ maskId(row.execId) }}</span>
+              </el-tooltip>
+            </template>
+          </el-table-column>
           <el-table-column prop="taskId" label="任务ID" min-width="120">
             <template #default="{ row }">
               <el-link type="primary" :underline="false">{{ row.taskId }}</el-link>
@@ -33,8 +39,12 @@
               <el-tag :type="row.taskType === '定时任务' ? 'primary' : 'info'" size="small">{{ row.taskType }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="startedAt" label="开始时间" width="160" />
-          <el-table-column prop="endedAt" label="结束时间" width="160" />
+          <el-table-column label="开始时间" width="160">
+            <template #default="{ row }">{{ formatDateTime(row.startedAt) }}</template>
+          </el-table-column>
+          <el-table-column label="结束时间" width="160">
+            <template #default="{ row }">{{ formatDateTime(row.endedAt) }}</template>
+          </el-table-column>
           <el-table-column label="耗时" width="100">
             <template #default="{ row }">{{ row.durationMs ? `${(row.durationMs / 1000).toFixed(1)}s` : '-' }}</template>
           </el-table-column>
@@ -99,6 +109,16 @@ const pagedRows = computed(() => {
   const start = (page.value - 1) * pageSize
   return filteredRows.value.slice(start, start + pageSize)
 })
+
+function maskId(id: string): string {
+  if (!id || id.length <= 7) return id
+  return `${id.slice(0, 4)}***${id.slice(-3)}`
+}
+
+function formatDateTime(iso: string): string {
+  if (!iso) return '-'
+  return iso.replace('T', ' ').slice(0, 19)
+}
 
 onMounted(() => {
   loadData()

@@ -16,10 +16,6 @@
         active-text-color="#ffffff"
         @select="onMenuSelect"
       >
-        <el-menu-item index="/dashboard">
-          <span>工作台</span>
-        </el-menu-item>
-
         <el-sub-menu index="data-root">
           <template #title>
             <span>数据</span>
@@ -56,43 +52,10 @@
           </el-menu-item>
         </el-sub-menu>
 
-        <el-sub-menu index="keyword-root">
-          <template #title>
-            <span>关键词管理</span>
-          </template>
-          <el-menu-item index="/keyword/list">
-            <span>关键词列表</span>
-          </el-menu-item>
-          <el-menu-item index="/keyword/group">
-            <span>关键词分组</span>
-          </el-menu-item>
-        </el-sub-menu>
-
-        <el-sub-menu index="rule-root">
-          <template #title>
-            <span>监控规则</span>
-          </template>
-          <el-menu-item index="/rule/list">
-            <span>规则列表</span>
-          </el-menu-item>
-        </el-sub-menu>
-
-        <el-sub-menu index="hit-root">
-          <template #title>
-            <span>命中记录</span>
-          </template>
-          <el-menu-item index="/hit/list">
-            <span>命中列表</span>
-          </el-menu-item>
-        </el-sub-menu>
-
         <el-sub-menu index="notify-root">
           <template #title>
             <span>通知配置</span>
           </template>
-          <el-menu-item index="/notify/bot">
-            <span>飞书机器人</span>
-          </el-menu-item>
           <el-menu-item index="/notify/template">
             <span>通知模板</span>
           </el-menu-item>
@@ -142,9 +105,6 @@ function submenuRootForPath(path: string): string | null {
   if (path.startsWith('/data/')) return 'data-root'
   if (path.startsWith('/business/')) return 'business-root'
   if (path.startsWith('/operation/')) return 'operation-root'
-  if (path.startsWith('/keyword/')) return 'keyword-root'
-  if (path.startsWith('/rule/')) return 'rule-root'
-  if (path.startsWith('/hit/')) return 'hit-root'
   if (path.startsWith('/notify/')) return 'notify-root'
   if (path.startsWith('/ops/')) return 'ops-root'
   if (path.startsWith('/settings/')) return 'settings-root'
@@ -155,9 +115,6 @@ const SUB_MENU_ROOTS = [
   'data-root',
   'business-root',
   'operation-root',
-  'keyword-root',
-  'rule-root',
-  'hit-root',
   'notify-root',
   'ops-root',
   'settings-root',
@@ -206,9 +163,6 @@ onMounted(() => {
 })
 
 const menuActive = computed(() => {
-  if (route.path.startsWith('/dashboard')) {
-    return '/dashboard'
-  }
   if (route.path.startsWith('/data/overview')) {
     return '/data/overview'
   }
@@ -226,27 +180,6 @@ const menuActive = computed(() => {
   }
   if (route.path.startsWith('/operation/users')) {
     return '/operation/users'
-  }
-  if (route.path.startsWith('/keyword/list')) {
-    return '/keyword/list'
-  }
-  if (route.path.startsWith('/keyword/group')) {
-    return '/keyword/group'
-  }
-  if (route.path.startsWith('/rule/edit')) {
-    return '/rule/list'
-  }
-  if (route.path.startsWith('/rule/list')) {
-    return '/rule/list'
-  }
-  if (route.path.startsWith('/hit/') && route.path !== '/hit/list') {
-    return '/hit/list'
-  }
-  if (route.path.startsWith('/hit/list')) {
-    return '/hit/list'
-  }
-  if (route.path.startsWith('/notify/bot')) {
-    return '/notify/bot'
   }
   if (route.path.startsWith('/notify/template')) {
     return '/notify/template'

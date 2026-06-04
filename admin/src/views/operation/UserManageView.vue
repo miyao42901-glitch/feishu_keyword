@@ -23,11 +23,6 @@
       <div class="admin-table-scroll">
         <el-table :data="pagedRows" stripe v-loading="loading">
           <el-table-column prop="userId" label="用户ID" width="120" />
-          <el-table-column prop="feishuId" label="飞书ID" min-width="140">
-            <template #default="{ row }">
-              <span style="font-family: monospace; font-size: 12px">{{ row.feishuId || '-' }}</span>
-            </template>
-          </el-table-column>
           <el-table-column prop="phone" label="手机号" width="120" />
           <el-table-column prop="deviceType" label="设备" width="80">
             <template #default="{ row }">

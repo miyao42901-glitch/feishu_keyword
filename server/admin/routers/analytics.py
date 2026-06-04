@@ -111,3 +111,29 @@ def analytics_user_detail(
         return admin_ok(data=None)
     data = analytics_service.get_user_detail(session, user_id=user_id)
     return admin_ok(data=data)
+
+
+@router.get("/tasks")
+def analytics_tasks(
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
+    keyword: Optional[str] = Query(default=None),
+    status: Optional[str] = Query(default=None),
+    created_start: Optional[str] = Query(default=None),
+    created_end: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    """任务管理（Phase 4）。"""
+    session = _db_or_none(db)
+    if session is None:
+        return admin_ok(data={"total": 0, "page": page, "limit": limit, "records": [], "stats": {}})
+    data = analytics_service.get_tasks(
+        session,
+        page=page,
+        limit=limit,
+        keyword=keyword,
+        status=status,
+        created_start=created_start,
+        created_end=created_end,
+    )
+    return admin_ok(data=data)

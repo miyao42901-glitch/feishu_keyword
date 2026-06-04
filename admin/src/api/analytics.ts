@@ -226,3 +226,56 @@ export async function fetchUserDetail(userId: string): Promise<UserDetail> {
 export async function updateUserRemark(userId: string, remark: string): Promise<void> {
   await http.put(`/api/admin/v1/analytics/users/${userId}/remark`, { remark })
 }
+
+export interface AdminTaskRecord {
+  id: string
+  taskName: string
+  status: string
+  statusRaw: string
+  action: string
+  platform: string
+  keywords: string[]
+  userId: string
+  intervalMinutes: number
+  fetchCount: number
+  successCount: number
+  failedCount: number
+  errorMessage: string
+  taskStartTime: string
+  taskEndTime: string
+  nextRunAt: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminTaskStats {
+  total: number
+  running: number
+  stopped: number
+  completed: number
+}
+
+export interface AdminTasksData {
+  total: number
+  page: number
+  limit: number
+  records: AdminTaskRecord[]
+  stats: AdminTaskStats
+}
+
+export interface AdminTasksParams {
+  page?: number
+  limit?: number
+  keyword?: string
+  status?: string
+  created_start?: string
+  created_end?: string
+}
+
+export async function fetchAdminTasks(params: AdminTasksParams = {}): Promise<AdminTasksData> {
+  const res = await http.get<{ code: number; msg: string; data: AdminTasksData }>(
+    '/api/admin/v1/analytics/tasks',
+    { params },
+  )
+  return unwrap(res)
+}
