@@ -29,6 +29,7 @@ import {
 } from '@/lib/sync-search-shared'
 import { fetchDouyinSearchItems } from '@/lib/douyin-sync-api'
 import { refreshYddmUserBalance } from '@/lib/refresh-yddm-balance'
+import { isTaskWindowExpired } from '@/lib/datetime-task-window'
 import { estimatePointsFromItemsByPlatform } from '@/lib/task-estimate-points'
 import {
   isSyncCollectionPlatform,
@@ -985,7 +986,9 @@ export const PENDING_RESULTS_AFTER_NEXT_RUN_MS = 3 * 60_000
 export function isPendingAsyncResultsDue(
   nextRunAtRaw: string | null | undefined,
   nowMs = Date.now(),
+  expireAtRaw?: string | null,
 ): boolean {
+  if (isTaskWindowExpired(expireAtRaw, nowMs)) return false
   const raw = nextRunAtRaw?.trim()
   if (!raw) return false
   const nextRunAtMs = Date.parse(raw.replace(' ', 'T'))
@@ -995,13 +998,13 @@ export function isPendingAsyncResultsDue(
 
 /**
  * 是否对该 lifecycle 发起 `GET .../results`。
- * `pending` 仅在列表轮询判定 `pendingResultsDue`（next_run_at+3min）时为 true。
+ * 仅在 `pending` 状态且列表轮询判定 `pendingResultsDue`（next_run_at+3min）时为 true。
+ * 注意：`running` 和 `completed` 状态不再自动拉取 results，避免频繁消费余额。
  */
 export function shouldFetchAsyncResultsAfterStatus(
   lifecycle: AsyncTaskLifecycle,
   options?: { pendingResultsDue?: boolean },
 ): boolean {
-  if (lifecycle === 'running' || lifecycle === 'completed') return true
   if (lifecycle === 'pending' && options?.pendingResultsDue) return true
   return false
 }

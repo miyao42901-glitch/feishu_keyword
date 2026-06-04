@@ -35,6 +35,7 @@ import {
   KEYWORD_MAX_COUNT,
   truncateKeyword,
 } from '@/lib/keyword-limits'
+import { trackTaskCreate } from '@/lib/analytics'
 import { isSyncCollectionPlatform } from '@/lib/sync-collection-platforms'
 
 import BasicInfoSection from '@/views/TaskCreateForm/components/BasicInfoSection.vue'
@@ -752,6 +753,15 @@ async function persistFromConfirmDialog() {
       targetId = primaryId
     }
 
+    trackTaskCreate({
+      taskId: targetId,
+      taskType: savedAsRealtime ? '单次任务' : '定时任务',
+      keywordCount: form.keywords.length,
+      platforms: [...form.selectedSources],
+      notifyEnabled: form.feishuNotifyEnabled,
+      userId: ctx.userId ?? undefined,
+    })
+
     confirmVisible.value = false
     saveBanner.value = null
     saveErrorText.value = ''
@@ -855,7 +865,12 @@ async function persistFromConfirmDialog() {
           <p class="task-form-field-title mb-3">采集数据写入表格</p>
           <DataRetentionSection :form="form" :ordered-platforms="orderedSelectedPlatforms" />
         </div>
-        <FeishuNotifySection v-if="form.taskType === 'scheduled'" :form="form" class="mt-8" />
+        <FeishuNotifySection
+          v-if="form.taskType === 'scheduled'"
+          :form="form"
+          :task-id="effectiveTaskConfigId()"
+          class="mt-8"
+        />
       </div>
     </el-form>
 

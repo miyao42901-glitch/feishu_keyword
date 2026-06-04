@@ -4,11 +4,19 @@
  */
 import { Close, InfoFilled, QuestionFilled } from '@element-plus/icons-vue'
 import { ref } from 'vue'
+import { trackNotifyToggle } from '@/lib/analytics'
 import type { TaskCreateFormModel } from '@/views/TaskCreateForm/types'
 
 defineOptions({ name: 'FeishuNotifySection' })
 
-defineProps<{ form: TaskCreateFormModel }>()
+const props = defineProps<{ form: TaskCreateFormModel; taskId?: number | null }>()
+
+function onNotifyChange(val: string | number | boolean) {
+  trackNotifyToggle({
+    enabled: Boolean(val),
+    taskId: props.taskId ?? undefined,
+  })
+}
 
 const webhookHelpVisible = ref(false)
 
@@ -21,7 +29,11 @@ function openWebhookHelp() {
   <div class="feishu-notify-section">
     <div class="feishu-notify-toggle-row">
       <span class="task-form-field-title feishu-notify-toggle-row__label">飞书通知</span>
-      <el-switch v-model="form.feishuNotifyEnabled" class="feishu-notify-switch" />
+      <el-switch
+        v-model="form.feishuNotifyEnabled"
+        class="feishu-notify-switch"
+        @change="onNotifyChange"
+      />
       <span class="feishu-notify-hint">*开启后按采集频率推送每轮结果；采集失败、积分低于1000时也会推送</span>
     </div>
 

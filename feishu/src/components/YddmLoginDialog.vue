@@ -22,6 +22,7 @@ import {
 } from '@/lib/yddm-api'
 import { useAccountPointsStore } from '@/stores/accountPoints'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
+import { flushAnalytics, trackPageView, trackUserProfile } from '@/lib/analytics'
 import { useYddmAuthStore } from '@/stores/yddmAuth'
 
 defineOptions({ name: 'YddmLoginDialog' })
@@ -216,6 +217,10 @@ async function tryRefreshMe(clearSessionOnError: boolean) {
     accountPoints.syncFromYddmUser(u)
     const key = u?.api_key?.trim()
     if (key) globalSettings.authCode = key
+    if (u?.id != null) {
+      trackUserProfile({ userId: u.id, phone: u.phone_num })
+      void flushAnalytics()
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : '加载个人信息失败'
     if (clearSessionOnError) {
@@ -340,6 +345,7 @@ watch(
   () => props.modelValue,
   (open) => {
     if (open) {
+      trackPageView('登录', 'dialog')
       panel.value = 'login'
       Object.assign(loginForm, { phone_num: '', password: '' })
       Object.assign(registerForm, {
