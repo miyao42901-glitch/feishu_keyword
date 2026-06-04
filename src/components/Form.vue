@@ -433,7 +433,7 @@
                 </div>
                 <div class="info-row">
                     <span class="info-label">余额:</span>
-                    <span class="info-value">{{ formData.remainMoney }}</span>
+                    <span class="info-value">{{ formData.remainMoney != null ? Number(formData.remainMoney).toFixed(2) : '' }}</span>
                     <el-tooltip effect="dark" content="刷新余额" placement="top" :enterable="false" :hide-after="0">
                         <el-icon class="info-icon" @click="refreshBalance"><RefreshRight /></el-icon>
                     </el-tooltip>

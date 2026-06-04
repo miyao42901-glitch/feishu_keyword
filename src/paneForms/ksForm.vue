@@ -157,6 +157,40 @@
           .map((item) => item.data.inputValue.trim())
       }
 
+      const getAllAccountValues = async () => {
+        const inputValues = getAccountInputValues()
+
+        const tableSelections = Object.values(searchValues.value)
+          .filter((item) => item?.dataType === 'table' && item.data?.tableId && item.data?.recordIdList?.length > 0)
+
+        const idsFromTables = []
+        const tmpUserFields = userFields()
+
+        for (const selection of tableSelections) {
+          try {
+            const table = await bitable.base.getTable(selection.data.tableId)
+            const fieldList = await table.getFieldList()
+            const fieldMap = {}
+            for (const field of fieldList) {
+              const fieldName = await field.getName()
+              fieldMap[fieldName] = field
+            }
+            for (const recordId of selection.data.recordIdList) {
+              const record = await table.getRecordById(recordId)
+              const userIdField = fieldMap[tmpUserFields.user_id.label]
+              if (userIdField && record.fields[userIdField.id]) {
+                const user_id = record.fields[userIdField.id][0]?.text
+                if (user_id) idsFromTables.push(user_id)
+              }
+            }
+          } catch (error) {
+            console.error('读取表格账号失败:', error)
+          }
+        }
+
+        return [...inputValues, ...idsFromTables]
+      }
+
       const hasAccountInput = () => hasAllAccountInputs(searchValues.value)
 
 
@@ -252,7 +286,7 @@
             const tmpUserFields = userFields()
             if (res && res.data && res.data.code === 0) {
               totalCost += res.data.price || 0
-              const user_id = res.data.data.profile.user_id
+              const user_id = String(res.data.data.profile.user_id)
               const [record, fieldMap] = await getFirstRecordByField(paneData.value.userTableId, tmpUserFields.user_id.label, user_id)
               if (record) {
                 const last_get_time = record.fields[fieldMap[tmpUserFields.current_get_time.label]?.id] || null
@@ -305,7 +339,7 @@
           }
 
           if (inputValues.length > 0) {
-            let returnMessage = '新增快手账号完成，尝试采集' + inputValues.length + '条，成功' + successCount + '条，消耗：' + totalCost
+            let returnMessage = '新增快手账号完成，尝试采集' + inputValues.length + '条，成功' + successCount + '条，消耗：' + totalCost.toFixed(2)
             if (failmsg) returnMessage += '，失败原因：' + failmsg
             props.formData.message = returnMessage
             props.formData.messageType = failmsg && successCount === 0 ? 'error' : failmsg ? 'warning' : 'success'
@@ -397,7 +431,7 @@
           }
 
           if(recordIdList.length > 0){
-            props.formData.message = '更新快手账号信息完成，'+'尝试更新'+ recordIdList.length + '条账号信息，成功'+ successCount + '条，消耗' + totalCost.toFixed(3) + '元'
+            props.formData.message = '更新快手账号信息完成，'+'尝试更新'+ recordIdList.length + '条账号信息，成功'+ successCount + '条，消耗' + totalCost.toFixed(2) + '元'
             props.formData.messageType = 'success';
             setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'user'))
           }
@@ -533,7 +567,21 @@
           const tmpUserFields = userFields()
           const totalLastTime = {}
           let userInfoList = []
+
+          const allValues = await getAllAccountValues()
+          if (allValues.length === 0) {
+            props.formData.message = '请给出采集账号'
+            props.formData.messageType = 'warning'
+            return
+          }
+
           if (getWorksType === 0){
+            if (!paneData.value.userTableId) {
+              props.formData.message = '请先选择账号表'
+              props.formData.messageType = 'warning'
+              return
+            }
+
             const userTable = await bitable.base.getTable(paneData.value.userTableId)
             const fieldList = await userTable.getFieldList()
             const fieldMap = {};
@@ -556,7 +604,7 @@
             }
           }
           else{
-            userInfoList = [{ user_id: getAccountInputValues()[0] }]
+            userInfoList = allValues.map(user_id => ({ user_id }))
           }
           
           for (const userInfo of userInfoList){
@@ -646,7 +694,7 @@
             if (getWorksType === 0){
               userSuccessCount = Object.values(totalLastTime).filter(item => item.data.get_work_flag === 'success').length;
             }
-            props.formData.message = '获取视频完成，尝试获取' + userInfoList.length + '个账号，成功操作'+userSuccessCount+'个账号，共写入' + workSuccessCount + '条视频信息，共消耗' + totalCost.toFixed(3);
+            props.formData.message = '获取视频完成，尝试获取' + userInfoList.length + '个账号，成功操作'+userSuccessCount+'个账号，共写入' + workSuccessCount + '条视频信息，共消耗' + totalCost.toFixed(2);
             props.formData.messageType = 'success';
             setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'work'))
           }
@@ -740,7 +788,7 @@
           }
           
           if(recordIdList.length > 0){
-            props.formData.message = '更新快手视频完成, 共尝试更新'+recordIdList.length+'条, 成功'+successCount+'条, 消耗'+totalCost.toFixed(3);
+            props.formData.message = '更新快手视频完成, 共尝试更新'+recordIdList.length+'条, 成功'+successCount+'条, 消耗'+totalCost.toFixed(2);
             props.formData.messageType = 'success';
             setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'work'))
           }
@@ -770,6 +818,7 @@
         upsertWork,
         getRecentWorks,
         updateWorks,
+        getAllAccountValues,
       };
     },
   };
@@ -791,20 +840,21 @@
       </div>
 
       <div class="section-block" v-show="paneData.getDataType !== 0">
-        <div class="field-label">快手视频表</div>
-        <TableSelect v-model="paneData.workTableId" placeholder="未选自动创建" />
-      </div>
-
-      <div class="section-block" v-show="paneData.getDataType !== 0">
+        <div class="field-label">获取方式</div>
         <div class="toggle-wrapper">
-          <el-button type="info" class="toggle-btn" :class="{ active: paneData.getWorksType === 1 }" @click="paneData.getWorksType = 1">根据账号id获取</el-button>
+          <el-button type="info" class="toggle-btn" :class="{ active: paneData.getWorksType === 1 }" @click="paneData.getWorksType = 1">根据账号ID获取</el-button>
           <el-button type="info" class="toggle-btn" :class="{ active: paneData.getWorksType === 0 }" @click="paneData.getWorksType = 0">根据账号表获取</el-button>
         </div>
       </div>
 
       <div class="section-block" v-show="paneData.getDataType !== 0 && paneData.getWorksType === 0">
-        <div class="field-label">快手账号表</div>
-        <TableSelect v-model="paneData.userTableId" placeholder="请选择快手账号表" />
+        <div class="field-label">选择账号表</div>
+        <TableSelect v-model="paneData.userTableId" placeholder="请选择账号表" />
+      </div>
+
+      <div class="section-block" v-show="paneData.getDataType !== 0">
+        <div class="field-label">快手视频表</div>
+        <TableSelect v-model="paneData.workTableId" placeholder="未选自动创建" />
       </div>
 
       <div class="section-block" v-show="paneData.getDataType === 0">
@@ -859,7 +909,7 @@
       <div class="collect-btn-item">
         <el-button
           class="collect-btn"
-          :disabled="isLocked || !formData.key || (paneData.getDataType === 0 ? !hasAccountInput() : ((!paneData.userTableId && paneData.getWorksType === 0) || (!hasAccountInput() && paneData.getWorksType !== 0)))"
+          :disabled="isLocked || !formData.key || !hasAccountInput()"
           @click="paneData.getDataType === 0 ? upsertUser() : getRecentWorks(paneData.searchRange, paneData.getWorksType)"
         >
           采集数据

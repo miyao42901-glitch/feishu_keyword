@@ -156,6 +156,42 @@
           .map((item) => item.data.inputValue.trim())
       }
 
+      const getAllAccountValues = async () => {
+        const inputValues = getAccountInputValues()
+
+        const tableSelections = Object.values(searchValues.value)
+          .filter((item) => item?.dataType === 'table' && item.data?.tableId && item.data?.recordIdList?.length > 0)
+
+        const idsFromTables = []
+        const tmpUserFields = userFields()
+
+        for (const selection of tableSelections) {
+          try {
+            const table = await bitable.base.getTable(selection.data.tableId)
+            const fieldList = await table.getFieldList()
+            const fieldMap = {}
+            for (const field of fieldList) {
+              const fieldName = await field.getName()
+              fieldMap[fieldName] = field
+            }
+            for (const recordId of selection.data.recordIdList) {
+              const record = await table.getRecordById(recordId)
+              const usernameField = fieldMap[tmpUserFields.username.label]
+              if (usernameField && record.fields[usernameField.id]) {
+                const username = record.fields[usernameField.id][0]?.text
+                if (username) {
+                  idsFromTables.push(username)
+                }
+              }
+            }
+          } catch (error) {
+            console.error('读取表格账号失败:', error)
+          }
+        }
+
+        return [...inputValues, ...idsFromTables]
+      }
+
       const hasAccountInput = () => hasAllAccountInputs(searchValues.value)
 
       const isValidV2Id = (value) => value?.trim().length === V2_ACCOUNT_ID_LENGTH
@@ -167,16 +203,7 @@
         if (paneData.value.getWorksType === 0) {
           return !!paneData.value.userTableId
         }
-        const rows = Object.values(searchValues.value)
-        if (rows.length === 0) {
-          return false
-        }
-        return rows.every((item) => {
-          if (item?.dataType === 'input') {
-            return isValidV2Id(item.data?.inputValue)
-          }
-          return isAccountRowFilled(item)
-        })
+        return hasAccountInput()
       }
 
       const tipVisible = ref(false)
@@ -589,7 +616,7 @@
               props.formData.message = resolveWxvideoErrorMessage(lastApiError)
               props.formData.messageType = 'error'
             } else {
-              let returnMessage = '获取视频完成，尝试获取' + userInfoList.length + '个账号，成功操作'+userSuccessCount+'个账号，共写入' + workSuccessCount + '条视频信息，共消耗' + totalCost.toFixed(3)
+              let returnMessage = '获取视频完成，尝试获取' + userInfoList.length + '个账号，成功操作'+userSuccessCount+'个账号，共写入' + workSuccessCount + '条视频信息，共消耗' + totalCost.toFixed(2)
               if (lastApiError && (userSuccessCount < userInfoList.length || workSuccessCount === 0)) {
                 returnMessage += '，部分失败原因：' + (formatWxvideoError(lastApiError) || lastApiError)
               }
@@ -705,7 +732,7 @@
           }
           
           if(recordIdList.length > 0){
-            props.formData.message = '更新视频号视频完成, 共尝试更新'+recordIdList.length+'条, 成功'+successCount+'条, 消耗'+totalCost.toFixed(3);
+            props.formData.message = '更新视频号视频完成, 共尝试更新'+recordIdList.length+'条, 成功'+successCount+'条, 消耗'+totalCost.toFixed(2);
             props.formData.messageType = 'success';
             setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'work'))
           }
@@ -715,6 +742,82 @@
           props.formData.messageType = 'error';
         } finally {
           emit('update:isLocked', false);
+        }
+      }
+
+      const updateUsers = async () => {
+        if (props.isLocked) return;
+        emit('update:isLocked', true);
+
+        try {
+          const userTable = await bitable.base.getTable(paneData.value.userTableId)
+          const recordIdList = await bitable.ui.selectRecordIdList(paneData.value.userTableId)
+
+          const fieldList = await userTable.getFieldList()
+          const fieldMap = {}
+          for (const field of fieldList) {
+            const fieldName = await field.getName()
+            fieldMap[fieldName] = field
+          }
+
+          const tmpUserFields = userFields()
+          let successCount = 0
+          let totalCost = 0
+          let failmsg = ''
+
+          for (const userRecordId of recordIdList) {
+            const userRecord = await userTable.getRecordById(userRecordId)
+            const usernameField = fieldMap[tmpUserFields.username.label]
+            if (!usernameField || !userRecord.fields[usernameField.id]) continue
+            const keywords = userRecord.fields[usernameField.id][0]?.text
+            if (!keywords) continue
+
+            const res = await pluginAPI.post('/plugin_forward', {
+              url: '/fbmain/monitor/v3/wxvideo',
+              body: {
+                v2_name: keywords,
+                type: 1,
+                last_buffer: '',
+                key: props.formData.key,
+              }
+            })
+
+            if (res && res.data && res.data.code === 0 && res.data.contact) {
+              totalCost += res.data.cost || 0
+              const result = await updateTable(
+                paneData.value.userTableId,
+                [{
+                  recordId: userRecordId,
+                  data: {
+                    username: res.data.contact.username,
+                    nickname: res.data.contact.nickname,
+                    signature: res.data.contact.signature,
+                  }
+                }],
+                tmpUserFields,
+              )
+              if (result.success) successCount++
+            } else {
+              const apiMsg = res?.data?.msg
+              failmsg = formatWxvideoError(apiMsg) || apiMsg || failmsg || '未知错误'
+            }
+          }
+
+          if (recordIdList.length > 0) {
+            let returnMessage = '更新博主数据完成，尝试更新' + recordIdList.length + '条，成功' + successCount + '条，消耗：' + totalCost.toFixed(2)
+            if (failmsg) returnMessage += '，失败原因：' + failmsg
+            props.formData.message = returnMessage
+            props.formData.messageType = failmsg ? 'warning' : 'success'
+            if (props.formData.messageType === 'success') {
+              setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'user'))
+            }
+          }
+        } catch (error) {
+          console.error('操作失败:', error)
+          props.formData.message = '操作失败:' + (error.message || '未知错误')
+          props.formData.messageType = 'error'
+        } finally {
+          emit('update:isLocked', false)
         }
       }
 
@@ -735,6 +838,7 @@
         upsertWork,
         getRecentWorks,
         updateWorks,
+        updateUsers,
       };
     },
   };
@@ -807,6 +911,12 @@
       <div class="collect-btn-item">
         <el-button class="collect-btn" :disabled="isLocked || !formData.key || !canCollect()" @click="paneData.getDataType === 0 ? upsertUser() : getRecentWorks(paneData.searchRange, paneData.getWorksType)">
           采集数据
+        </el-button>
+      </div>
+
+      <div class="collect-btn-item" v-if="paneData.getDataType === 0 && paneData.userTableId">
+        <el-button class="update-btn" :disabled="isLocked || !formData.key" @click="updateUsers()">
+          更新博主数据
         </el-button>
       </div>
 

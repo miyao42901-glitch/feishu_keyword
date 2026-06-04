@@ -90,12 +90,8 @@
 
         <template v-else>
           <div class="stats-row">
-            <span class="stats-label">成功账号</span>
+            <span class="stats-label">采集账号数</span>
             <span class="stats-value">{{ formatCollectCount(props.successAccounts, '个') }}</span>
-          </div>
-          <div class="stats-row">
-            <span class="stats-label">采集作品数</span>
-            <span class="stats-value">{{ formatCollectCount(props.workCount, '条') }}</span>
           </div>
           <div class="stats-row">
             <span class="stats-label">本次消耗</span>

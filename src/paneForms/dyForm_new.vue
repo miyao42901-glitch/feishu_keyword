@@ -375,6 +375,15 @@
         let failmsg = ''
         let max_cursor = ""
         let i = 0
+
+        let min_time = 0
+        if (ranges.value[fetchRange]?.type === 'date') {
+          const date = new Date()
+          date.setHours(0, 0, 0, 0)
+          date.setDate(date.getDate() - (ranges.value[fetchRange].value - 1))
+          min_time = date.getTime()
+        }
+
         while(true){
           i += 1
           const get_time = Date.now()
@@ -642,7 +651,7 @@
                 failmsg = result.error || failmsg
               }
             }
-            let returnMessage = '采集博主数据完成，\n尝试采集'+post_data_list.length+'条博主数据，成功采集'+successCount+'条数据，共消耗'+totalCost+'元';
+            let returnMessage = '采集博主数据完成，\n尝试采集'+post_data_list.length+'条博主数据，成功采集'+successCount+'条数据，共消耗'+totalCost.toFixed(2)+'元';
             if (failmsg){
               returnMessage += '，失败数据原因：'+failmsg
             }
@@ -709,10 +718,17 @@
         tipVisible.value = true
       }
 
+      const selectedTableIds = computed(() =>
+        Object.values(searchValues.value)
+          .filter(item => item?.dataType === 'table' && item.data?.tableId)
+          .map(item => item.data.tableId)
+      )
+
       return {
         paneData,
         ranges,
         searchValues,
+        selectedTableIds,
         tipVisible,
         changecollectionType,
         addSearchRow,
@@ -777,6 +793,7 @@
           <generalSelect
             v-model="searchValues[key]"
             placeholder="输入账号主页链接，或选择已有表格"
+            :disabledTableIds="selectedTableIds"
           />
           <!-- 始终显示添加按钮（第一行），其他行显示删除按钮 -->
           <span

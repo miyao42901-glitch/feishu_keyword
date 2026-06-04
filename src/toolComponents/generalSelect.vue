@@ -20,6 +20,10 @@
       maxlength: {
         type: Number,
         default: undefined
+      },
+      disabledTableIds: {
+        type: Array,
+        default: () => []
       }
     },
     emits: ['update:modelValue'],
@@ -29,7 +33,6 @@
       const inputValue = ref('');
       const isReadOnly = ref(false);
 
-      // 读取数据表列表
       const loadTableList = async () => {
         try {
           const tableList = await bitable.base.getTableList();
@@ -47,13 +50,13 @@
         callback(tableDataList.value);
       };
 
-      const handleSelect = async (item, event) => {
+      const handleSelect = async (item) => {
+        if (props.disabledTableIds.includes(item.tableId)) return;
         selectedTableId.value = item.tableId;
         const recordIdList = await bitable.ui.selectRecordIdList(item.tableId);
         if (recordIdList.length > 0) {
           isReadOnly.value = true;
-          // 手动控制输入框的值
-          inputValue.value = '已选' + recordIdList.length + '条记录，选自“' + item.tableName + '”';
+          inputValue.value = '已选' + recordIdList.length + '条记录，选自"' + item.tableName + '"';
           emit('update:modelValue', {dataType: 'table', data:{tableId: item.tableId, recordIdList: recordIdList}});
         }
       }
@@ -62,18 +65,14 @@
         selectedTableId.value = '';
         isReadOnly.value = false;
         inputValue.value = '';
+        emit('update:modelValue', {dataType: 'input', data: {inputValue: ''}});
       }
 
       watch(() => inputValue.value, (newVal) => {
         if (!isReadOnly.value) {
-          let result = ''
-          if(newVal) {
-            result = newVal;
-          }
-          emit('update:modelValue', {dataType: 'input', data: {inputValue: result}});
+          emit('update:modelValue', {dataType: 'input', data: {inputValue: newVal || ''}});
         }
       });
-
 
       return {
         tableDataList,
@@ -100,23 +99,24 @@
       :readonly="isReadOnly"
       :maxlength="maxlength"
     >
-    <template #suffix>
-      <el-icon 
-        v-if="inputValue" 
-        style="cursor: pointer;"
-        @click.stop="clearSelected"
-      >
-        <CircleClose />
-      </el-icon>
-      <el-icon 
-        v-else
-      >
-        <ArrowDown />
-      </el-icon>
-    </template>
-    <template #default="{ item }">
-      <div class="name">{{ item.tableName }}</div>
-    </template>
+      <template #suffix>
+        <el-icon
+          v-if="inputValue"
+          style="cursor: pointer;"
+          @click.stop="clearSelected"
+        >
+          <CircleClose />
+        </el-icon>
+        <el-icon v-else>
+          <ArrowDown />
+        </el-icon>
+      </template>
+      <template #default="{ item }">
+        <div
+          class="name"
+          :class="{ 'is-disabled': disabledTableIds.includes(item.tableId) }"
+        >{{ item.tableName }}<span v-if="disabledTableIds.includes(item.tableId)" class="disabled-tag">已选</span></div>
+      </template>
     </el-autocomplete>
   </div>
 </template>
@@ -124,5 +124,19 @@
 <style scoped>
   .general-select {
     width: 100%;
+  }
+
+  .name.is-disabled {
+    color: #c0c4cc;
+    cursor: not-allowed;
+  }
+
+  .disabled-tag {
+    margin-left: 6px;
+    font-size: 11px;
+    color: #c0c4cc;
+    background: #f4f4f5;
+    border-radius: 3px;
+    padding: 0 4px;
   }
 </style>

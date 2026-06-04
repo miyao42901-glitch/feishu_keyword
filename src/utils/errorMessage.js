@@ -370,5 +370,5 @@ export function formatCollectMoney(value) {
   if (value == null || value === '' || Number.isNaN(Number(value))) {
     return '-'
   }
-  return `${Number(value).toFixed(3)}元`
+  return `${Number(value).toFixed(2)}元`
 }

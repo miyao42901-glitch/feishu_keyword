@@ -355,7 +355,7 @@
           }
 
           if(recordIdList.length > 0){
-            props.formData.message = '更新用户信息完成，'+'尝试更新'+ recordIdList.length + '条账号信息，成功'+ successCount + '条，消耗' + totalCost.toFixed(3) + '元'
+            props.formData.message = '更新用户信息完成，'+'尝试更新'+ recordIdList.length + '条账号信息，成功'+ successCount + '条，消耗' + totalCost.toFixed(2) + '元'
             props.formData.messageType = 'success';
             setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'user'))
           }
@@ -603,7 +603,7 @@
             if (getWorksType === 0){
               userSuccessCount = Object.values(totalLastTime).filter(item => item.data.get_work_flag === 'success').length;
             }
-            props.formData.message = '获取视频完成，尝试获取' + userInfoList.length + '个账号，成功操作'+userSuccessCount+'个账号，共写入' + workSuccessCount + '条视频信息，共消耗' + totalCost.toFixed(3);
+            props.formData.message = '获取视频完成，尝试获取' + userInfoList.length + '个账号，成功操作'+userSuccessCount+'个账号，共写入' + workSuccessCount + '条视频信息，共消耗' + totalCost.toFixed(2);
             props.formData.messageType = 'success';
             setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'work'))
           }
@@ -699,7 +699,7 @@
           }
           
           if(recordIdList.length > 0){
-            props.formData.message = '更新抖音视频完成, 共尝试更新'+recordIdList.length+'条, 成功'+successCount+'条, 消耗'+totalCost.toFixed(3);
+            props.formData.message = '更新抖音视频完成, 共尝试更新'+recordIdList.length+'条, 成功'+successCount+'条, 消耗'+totalCost.toFixed(2);
             props.formData.messageType = 'success';
             setCollectResultTable(props.formData, getCollectResultTableId(paneData.value, 'work'))
           }
