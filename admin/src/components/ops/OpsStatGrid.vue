@@ -13,7 +13,7 @@
 <script setup lang="ts">
 withDefaults(
   defineProps<{
-    stats: Array<{ label: string; value: string | number; sub: string; tone?: 'up' | 'down' | 'muted' }>
+    stats: Array<{ label: string; value: string | number; sub: string; tone?: 'up' | 'down' | 'muted' | 'neutral' }>
     colSm?: number
   }>(),
   { colSm: 8 },

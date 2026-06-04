@@ -13,7 +13,7 @@
           <div class="group-header">
             <el-switch
               :model-value="group.enabled"
-              @change="(val) => menuStore.setGroupEnabled(group.key, val as boolean)"
+              @change="(val: boolean) => menuStore.setGroupEnabled(group.key, val)"
               class="group-switch"
             />
             <span class="group-label">{{ group.label }}</span>
@@ -29,7 +29,7 @@
             >
               <el-switch
                 :model-value="item.enabled"
-                @change="(val) => menuStore.setItemEnabled(group.key, item.key, val as boolean)"
+                @change="(val: boolean) => menuStore.setItemEnabled(group.key, item.key, val)"
                 :disabled="item.key === '/settings/menu'"
                 size="small"
               />
