@@ -16,77 +16,20 @@
         active-text-color="#ffffff"
         @select="onMenuSelect"
       >
-        <el-sub-menu index="data-root">
-          <template #title>
-            <span>数据</span>
-          </template>
-          <el-menu-item index="/data/overview">
-            <span>数据概览</span>
-          </el-menu-item>
-        </el-sub-menu>
-
-        <el-sub-menu index="business-root">
-          <template #title>
-            <span>业务</span>
-          </template>
-          <el-menu-item index="/business/tasks">
-            <span>任务管理</span>
-          </el-menu-item>
-          <el-menu-item index="/business/exec-monitor">
-            <span>执行监控</span>
-          </el-menu-item>
-          <el-menu-item index="/business/api-monitor">
-            <span>API 监控</span>
-          </el-menu-item>
-          <el-menu-item index="/business/push-monitor">
-            <span>推送监控</span>
-          </el-menu-item>
-        </el-sub-menu>
-
-        <el-sub-menu index="operation-root">
-          <template #title>
-            <span>运营</span>
-          </template>
-          <el-menu-item index="/operation/users">
-            <span>用户管理</span>
-          </el-menu-item>
-        </el-sub-menu>
-
-        <el-sub-menu index="notify-root">
-          <template #title>
-            <span>通知配置</span>
-          </template>
-          <el-menu-item index="/notify/template">
-            <span>通知模板</span>
-          </el-menu-item>
-        </el-sub-menu>
-
-        <el-sub-menu index="ops-root">
-          <template #title>
-            <span>运维</span>
-          </template>
-          <el-menu-item index="/ops/api-abnormal">
-            <span>接口异常</span>
-          </el-menu-item>
-          <el-menu-item index="/ops/db-backup">
-            <span>数据库备份</span>
-          </el-menu-item>
-        </el-sub-menu>
-
-        <el-sub-menu index="settings-root">
-          <template #title>
-            <span>系统设置</span>
-          </template>
-          <el-menu-item index="/settings/overview">
-            <span>系统信息</span>
-          </el-menu-item>
-          <el-menu-item index="/settings/admins">
-            <span>管理员账号</span>
-          </el-menu-item>
-          <el-menu-item index="/settings/logs">
-            <span>操作日志</span>
-          </el-menu-item>
-        </el-sub-menu>
+        <template v-for="group in menuConfig.enabledGroups" :key="group.key">
+          <el-sub-menu :index="group.key">
+            <template #title>
+              <span>{{ group.label }}</span>
+            </template>
+            <el-menu-item
+              v-for="item in group.children"
+              :key="item.key"
+              :index="item.key"
+            >
+              <span>{{ item.label }}</span>
+            </el-menu-item>
+          </el-sub-menu>
+        </template>
       </el-menu>
     </div>
     <div class="foot">
@@ -100,25 +43,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import http from '@/api/http'
 import { useSessionStore } from '@/stores/session'
-
-function submenuRootForPath(path: string): string | null {
-  if (path.startsWith('/data/')) return 'data-root'
-  if (path.startsWith('/business/')) return 'business-root'
-  if (path.startsWith('/operation/')) return 'operation-root'
-  if (path.startsWith('/notify/')) return 'notify-root'
-  if (path.startsWith('/ops/')) return 'ops-root'
-  if (path.startsWith('/settings/')) return 'settings-root'
-  return null
-}
-
-const SUB_MENU_ROOTS = [
-  'data-root',
-  'business-root',
-  'operation-root',
-  'notify-root',
-  'ops-root',
-  'settings-root',
-] as const
+import { useMenuConfigStore } from '@/stores/menuConfig'
 
 type SidebarMenuExpose = { open: (index: string) => void; close: (index: string) => void }
 
@@ -130,18 +55,28 @@ const emit = defineEmits<Emits>()
 const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
+const menuConfig = useMenuConfigStore()
 
 const sidebarMenuRef = ref<SidebarMenuExpose | null>(null)
+
+function submenuRootForPath(path: string): string | null {
+  for (const group of menuConfig.groups) {
+    if (group.children.some((c) => path.startsWith(c.key))) {
+      return group.key
+    }
+  }
+  return null
+}
 
 function syncSubmenusWithRoute(): void {
   nextTick(() => {
     const m = sidebarMenuRef.value
     if (!m) return
     const keep = submenuRootForPath(route.path)
-    for (const id of SUB_MENU_ROOTS) {
-      if (id !== keep) {
+    for (const group of menuConfig.groups) {
+      if (group.key !== keep) {
         try {
-          m.close(id)
+          m.close(group.key)
         } catch {
           /* 子菜单未展开时 close 可能抛错，忽略 */
         }
@@ -163,44 +98,12 @@ onMounted(() => {
 })
 
 const menuActive = computed(() => {
-  if (route.path.startsWith('/data/overview')) {
-    return '/data/overview'
-  }
-  if (route.path.startsWith('/business/tasks')) {
-    return '/business/tasks'
-  }
-  if (route.path.startsWith('/business/exec-monitor')) {
-    return '/business/exec-monitor'
-  }
-  if (route.path.startsWith('/business/api-monitor')) {
-    return '/business/api-monitor'
-  }
-  if (route.path.startsWith('/business/push-monitor')) {
-    return '/business/push-monitor'
-  }
-  if (route.path.startsWith('/operation/users')) {
-    return '/operation/users'
-  }
-  if (route.path.startsWith('/notify/template')) {
-    return '/notify/template'
-  }
-  if (route.path.startsWith('/ops/api-abnormal')) {
-    return '/ops/api-abnormal'
-  }
-  if (route.path.startsWith('/ops/db-backup')) {
-    return '/ops/db-backup'
-  }
-  if (route.path.startsWith('/settings/admins')) {
-    return '/settings/admins'
-  }
-  if (route.path.startsWith('/settings/logs')) {
-    return '/settings/logs'
-  }
-  if (route.path.startsWith('/settings/overview')) {
-    return '/settings/overview'
-  }
-  if (route.path.startsWith('/settings')) {
-    return '/settings/overview'
+  for (const group of menuConfig.groups) {
+    for (const item of group.children) {
+      if (route.path.startsWith(item.key) || route.path === item.key) {
+        return item.key
+      }
+    }
   }
   return route.path
 })

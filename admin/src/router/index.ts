@@ -71,6 +71,11 @@ const router = createRouter({
           name: 'settings-logs',
           component: () => import('@/views/settings/SettingsLogsView.vue'),
         },
+        {
+          path: 'settings/menu',
+          name: 'settings-menu',
+          component: () => import('@/views/settings/SettingsMenuView.vue'),
+        },
       ],
     },
   ],

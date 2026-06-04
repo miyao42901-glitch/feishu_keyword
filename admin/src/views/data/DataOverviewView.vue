@@ -257,7 +257,7 @@ const topUserOption = computed((): OpsChartOption => {
   const values = top?.values?.length ? top.values : [4100, 2340, 1980, 1820, 1560]
   return {
     tooltip: { trigger: 'axis' },
-    grid: { left: 72, right: 24, top: 24, bottom: 32 },
+    grid: { left: 130, right: 24, top: 24, bottom: 32 },
     xAxis: { type: 'value' },
     yAxis: { type: 'category', data: labels },
     series: [{ type: 'bar', data: values, itemStyle: { color: '#4073fa', borderRadius: [0, 4, 4, 0] }, barMaxWidth: 20 }],
