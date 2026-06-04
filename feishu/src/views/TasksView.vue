@@ -117,9 +117,9 @@ const feedPollConfigByTaskId = new Map<number, Record<string, unknown>>()
 const testFeedBitableDeps = createTestFeedBitableDeps()
 
 /** 仅 `running` 卡片拉 results 的最小间隔 */
-const RUNNING_FEED_POLL_MS = 120_000
+const RUNNING_FEED_POLL_MS = 30_000
 /** `pending_run` 已过 next_run_at+3min 后拉 results 的最小间隔 */
-const PENDING_FEED_POLL_MS = 120_000
+const PENDING_FEED_POLL_MS = 30_000
 /** 列表 feed 轮询最短周期（避免每秒空转） */
 const MIN_FEED_POLL_CYCLE_MS = 30_000
 let syncPollTimerDebounce: ReturnType<typeof setTimeout> | null = null
