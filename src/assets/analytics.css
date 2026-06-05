@@ -1,0 +1,271 @@
+/* 埋点看板共享样式 */
+
+.analytics-page {
+  padding: 0;
+}
+
+/* 统计卡片网格 */
+.analytics-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.analytics-stats-grid--3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.analytics-stats-grid--4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 768px) {
+  .analytics-stats-grid,
+  .analytics-stats-grid--3,
+  .analytics-stats-grid--4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.analytics-stat-card {
+  background: #fff;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.analytics-stat-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 6px;
+}
+
+.analytics-stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--el-text-color-primary);
+  line-height: 1.2;
+}
+
+.analytics-stat-sub {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-top: 4px;
+}
+
+/* KPI 看板区 */
+.analytics-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.analytics-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.analytics-kpi-row {
+  margin-bottom: 16px;
+}
+
+.analytics-kpi-card {
+  background: #fff;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 12px;
+  position: relative;
+}
+
+.analytics-kpi-card--blue {
+  border-left: 3px solid #4073fa;
+}
+
+.analytics-kpi-card--green {
+  border-left: 3px solid #00b42a;
+}
+
+.analytics-kpi-card--orange {
+  border-left: 3px solid #ff7d00;
+}
+
+.analytics-kpi-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 6px;
+}
+
+.analytics-kpi-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--el-text-color-primary);
+  line-height: 1.2;
+}
+
+.analytics-kpi-sub {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  margin-top: 4px;
+}
+
+/* 图表卡片 */
+.analytics-chart-row {
+  margin-bottom: 16px;
+}
+
+.analytics-chart-card {
+  margin-bottom: 12px;
+}
+
+.analytics-chart-body {
+  height: 260px;
+}
+
+/* 漏斗图 */
+.analytics-funnel-card {
+  margin-bottom: 16px;
+}
+
+.analytics-funnel-layout {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.analytics-funnel-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+  min-width: 280px;
+}
+
+.analytics-funnel-step {
+  flex: 1;
+  min-width: 100px;
+  max-width: 160px;
+}
+
+.analytics-funnel-step__head {
+  border-radius: 6px;
+  padding: 10px 8px;
+  text-align: center;
+  color: #fff;
+}
+
+.analytics-funnel-step__value {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.analytics-funnel-step__foot {
+  padding: 8px 4px 0;
+  text-align: center;
+}
+
+.analytics-funnel-arrow {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  font-weight: 600;
+  padding: 0 4px;
+  margin-bottom: 30px;
+}
+
+.analytics-funnel-side {
+  width: 200px;
+  flex-shrink: 0;
+}
+
+.analytics-funnel-loss {
+  background: var(--el-fill-color-light);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+.analytics-funnel-summary {
+  background: var(--el-color-primary-light-9);
+  border-radius: 6px;
+  padding: 14px;
+  text-align: center;
+  margin-top: 8px;
+}
+
+/* 表格卡片 */
+.analytics-table-card {
+  margin-bottom: 16px;
+}
+
+.analytics-table-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.analytics-table-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.analytics-table-toolbar {
+  display: flex;
+  align-items: center;
+}
+
+/* 用户详情 Drawer */
+.analytics-user-profile {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 16px;
+  background: var(--el-fill-color-light);
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.analytics-user-avatar {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #4073fa, #00b42a);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.analytics-detail-section {
+  margin-bottom: 24px;
+}
+
+.analytics-detail-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--el-border-color-light);
+}
+
+.analytics-detail-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.analytics-detail-kpi {
+  background: var(--el-fill-color-light);
+  border-radius: 6px;
+  padding: 12px;
+}

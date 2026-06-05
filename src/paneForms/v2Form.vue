@@ -288,7 +288,7 @@
             }
           }
 
-          const inputValues = getAccountInputValues()
+          const inputValues = await getAllAccountValues()
           if (inputValues.length === 0) {
             props.formData.message = '请给出采集账号'
             props.formData.messageType = 'warning'
@@ -304,7 +304,7 @@
             const res = await pluginAPI.post('/plugin_forward', {
               url: '/fbmain/monitor/v3/wxvideo',
               body: {
-                keywords,
+                keyword: keywords,
                 type: 6,
                 key: props.formData.key,
               }
@@ -499,15 +499,27 @@
 
             const recordIdList = await bitable.ui.selectRecordIdList(paneData.value.userTableId)
             const username_set = {}
+            const usernameFieldId = fieldMap[tmpUserFields.username.label]?.id
+            if (!usernameFieldId) {
+              props.formData.message = '所选表格缺少"视频号id"字段，请使用插件生成的账号表格'
+              props.formData.messageType = 'error'
+              return
+            }
             for (const userRecordId of recordIdList){
               const userRecord = await userTable.getRecordById(userRecordId);
-              const username = userRecord.fields[fieldMap[tmpUserFields.username.label].id][0].text
+              const username = userRecord.fields[usernameFieldId]?.[0]?.text
+              if (!username) continue
               if (username_set[username]) continue
               username_set[username] = true
               userInfoList.push({
                 recordId: userRecordId,
                 username: username
               })
+            }
+            if (userInfoList.length === 0) {
+              props.formData.message = '所选记录中未找到有效的视频号id，请确认表格"视频号id"字段已填写'
+              props.formData.messageType = 'error'
+              return
             }
           }
           else{

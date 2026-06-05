@@ -1,18 +1,14 @@
 import { createApp } from 'vue'
 import App from './App.vue'
-import './assets/main.css'
-import './assets/analytics.css'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
-import { i18n } from './locales/i18n.js'
 import * as echarts from 'echarts'
+import './assets/styles.css'
 
 const app = createApp(App)
-app.use(i18n)
 app.use(ElementPlus, { locale: zhCn })
 
-// 将 echarts 挂载到 window，供各埋点视图使用
 window.echarts = echarts
 
 app.mount('#app')
