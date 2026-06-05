@@ -1,5 +1,6 @@
 # 依赖
 node_modules/
+admin/node_modules/
 
 # 构建输出
 # dist/
