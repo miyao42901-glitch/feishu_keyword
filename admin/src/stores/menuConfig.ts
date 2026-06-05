@@ -95,12 +95,15 @@ function loadFromStorage(): MenuGroupConfig[] {
 
 export const useMenuConfigStore = defineStore('menuConfig', () => {
   const groups = ref<MenuGroupConfig[]>(loadFromStorage())
+  
+  const LOCKED_GROUPS = new Set(['settings-root'])
 
   function save() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(groups.value))
   }
 
   function setGroupEnabled(groupKey: string, enabled: boolean) {
+    if (LOCKED_GROUPS.has(groupKey)) return
     const g = groups.value.find((g) => g.key === groupKey)
     if (g) {
       g.enabled = enabled
@@ -133,9 +136,10 @@ export const useMenuConfigStore = defineStore('menuConfig', () => {
       })),
   )
 
+  const LOCKED_ITEMS = new Set(['/settings/menu'])
+
   function isItemVisible(itemKey: string): boolean {
-    // /settings/menu is always visible (can't hide the menu manager itself)
-    if (itemKey === '/settings/menu') return true
+    if (LOCKED_ITEMS.has(itemKey)) return true
     for (const g of groups.value) {
       if (!g.enabled) continue
       const item = g.children.find((c) => c.key === itemKey)
