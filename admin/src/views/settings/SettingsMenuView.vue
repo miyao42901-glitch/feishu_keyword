@@ -14,10 +14,14 @@
             <el-switch
               :model-value="group.enabled"
               @change="(val: boolean) => menuStore.setGroupEnabled(group.key, val)"
+              :disabled="LOCKED_GROUPS.has(group.key)"
               class="group-switch"
             />
             <span class="group-label">{{ group.label }}</span>
             <span class="group-count">({{ group.children.length }} 项)</span>
+            <span v-if="LOCKED_GROUPS.has(group.key)" class="item-lock">
+              <el-icon><Lock /></el-icon>
+            </span>
           </div>
 
           <div v-if="group.enabled" class="group-items">
@@ -30,11 +34,11 @@
               <el-switch
                 :model-value="item.enabled"
                 @change="(val: boolean) => menuStore.setItemEnabled(group.key, item.key, val)"
-                :disabled="item.key === '/settings/menu'"
+                :disabled="LOCKED_KEYS.has(item.key)"
                 size="small"
               />
               <span class="item-label">{{ item.label }}</span>
-              <span v-if="item.key === '/settings/menu'" class="item-lock">
+              <span v-if="LOCKED_KEYS.has(item.key)" class="item-lock">
                 <el-icon><Lock /></el-icon>
               </span>
             </div>
@@ -50,7 +54,7 @@
         title="提示"
       >
         <p>• 关闭某个菜单分组将隐藏该分组下的所有子菜单</p>
-        <p>• 菜单管理页面本身不可被隐藏</p>
+        <p>• 系统设置分组及其中的系统信息、菜单管理页面不可被隐藏</p>
         <p>• 配置实时生效，刷新页面后保持</p>
       </el-alert>
     </el-card>
@@ -63,6 +67,9 @@ import { Lock } from '@element-plus/icons-vue'
 import { useMenuConfigStore } from '@/stores/menuConfig'
 
 const menuStore = useMenuConfigStore()
+
+const LOCKED_GROUPS = new Set(['settings-root'])
+const LOCKED_KEYS = new Set(['/settings/menu'])
 
 async function handleReset() {
   try {
