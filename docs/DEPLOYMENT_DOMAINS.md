@@ -2,6 +2,15 @@
 
 本文档说明飞书插件在不同场景下的 API 域名配置和推送流程。
 
+## 仓库分支说明
+
+| 仓库 | 使用的分支 | 说明 |
+|------|-----------|------|
+| **GitLab**（源码仓库） | `test`、`master` | 开发分支，**没有** `main` 分支 |
+| **GitHub**（插件发布仓库） | `main` | 仅存放 dist 静态文件，**只有** `main` 分支 |
+
+> GitLab 禁止直接向 `master` 推送，需通过 MR 合并。GitHub 发布仓无需手动操作，由 `release.bat` 自动强制推送覆盖。
+
 ## 三种部署场景
 
 ### 1. 本地开发（使用本机 IP）
@@ -73,15 +82,26 @@ VITE_SYNC_API_BASE=https://fskw-feishu.tbpf.com
 
 **推送流程**：
 ```powershell
-# 1. 在 test 分支开发完成后，本地合并到 master
+# 1. 在 test 分支开发完成后，本地合并到 master（或通过 GitLab MR）
 git checkout master
 git merge test
 
-# 2. 推送到 GitLab
+# 2. 推送到 GitLab（注意：GitLab 禁止直接推送到 master，需要通过 MR）
+# 方式一：创建 Merge Request（推荐）
+git push origin test
+# 然后在 GitLab Web UI 创建 MR: test -> master
+
+# 方式二：本地合并后推送（需要权限）
+git checkout master
+git merge test
 git push origin master
 
 # 3. 在 GitLab Web UI 手动触发 deploy-prod 流水线
 ```
+
+**重要提醒**：
+- GitLab 主仓库**没有 `main` 分支**，只有 `test` 和 `master`
+- 不要使用 `git push origin main`，会失败
 
 ---
 
@@ -123,9 +143,11 @@ release.bat
 | 场景 | 环境文件 | API 域名 | 推送目标 | 触发方式 |
 |------|---------|---------|---------|---------|
 | 本地开发 | `.env.local` | 本机 IP | - | `npm run dev` |
-| GitLab 测试 | `.env.test` | `test-fskw-feishu.tbpf.com` | GitLab `test` | `git push origin test` |
-| GitLab 正式 | `.env.master` | `fskw-feishu.tbpf.com` | GitLab `master` | `git push origin master` |
-| GitHub CDN | 构建时注入 | `fskw-feishu.tbpf.com` | GitHub `main` | `release.bat` |
+| GitLab 测试 | `.env.test` | `test-fskw-feishu.tbpf.com` | GitLab `test` 分支 | `git push origin test` |
+| GitLab 正式 | `.env.master` | `fskw-feishu.tbpf.com` | GitLab `master` 分支 | MR 合并后手动触发流水线 |
+| GitHub CDN | 构建时注入 | `fskw-feishu.tbpf.com` | GitHub `main` 分支 | `release.bat` |
+
+> **分支约定**：GitLab 只有 `test` 和 `master` 分支，没有 `main`。GitHub 发布仓只有 `main` 分支，没有 `test` 和 `master`。
 
 ---
 
@@ -166,6 +188,30 @@ Select-String -Pattern "fskw-feishu|test-fskw" -Path "public\feishu\dist\assets\
 
 应该能找到对应环境的域名字符串。
 
+### Q5: 推送时提示 `main` 分支不存在？
+
+**原因**：GitLab 仓库没有 `main` 分支。
+
+**错误示例**：
+```powershell
+git push origin main
+# 错误: error: src refspec main does not match any
+```
+
+**解决**：
+- 推送到 GitLab 时使用 `test` 或 `master` 分支
+- GitHub 发布仓由 `release.bat` 自动推送到 `main` 分支，无需手动操作
+
+**正确命令**：
+```powershell
+# GitLab
+git push origin test     # 测试环境
+git push origin master   # 正式环境（需要权限或通过 MR）
+
+# GitHub（自动，无需手动）
+release.bat              # 自动推送到 GitHub main 分支
+```
+
 ---
 
 ## 文件说明
@@ -197,7 +243,7 @@ Select-String -Pattern "fskw-feishu|test-fskw" -Path "public\feishu\dist\assets\
    - 测试通过后再合并到 `master`
 
 3. **正式发版**：
-   - 先合并 `test` 到 `master`
+   - 先合并 `test` 到 `master`（通过 GitLab MR）
    - 推送到 GitLab，手动触发 `deploy-prod`
    - Docker 环境验证通过后，再执行 `release.bat` 发布到 GitHub CDN
 
@@ -205,6 +251,17 @@ Select-String -Pattern "fskw-feishu|test-fskw" -Path "public\feishu\dist\assets\
    - 可以直接在 `master` 分支修改
    - 修改后同时推送 GitLab 和 GitHub
    - 记得回头合并到 `test` 分支保持一致
+
+5. **分支操作规范**：
+   - **GitLab 仓库**：只使用 `test` 和 `master` 分支
+     - `git push origin test` ✅ 正确
+     - `git push origin master` ✅ 正确（需要权限或通过 MR）
+     - `git push origin main` ❌ 错误（GitLab 没有 main 分支）
+   
+   - **GitHub 发布仓**：只有 `main` 分支，由 `release.bat` 自动推送
+     - 不需要手动操作 GitHub 仓库
+     - `release.bat` 会自动强制推送到 `main` 分支
+     - 不要手动在 GitHub 创建 `test` 或 `master` 分支
 
 ---
 
