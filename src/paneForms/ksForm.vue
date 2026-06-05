@@ -1,4 +1,4 @@
-<script>
+﻿<script>
   import { ref, computed } from 'vue';
   import { bitable, FieldType, NumberFormatter, DateFormatter } from '@lark-base-open/js-sdk';
   import {
@@ -872,7 +872,7 @@
 
     <div class="section-title">
       采集账号
-      <el-icon class="icon-hint" @click="openTip"><QuestionFilled /></el-icon>
+      <!-- <el-icon class="icon-hint" @click="openTip"><QuestionFilled /></el-icon> -->
     </div>
 
     <div class="collect-sub-panel">

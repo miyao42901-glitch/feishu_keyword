@@ -7,7 +7,6 @@
         <el-button :type="timeRange === 'month' ? 'primary' : ''" @click="timeRange = 'month'">æœ¬æœˆ</el-button>
       </el-button-group>
     </div>
-
     <div v-loading="loading">
       <div class="kpi-grid">
         <div v-for="kpi in kpiCards" :key="kpi.key" class="kpi-card">
@@ -16,7 +15,6 @@
           <div class="kpi-change" :class="kpi.changeType">{{ kpi.change }}</div>
         </div>
       </div>
-
       <div class="charts-row">
         <el-card shadow="never" class="chart-card">
           <template #header><span class="chart-title">å„å¹³å°æ•°æ®é‡‡é›†åˆ†å¸ƒ</span></template>
@@ -27,7 +25,6 @@
           <div ref="failureEl" class="chart-body" />
         </el-card>
       </div>
-
       <el-card shadow="never" class="funnel-card">
         <template #header>
           <div class="funnel-card-header">
@@ -36,8 +33,6 @@
           </div>
         </template>
         <div class="funnel-body">
-
-          <!-- é¡¶éƒ¨å…±åŒæ­¥éª¤ -->
           <div class="funnel-common">
             <template v-for="(step, idx) in funnelCommon" :key="step.label">
               <div class="funnel-step">
@@ -56,13 +51,9 @@
               </div>
             </template>
           </div>
-
-          <!-- åˆ†æ”¯åˆ†å‰²çº¿ -->
           <div class="funnel-divider">
             <span class="funnel-divider-text">æ ¹æ®ä»»åŠ¡ç±»å‹ è¿›è¡Œæ¼æ–—åˆ†æ”¯</span>
           </div>
-
-          <!-- å·¦å³ä¸¤åˆ—åˆ†æ”¯ -->
           <div class="funnel-branches">
             <div class="funnel-branch">
               <div class="funnel-branch-title">é‡‡é›†è´¦å·æ•°æ®ï¼ˆåŒ…æ‹¬æ›´æ–°ï¼‰</div>
@@ -75,11 +66,7 @@
                   <div class="funnel-bar-row">
                     <div class="funnel-step-label">{{ step.label }}</div>
                     <div class="funnel-bar-wrap">
-                      <div
-                        class="funnel-bar"
-                        :class="{ 'funnel-bar--success': step.isSuccess }"
-                        :style="{ width: pct(step.value, funnelCommon[0].value) + '%' }"
-                      />
+                      <div class="funnel-bar" :class="{ 'funnel-bar--success': step.isSuccess }" :style="{ width: pct(step.value, funnelCommon[0].value) + '%' }" />
                     </div>
                     <span class="funnel-bar-value">{{ step.value != null ? Number(step.value).toLocaleString() : 'xxx' }}</span>
                     <span class="funnel-bar-pct">{{ step.value != null ? pct(step.value, funnelCommon[0].value) + '%' : 'xx%' }}</span>
@@ -87,7 +74,6 @@
                 </div>
               </template>
             </div>
-
             <div class="funnel-branch">
               <div class="funnel-branch-title">é‡‡é›†è§†é¢‘æ•°æ®ï¼ˆåŒ…æ‹¬æ›´æ–°ï¼‰</div>
               <template v-for="step in funnelVideo" :key="step.label + '_v'">
@@ -99,11 +85,7 @@
                   <div class="funnel-bar-row">
                     <div class="funnel-step-label">{{ step.label }}</div>
                     <div class="funnel-bar-wrap">
-                      <div
-                        class="funnel-bar"
-                        :class="{ 'funnel-bar--success': step.isSuccess }"
-                        :style="{ width: pct(step.value, funnelCommon[0].value) + '%' }"
-                      />
+                      <div class="funnel-bar" :class="{ 'funnel-bar--success': step.isSuccess }" :style="{ width: pct(step.value, funnelCommon[0].value) + '%' }" />
                     </div>
                     <span class="funnel-bar-value">{{ step.value != null ? Number(step.value).toLocaleString() : 'xxx' }}</span>
                     <span class="funnel-bar-pct">{{ step.value != null ? pct(step.value, funnelCommon[0].value) + '%' : 'xx%' }}</span>
@@ -117,7 +99,6 @@
     </div>
   </div>
 </template>
-
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { fetchAnalyticsOverview } from '@/api/analytics'
@@ -143,92 +124,92 @@ async function loadData() {
 
 const KPI_BY_RANGE = {
   day: [
-    { key: 'users',  label: 'ÓĞĞ§ÓÃ»§',       value: '312',    change: '+8 ½Ï×òÈÕ',    changeType: 'up' },
-    { key: 'calls',  label: 'µ÷ÓÃ´ÎÊı',       value: '428',    change: '+32 ½Ï×òÈÕ',   changeType: 'up' },
-    { key: 'points', label: 'ÏûºÄ½ğ¶î',       value: '1,204',  change: '+98 ½Ï×òÈÕ',   changeType: 'up' },
-    { key: 'rate',   label: '²É¼¯ÈÎÎñ³É¹¦ÂÊ', value: '91.2%',  change: '+0.8% ½Ï×òÈÕ', changeType: 'up' },
-    { key: 'time',   label: 'Æ½¾ùÈ«Á÷³ÌÊ±³¤', value: '3m 58s', change: '-5% ½Ï×òÈÕ',   changeType: 'up' },
+    { key: 'users',  label: 'æœ‰æ•ˆç”¨æˆ·',      value: '312',    change: '+8 è¾ƒæ˜¨æ—¥',    changeType: 'up' },
+    { key: 'calls',  label: 'è°ƒç”¨æ¬¡æ•°',      value: '428',    change: '+32 è¾ƒæ˜¨æ—¥',   changeType: 'up' },
+    { key: 'points', label: 'æ¶ˆè€—ç§¯åˆ†',      value: '1,204',  change: '+98 è¾ƒæ˜¨æ—¥',   changeType: 'up' },
+    { key: 'rate',   label: 'é‡‡é›†ä»»åŠ¡æˆåŠŸç‡', value: '91.2%',  change: '+0.8% è¾ƒæ˜¨æ—¥', changeType: 'up' },
+    { key: 'time',   label: 'å¹³å‡å…¨é“¾è·¯æ—¶é•¿', value: '3m 58s', change: '-5% è¾ƒæ˜¨æ—¥',   changeType: 'up' },
   ],
   week: [
-    { key: 'users',  label: 'ÓĞĞ§ÓÃ»§',       value: '876',    change: '+42 ½ÏÉÏÖÜ',   changeType: 'up' },
-    { key: 'calls',  label: 'µ÷ÓÃ´ÎÊı',       value: '3,024',  change: '+215 ½ÏÉÏÖÜ',  changeType: 'up' },
-    { key: 'points', label: 'ÏûºÄ½ğ¶î',       value: '8,340',  change: '+620 ½ÏÉÏÖÜ',  changeType: 'up' },
-    { key: 'rate',   label: '²É¼¯ÈÎÎñ³É¹¦ÂÊ', value: '89.5%',  change: '+0.5% ½ÏÉÏÖÜ', changeType: 'up' },
-    { key: 'time',   label: 'Æ½¾ùÈ«Á÷³ÌÊ±³¤', value: '4m 05s', change: '-2% ½ÏÉÏÖÜ',   changeType: 'up' },
+    { key: 'users',  label: 'æœ‰æ•ˆç”¨æˆ·',      value: '876',    change: '+42 è¾ƒä¸Šå‘¨',   changeType: 'up' },
+    { key: 'calls',  label: 'è°ƒç”¨æ¬¡æ•°',      value: '3,024',  change: '+215 è¾ƒä¸Šå‘¨',  changeType: 'up' },
+    { key: 'points', label: 'æ¶ˆè€—ç§¯åˆ†',      value: '8,340',  change: '+620 è¾ƒä¸Šå‘¨',  changeType: 'up' },
+    { key: 'rate',   label: 'é‡‡é›†ä»»åŠ¡æˆåŠŸç‡', value: '89.5%',  change: '+0.5% è¾ƒä¸Šå‘¨', changeType: 'up' },
+    { key: 'time',   label: 'å¹³å‡å…¨é“¾è·¯æ—¶é•¿', value: '4m 05s', change: '-2% è¾ƒä¸Šå‘¨',   changeType: 'up' },
   ],
   month: [
-    { key: 'users',  label: 'ÓĞĞ§ÓÃ»§',       value: '1,231',  change: '+113 ½ÏÉÏÔÂ',   changeType: 'up' },
-    { key: 'calls',  label: 'µ÷ÓÃ´ÎÊı',       value: '14,528', change: '+1,123 ½ÏÉÏÔÂ', changeType: 'up' },
-    { key: 'points', label: 'ÏûºÄ½ğ¶î',       value: '14,528', change: '+1,123 ½ÏÉÏÔÂ', changeType: 'up' },
-    { key: 'rate',   label: '²É¼¯ÈÎÎñ³É¹¦ÂÊ', value: '88.8%',  change: '+1.2% ½ÏÉÏÔÂ',  changeType: 'up' },
-    { key: 'time',   label: 'Æ½¾ùÈ«Á÷³ÌÊ±³¤', value: '4m 23s', change: '-2% ½ÏÉÏÔÂ',    changeType: 'up' },
+    { key: 'users',  label: 'æœ‰æ•ˆç”¨æˆ·',      value: '1,231',  change: '+113 è¾ƒä¸Šæœˆ',   changeType: 'up' },
+    { key: 'calls',  label: 'è°ƒç”¨æ¬¡æ•°',      value: '14,528', change: '+1,123 è¾ƒä¸Šæœˆ', changeType: 'up' },
+    { key: 'points', label: 'æ¶ˆè€—ç§¯åˆ†',      value: '14,528', change: '+1,123 è¾ƒä¸Šæœˆ', changeType: 'up' },
+    { key: 'rate',   label: 'é‡‡é›†ä»»åŠ¡æˆåŠŸç‡', value: '88.8%',  change: '+1.2% è¾ƒä¸Šæœˆ',  changeType: 'up' },
+    { key: 'time',   label: 'å¹³å‡å…¨é“¾è·¯æ—¶é•¿', value: '4m 23s', change: '-2% è¾ƒä¸Šæœˆ',    changeType: 'up' },
   ],
 }
 
 const FUNNEL_COMMON = {
   day: [
-    { label: '´ò¿ª²å¼ş', value: 1840,  dropLabel: '¨‹ Î´µÇÂ¼Á÷Ê§',        dropPct: '8%' },
-    { label: 'Íê³ÉµÇÂ¼', value: 1693,  dropLabel: '¨‹ Ñ¡ÔñÈÎÎñÀàĞÍÊ±·ÅÆú', dropPct: '0%' },
-    { label: 'ÈÎÎñÀàĞÍ', value: 1693,  dropLabel: null, dropPct: null },
+    { label: 'æ‰“å¼€æ’ä»¶',     value: 1840,  dropLabel: 'â†“ æœªç™»å½•æµå¤±',        dropPct: '8%' },
+    { label: 'å®Œæˆç™»å½•',     value: 1693,  dropLabel: 'â†“ é€‰æ‹©ä»»åŠ¡ç±»å‹æ—¶æµå¤±', dropPct: '0%' },
+    { label: 'é€‰æ‹©ä»»åŠ¡ç±»å‹', value: 1693,  dropLabel: null, dropPct: null },
   ],
   week: [
-    { label: '´ò¿ª²å¼ş', value: 9240,  dropLabel: '¨‹ Î´µÇÂ¼Á÷Ê§',        dropPct: '9%' },
-    { label: 'Íê³ÉµÇÂ¼', value: 8408,  dropLabel: '¨‹ Ñ¡ÔñÈÎÎñÀàĞÍÊ±·ÅÆú', dropPct: '0%' },
-    { label: 'ÈÎÎñÀàĞÍ', value: 8408,  dropLabel: null, dropPct: null },
+    { label: 'æ‰“å¼€æ’ä»¶',     value: 9240,  dropLabel: 'â†“ æœªç™»å½•æµå¤±',        dropPct: '9%' },
+    { label: 'å®Œæˆç™»å½•',     value: 8408,  dropLabel: 'â†“ é€‰æ‹©ä»»åŠ¡ç±»å‹æ—¶æµå¤±', dropPct: '0%' },
+    { label: 'é€‰æ‹©ä»»åŠ¡ç±»å‹', value: 8408,  dropLabel: null, dropPct: null },
   ],
   month: [
-    { label: '´ò¿ª²å¼ş', value: 12840, dropLabel: '¨‹ Î´µÇÂ¼Á÷Ê§',        dropPct: '8%' },
-    { label: 'Íê³ÉµÇÂ¼', value: 11813, dropLabel: '¨‹ Ñ¡ÔñÈÎÎñÀàĞÍÊ±·ÅÆú', dropPct: '0%' },
-    { label: 'ÈÎÎñÀàĞÍ', value: 11813, dropLabel: null, dropPct: null },
+    { label: 'æ‰“å¼€æ’ä»¶',     value: 12840, dropLabel: 'â†“ æœªç™»å½•æµå¤±',        dropPct: '8%' },
+    { label: 'å®Œæˆç™»å½•',     value: 11813, dropLabel: 'â†“ é€‰æ‹©ä»»åŠ¡ç±»å‹æ—¶æµå¤±', dropPct: '0%' },
+    { label: 'é€‰æ‹©ä»»åŠ¡ç±»å‹', value: 11813, dropLabel: null, dropPct: null },
   ],
 }
 
 const FUNNEL_ACCOUNT = {
   day: [
-    { label: 'Ğ´Èë±í¸ñ', value: null, dropLabel: '¨‹ Ñ¡Ôñ±í¸ñÊ±·ÅÆú',  dropPct: '16%' },
-    { label: '²É¼¯ÕËºÅ', value: null, dropLabel: '¨‹ ÊäÈëÕËºÅÊ±·ÅÆú',  dropPct: '17%' },
-    { label: 'µã»÷²É¼¯', value: null, dropLabel: '¨‹ ÅäÖÃÍê³Éºó·ÅÆú',  dropPct: '2%'  },
-    { label: '²É¼¯³É¹¦', value: 384,  dropLabel: '¨‹ Ö´ĞĞÊ§°Ü',       dropPct: '5%', isSuccess: true },
+    { label: 'å†™å…¥å…³é”®è¯', value: null, dropLabel: 'â†“ é€‰æ‹©å¹³å°æ—¶æµå¤±', dropPct: '16%' },
+    { label: 'é‡‡é›†è´¦å·',  value: null, dropLabel: 'â†“ å¡«å†™è´¦å·æ—¶æµå¤±', dropPct: '17%' },
+    { label: 'å¼€å§‹é‡‡é›†',  value: null, dropLabel: 'â†“ é‡‡é›†å®Œæˆåæµå¤±', dropPct: '2%'  },
+    { label: 'é‡‡é›†æˆåŠŸ',  value: 384,  dropLabel: 'â†“ æ‰§è¡Œå¤±è´¥',      dropPct: '5%', isSuccess: true },
   ],
   week: [
-    { label: 'Ğ´Èë±í¸ñ', value: null, dropLabel: '¨‹ Ñ¡Ôñ±í¸ñÊ±·ÅÆú',  dropPct: '16%' },
-    { label: '²É¼¯ÕËºÅ', value: null, dropLabel: '¨‹ ÊäÈëÕËºÅÊ±·ÅÆú',  dropPct: '17%' },
-    { label: 'µã»÷²É¼¯', value: null, dropLabel: '¨‹ ÅäÖÃÍê³Éºó·ÅÆú',  dropPct: '2%'  },
-    { label: '²É¼¯³É¹¦', value: 2053, dropLabel: '¨‹ Ö´ĞĞÊ§°Ü',       dropPct: '5%', isSuccess: true },
+    { label: 'å†™å…¥å…³é”®è¯', value: null, dropLabel: 'â†“ é€‰æ‹©å¹³å°æ—¶æµå¤±', dropPct: '16%' },
+    { label: 'é‡‡é›†è´¦å·',  value: null, dropLabel: 'â†“ å¡«å†™è´¦å·æ—¶æµå¤±', dropPct: '17%' },
+    { label: 'å¼€å§‹é‡‡é›†',  value: null, dropLabel: 'â†“ é‡‡é›†å®Œæˆåæµå¤±', dropPct: '2%'  },
+    { label: 'é‡‡é›†æˆåŠŸ',  value: 2053, dropLabel: 'â†“ æ‰§è¡Œå¤±è´¥',      dropPct: '5%', isSuccess: true },
   ],
   month: [
-    { label: 'Ğ´Èë±í¸ñ', value: null, dropLabel: '¨‹ Ñ¡Ôñ±í¸ñÊ±·ÅÆú',  dropPct: '16%' },
-    { label: '²É¼¯ÕËºÅ', value: null, dropLabel: '¨‹ ÊäÈëÕËºÅÊ±·ÅÆú',  dropPct: '17%' },
-    { label: 'µã»÷²É¼¯', value: null, dropLabel: '¨‹ ÅäÖÃÍê³Éºó·ÅÆú',  dropPct: '2%'  },
-    { label: '²É¼¯³É¹¦', value: 4542, dropLabel: '¨‹ Ö´ĞĞÊ§°Ü',       dropPct: '5%', isSuccess: true },
+    { label: 'å†™å…¥å…³é”®è¯', value: null, dropLabel: 'â†“ é€‰æ‹©å¹³å°æ—¶æµå¤±', dropPct: '16%' },
+    { label: 'é‡‡é›†è´¦å·',  value: null, dropLabel: 'â†“ å¡«å†™è´¦å·æ—¶æµå¤±', dropPct: '17%' },
+    { label: 'å¼€å§‹é‡‡é›†',  value: null, dropLabel: 'â†“ é‡‡é›†å®Œæˆåæµå¤±', dropPct: '2%'  },
+    { label: 'é‡‡é›†æˆåŠŸ',  value: 4542, dropLabel: 'â†“ æ‰§è¡Œå¤±è´¥',      dropPct: '5%', isSuccess: true },
   ],
 }
 
 const FUNNEL_VIDEO = {
   day: [
-    { label: 'Ğ´Èë±í¸ñ', value: null, dropLabel: '¨‹ Ñ¡Ôñ±í¸ñÊ±·ÅÆú',  dropPct: '16%' },
-    { label: '²É¼¯ÕËºÅ', value: null, dropLabel: '¨‹ ÊäÈëÕËºÅÊ±·ÅÆú',  dropPct: '34%' },
-    { label: 'Êı¾İ·¶Î§', value: null, dropLabel: '¨‹ Ñ¡Ôñ·¶Î§Ê±·ÅÆú',  dropPct: '0%'  },
-    { label: 'µã»÷²É¼¯', value: null, dropLabel: '¨‹ ÅäÖÃÍê³Éºó·ÅÆú',  dropPct: '2%'  },
-    { label: '²É¼¯³É¹¦', value: 384,  dropLabel: '¨‹ Ö´ĞĞÊ§°Ü',       dropPct: '5%', isSuccess: true },
+    { label: 'å†™å…¥å…³é”®è¯', value: null, dropLabel: 'â†“ é€‰æ‹©å¹³å°æ—¶æµå¤±', dropPct: '16%' },
+    { label: 'é‡‡é›†è´¦å·',  value: null, dropLabel: 'â†“ å¡«å†™è´¦å·æ—¶æµå¤±', dropPct: '34%' },
+    { label: 'æ•°æ®èŒƒå›´',  value: null, dropLabel: 'â†“ é€‰æ‹©èŒƒå›´æ—¶æµå¤±', dropPct: '0%'  },
+    { label: 'å¼€å§‹é‡‡é›†',  value: null, dropLabel: 'â†“ é‡‡é›†å®Œæˆåæµå¤±', dropPct: '2%'  },
+    { label: 'é‡‡é›†æˆåŠŸ',  value: 384,  dropLabel: 'â†“ æ‰§è¡Œå¤±è´¥',      dropPct: '5%', isSuccess: true },
   ],
   week: [
-    { label: 'Ğ´Èë±í¸ñ', value: null, dropLabel: '¨‹ Ñ¡Ôñ±í¸ñÊ±·ÅÆú',  dropPct: '16%' },
-    { label: '²É¼¯ÕËºÅ', value: null, dropLabel: '¨‹ ÊäÈëÕËºÅÊ±·ÅÆú',  dropPct: '34%' },
-    { label: 'Êı¾İ·¶Î§', value: null, dropLabel: '¨‹ Ñ¡Ôñ·¶Î§Ê±·ÅÆú',  dropPct: '0%'  },
-    { label: 'µã»÷²É¼¯', value: null, dropLabel: '¨‹ ÅäÖÃÍê³Éºó·ÅÆú',  dropPct: '2%'  },
-    { label: '²É¼¯³É¹¦', value: 2053, dropLabel: '¨‹ Ö´ĞĞÊ§°Ü',       dropPct: '5%', isSuccess: true },
+    { label: 'å†™å…¥å…³é”®è¯', value: null, dropLabel: 'â†“ é€‰æ‹©å¹³å°æ—¶æµå¤±', dropPct: '16%' },
+    { label: 'é‡‡é›†è´¦å·',  value: null, dropLabel: 'â†“ å¡«å†™è´¦å·æ—¶æµå¤±', dropPct: '34%' },
+    { label: 'æ•°æ®èŒƒå›´',  value: null, dropLabel: 'â†“ é€‰æ‹©èŒƒå›´æ—¶æµå¤±', dropPct: '0%'  },
+    { label: 'å¼€å§‹é‡‡é›†',  value: null, dropLabel: 'â†“ é‡‡é›†å®Œæˆåæµå¤±', dropPct: '2%'  },
+    { label: 'é‡‡é›†æˆåŠŸ',  value: 2053, dropLabel: 'â†“ æ‰§è¡Œå¤±è´¥',      dropPct: '5%', isSuccess: true },
   ],
   month: [
-    { label: 'Ğ´Èë±í¸ñ', value: null, dropLabel: '¨‹ Ñ¡Ôñ±í¸ñÊ±·ÅÆú',  dropPct: '16%' },
-    { label: '²É¼¯ÕËºÅ', value: null, dropLabel: '¨‹ ÊäÈëÕËºÅÊ±·ÅÆú',  dropPct: '34%' },
-    { label: 'Êı¾İ·¶Î§', value: null, dropLabel: '¨‹ Ñ¡Ôñ·¶Î§Ê±·ÅÆú',  dropPct: '0%'  },
-    { label: 'µã»÷²É¼¯', value: null, dropLabel: '¨‹ ÅäÖÃÍê³Éºó·ÅÆú',  dropPct: '2%'  },
-    { label: '²É¼¯³É¹¦', value: 4542, dropLabel: '¨‹ Ö´ĞĞÊ§°Ü',       dropPct: '5%', isSuccess: true },
+    { label: 'å†™å…¥å…³é”®è¯', value: null, dropLabel: 'â†“ é€‰æ‹©å¹³å°æ—¶æµå¤±', dropPct: '16%' },
+    { label: 'é‡‡é›†è´¦å·',  value: null, dropLabel: 'â†“ å¡«å†™è´¦å·æ—¶æµå¤±', dropPct: '34%' },
+    { label: 'æ•°æ®èŒƒå›´',  value: null, dropLabel: 'â†“ é€‰æ‹©èŒƒå›´æ—¶æµå¤±', dropPct: '0%'  },
+    { label: 'å¼€å§‹é‡‡é›†',  value: null, dropLabel: 'â†“ é‡‡é›†å®Œæˆåæµå¤±', dropPct: '2%'  },
+    { label: 'é‡‡é›†æˆåŠŸ',  value: 4542, dropLabel: 'â†“ æ‰§è¡Œå¤±è´¥',      dropPct: '5%', isSuccess: true },
   ],
 }
 
-const kpiCards    = computed(() => KPI_BY_RANGE[timeRange.value]  ?? KPI_BY_RANGE.month)
+const kpiCards      = computed(() => KPI_BY_RANGE[timeRange.value]   ?? KPI_BY_RANGE.month)
 const funnelCommon  = computed(() => FUNNEL_COMMON[timeRange.value]  ?? FUNNEL_COMMON.month)
 const funnelAccount = computed(() => FUNNEL_ACCOUNT[timeRange.value] ?? FUNNEL_ACCOUNT.month)
 const funnelVideo   = computed(() => FUNNEL_VIDEO[timeRange.value]   ?? FUNNEL_VIDEO.month)
@@ -270,11 +251,11 @@ function renderCharts() {
   const fv = FAILURE_BY_RANGE[timeRange.value]  ?? FAILURE_BY_RANGE.month
   if (platformEl.value) {
     if (!platformChart) platformChart = window.echarts.init(platformEl.value)
-    platformChart.setOption(buildHBarOption(['¶¶Òô','Ğ¡ºìÊé','¹«ÖÚºÅ','ÊÓÆµºÅ','¿ìÊÖ'], pv, PLATFORM_COLORS))
+    platformChart.setOption(buildHBarOption(['æŠ–éŸ³', 'å°çº¢ä¹¦', 'è§†é¢‘å·', 'å…¬ä¼—å·', 'å¿«æ‰‹'], pv, PLATFORM_COLORS))
   }
   if (failureEl.value) {
     if (!failureChart) failureChart = window.echarts.init(failureEl.value)
-    failureChart.setOption(buildHBarOption(['ÕËºÅID´íÎó','Óà¶î²»×ã','ÍøÂç³¬Ê±','ÆäËûÔ­Òò'], fv, FAILURE_COLORS))
+    failureChart.setOption(buildHBarOption(['è´¦å·IDå¤±æ•ˆ', 'é™æµ', 'è¯·æ±‚è¶…æ—¶', 'å…¶ä»–åŸå› '], fv, FAILURE_COLORS))
   }
 }
 
@@ -282,11 +263,9 @@ watch(timeRange, () => loadData())
 onMounted(() => loadData())
 onBeforeUnmount(() => { platformChart?.dispose(); failureChart?.dispose() })
 </script>
-
 <style scoped>
 .overview-page { padding: 0; }
 .overview-header { display: flex; justify-content: flex-end; margin-bottom: 20px; }
-
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -295,24 +274,20 @@ onBeforeUnmount(() => { platformChart?.dispose(); failureChart?.dispose() })
 }
 @media (max-width: 1300px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 768px)  { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
-
 .kpi-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px 18px 16px; }
 .kpi-label { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
 .kpi-value { font-size: 30px; font-weight: 700; color: #111827; line-height: 1.15; margin-bottom: 6px; letter-spacing: -0.5px; }
 .kpi-change { font-size: 12px; }
 .kpi-change.up   { color: #10b981; }
 .kpi-change.down { color: #ef4444; }
-
 .charts-row { display: flex; gap: 16px; margin-bottom: 20px; }
 .chart-card { flex: 1; min-width: 0; }
 .chart-title { font-size: 14px; font-weight: 600; color: #111827; }
 .chart-body { height: 230px; }
-
 .funnel-card { margin-bottom: 20px; }
 .funnel-card-header { display: flex; justify-content: space-between; align-items: center; width: 100%; }
 .funnel-body { padding: 16px 0; }
 .funnel-common { margin-bottom: 0; }
-
 .funnel-step { padding: 8px 0; }
 .funnel-bar-row { display: flex; align-items: center; gap: 12px; }
 .funnel-step-label { font-size: 13px; color: #374151; font-weight: 500; min-width: 90px; flex-shrink: 0; }
@@ -321,11 +296,9 @@ onBeforeUnmount(() => { platformChart?.dispose(); failureChart?.dispose() })
 .funnel-bar--success { background: #34c759; }
 .funnel-bar-value { font-size: 14px; font-weight: 600; color: #111827; min-width: 60px; text-align: right; flex-shrink: 0; }
 .funnel-bar-pct   { font-size: 13px; color: #6b7280; min-width: 40px; flex-shrink: 0; }
-
 .funnel-drop-row { padding: 4px 0 4px 102px; font-size: 12px; color: #6b7280; }
 .funnel-drop-label { margin-right: 6px; }
 .funnel-drop-pct   { color: #f59e0b; font-weight: 600; }
-
 .funnel-divider {
   border-top: 1px solid #e5e7eb;
   border-bottom: 1px solid #e5e7eb;
@@ -335,7 +308,6 @@ onBeforeUnmount(() => { platformChart?.dispose(); failureChart?.dispose() })
   background: #fafafa;
 }
 .funnel-divider-text { font-size: 13px; font-weight: 600; color: #6b7280; }
-
 .funnel-branches { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
 @media (max-width: 1100px) { .funnel-branches { grid-template-columns: 1fr; gap: 20px; } }
 .funnel-branch { min-width: 0; }

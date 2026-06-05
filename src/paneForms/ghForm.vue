@@ -540,7 +540,7 @@
                   body: {
                     biz: userInfo.biz,
                     key: props.formData.key,
-                    page: i
+                    page: String(i)
                   }
                 })
 
