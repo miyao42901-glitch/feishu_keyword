@@ -4,10 +4,10 @@
 
 ## 仓库分支说明
 
-| 仓库 | 使用的分支 | 说明 |
-|------|-----------|------|
-| **GitLab**（源码仓库） | `test`、`master` | 开发分支，**没有** `main` 分支 |
-| **GitHub**（插件发布仓库） | `main` | 仅存放 dist 静态文件，**只有** `main` 分支 |
+| 仓库 | 地址 | 使用的分支 | 说明 |
+|------|------|-----------|------|
+| **GitLab**（源码仓库） | `http://192.168.1.200:8080/jzl/feishu_keyword.git` | `test`、`master`、个人分支 | **没有** `main` 分支 |
+| **GitHub**（插件发布仓库） | `git@github.com:miyao42901-glitch/feishu_keyword.git` | `main` | 仅存放 dist 静态文件，**只有** `main` 分支 |
 
 > GitLab 禁止直接向 `master` 推送，需通过 MR 合并。GitHub 发布仓无需手动操作，由 `release.bat` 自动强制推送覆盖。
 
