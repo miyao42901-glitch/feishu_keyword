@@ -30,7 +30,7 @@ function run(cmd, cwd) {
 
 for (const name of ['dist', 'package.json', 'README.md']) {
   if (!existsSync(join(releaseDir, name))) {
-    console.error(`push-github-main: 缺少 ${releaseDir}/${name}，请先 npm run build:github:test`)
+    console.error(`push-github-main: 缺少 ${releaseDir}/${name}，请先 npm run build:github:prod`)
     process.exit(1)
   }
 }

@@ -14,10 +14,11 @@
     "build:public": "npm run build:public:test",
     "build:public:test": "npm run build && node ./scripts/copy-dist-to-public.mjs",
     "build:public:prod": "npm run build && node ./scripts/copy-dist-to-public.mjs",
-    "build:github": "npm run build:github:test",
+    "build:github": "npm run build:github:prod",
     "build:github:test": "npm run build && node ./scripts/prepare-github-release.mjs",
     "build:github:prod": "npm run build && node ./scripts/prepare-github-release.mjs",
     "push:plugin-static": "node ./scripts/push-github-main.mjs",
+    "release:plugin-static:test": "npm run build:github:test && npm run push:plugin-static",
     "release:plugin-static:prod": "npm run build:github:prod && npm run push:plugin-static",
     "preview": "vite preview"
   },

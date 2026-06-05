@@ -114,8 +114,8 @@ onMounted(() => {
       trackUserProfile({ userId: u.id, phone: u.phone_num })
       void flushAnalytics()
     }
-  }).catch(() => {
-    /* 保留本地 token，由任务请求或用户手动重试 */
+  }).catch((err) => {
+    console.warn('[App] 刷新用户信息失败，保留本地登录态:', err?.message || err)
   })
 })
 </script>
