@@ -280,6 +280,7 @@
               body: {
                 share_text: shareLink,
                 key: props.formData.key,
+                verifycode: '',
               }
             })
 
@@ -393,6 +394,7 @@
               body: {
                 share_text: shareLink,
                 key: props.formData.key,
+                verifycode: '',
               }
             })
 
@@ -742,6 +744,7 @@
               body: {
                 share_text: "https://www.kuaishou.com/short-video/" + eid,
                 key: props.formData.key,
+                verifycode: '',
               }
             })
 
@@ -839,18 +842,7 @@
         </div>
       </div>
 
-      <div class="section-block" v-show="paneData.getDataType !== 0">
-        <div class="field-label">获取方式</div>
-        <div class="toggle-wrapper">
-          <el-button type="info" class="toggle-btn" :class="{ active: paneData.getWorksType === 1 }" @click="paneData.getWorksType = 1">根据账号ID获取</el-button>
-          <el-button type="info" class="toggle-btn" :class="{ active: paneData.getWorksType === 0 }" @click="paneData.getWorksType = 0">根据账号表获取</el-button>
-        </div>
-      </div>
 
-      <div class="section-block" v-show="paneData.getDataType !== 0 && paneData.getWorksType === 0">
-        <div class="field-label">选择账号表</div>
-        <TableSelect v-model="paneData.userTableId" placeholder="请选择账号表" />
-      </div>
 
       <div class="section-block" v-show="paneData.getDataType !== 0">
         <div class="field-label">快手视频表</div>

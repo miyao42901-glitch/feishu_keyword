@@ -195,6 +195,46 @@
         return [...inputValues, ...bizFromTables]
       }
 
+      const buildPostHistoryAccount = (value) => {
+        const input = String(value || '').trim()
+        const account = {
+          biz: '',
+          url: '',
+          name: '',
+          verifycode: '',
+        }
+
+        if (!input) return account
+
+        if (/^https?:\/\//i.test(input)) {
+          account.url = input
+          try {
+            const parsedUrl = new URL(input)
+            account.biz = parsedUrl.searchParams.get('__biz') || parsedUrl.searchParams.get('biz') || ''
+          } catch (error) {
+            console.warn('解析公众号链接失败:', error)
+          }
+          return account
+        }
+
+        if (/^[A-Za-z0-9+/=_-]+$/.test(input)) {
+          account.biz = input
+          return account
+        }
+
+        account.name = input
+        return account
+      }
+
+      const buildPostHistoryBody = (userInfo, page) => ({
+        biz: userInfo.biz || '',
+        url: userInfo.url || '',
+        name: userInfo.name || '',
+        page,
+        key: props.formData.key,
+        verifycode: userInfo.verifycode || '',
+      })
+
       const hasAccountInput = () => hasAllAccountInputs(searchValues.value)
 
 
@@ -447,7 +487,7 @@
       }
 
 
-      const getRecentWorks = async(rangeKey, getWorksType = 0) => {
+      const getRecentWorks = async(rangeKey, getWorksType = 1) => {
         if (props.isLocked) return;
         emit('update:isLocked', true);
 
@@ -519,29 +559,19 @@
             }
           }
           else{
-            userInfoList = allValues.map(biz => ({ biz }))
+            userInfoList = allValues.map(value => buildPostHistoryAccount(value))
           }
           
           for (const userInfo of userInfoList){
             let i = 0
             const mid_set = {}
-            const onlyFirstNormalArticle = getWorksType !== 0
-            let foundFirstNormalArticle = false
             while(true){
               i += 1
               const get_time = Date.now()
-              // const res = await pluginAPI.post(`/fbmain/monitor/v3/douyin_user_post?key=${props.formData.key}`, {
-              //     sec_user_id: secUid,
-              //     max_cursor: max_cursor,
-              // })
 
               const res = await pluginAPI.post('/plugin_forward', {
                   url: '/fbmain/monitor/v3/post_history',
-                  body: {
-                    biz: userInfo.biz,
-                    key: props.formData.key,
-                    page: String(i)
-                  }
+                  body: buildPostHistoryBody(userInfo, String(i))
                 })
 
               if (!(res && res.data && res.data.code === 0)) {
@@ -567,28 +597,15 @@
               const items = []
               for (const item of preFilteringData){
                 mid_set[item.appmsgid] = true
-                if (onlyFirstNormalArticle && !isNormalArticle(item)) {
-                  continue
-                }
                 if (range.type !== 'date' || item.post_time * 1000 > min_time){
                   workAccordCount += 1  
                   items.push(item)
-                  if (onlyFirstNormalArticle) {
-                    break
-                  }
                 }
               }
               if (items.length > 0){
-                  if (onlyFirstNormalArticle) {
-                    const detailRes = await fetchArticleDetail(items[0].url)
-                    totalCost += detailRes.cost
-                    items[0] = mergeArticleDetail(items[0], detailRes.detail)
-                    foundFirstNormalArticle = true
-                  }
-                  workSuccessCount += await upsertWork(items, get_time,{biz: userInfo.biz})
+                workSuccessCount += await upsertWork(items, get_time, {biz: userInfo.biz})
               }
               
-              // 将数据添加到对象中，使用 recordId 作为 key
               if (getWorksType === 0 && userInfo.recordId){
                 totalLastTime[userInfo.recordId] = {
                   recordId: userInfo.recordId, 
@@ -599,12 +616,6 @@
                 };
               }
               
-              if (onlyFirstNormalArticle && foundFirstNormalArticle) break;
-              if (onlyFirstNormalArticle) {
-                if (range.type === 'page' && i >= range.value) break;
-                if (preFilteringData.length === 0 || res.data.now_page >= res.data.total_page) break;
-                continue;
-              }
               if (range.type === 'date'){
                 if (workAccordCount === 0 || workAccordCount < preFilteringData.length) break;
               }
@@ -768,14 +779,6 @@
         </div>
       </div>
 
-      <div class="section-block" v-show="paneData.getDataType !== 0">
-        <div class="field-label">获取方式</div>
-        <div class="toggle-wrapper">
-          <el-button type="info" class="toggle-btn" :class="{ active: paneData.getWorksType === 1 }" @click="paneData.getWorksType = 1">根据biz获取</el-button>
-          <el-button type="info" class="toggle-btn" :class="{ active: paneData.getWorksType === 0 }" @click="paneData.getWorksType = 0">根据账号表获取</el-button>
-        </div>
-      </div>
-
       <div class="section-block" v-show="paneData.getDataType !== 0 && paneData.getWorksType === 0">
         <div class="field-label">选择账号表</div>
         <TableSelect v-model="paneData.userTableId" placeholder="请选择账号表" />
@@ -813,7 +816,7 @@
         >
           <generalSelect
             v-model="searchValues[key]"
-            placeholder="输入账号主页链接，或选择已有表格"
+            placeholder="输入公众号名称/链接/biz，或选择已有表格"
           />
           <span
             v-if="key === Object.keys(searchValues)[0]"

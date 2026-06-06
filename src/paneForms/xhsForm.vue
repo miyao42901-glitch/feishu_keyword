@@ -575,16 +575,13 @@
               // })
 
               const res = await pluginAPI.post('/plugin_forward', {
-                url: '/fbmain/monitor/v3/xhs',
+                url: '/fbmain/monitor/v3/xhs_note_list',
                 body: {
-                  user_id: userInfo.user_id,
-                  type: 6,
-                  cursor: max_cursor,
                   key: props.formData.key,
-                  pwd: "jzl_xc",
+                  user_id: userInfo.user_id,
+                  cursor: max_cursor,
+                  verifycode: '',
                 },
-                params: {
-                }
               })
 
               if (!(res && res.data && res.data.code === 0)) {
@@ -799,19 +796,6 @@
             <el-button type="info" class="toggle-btn" :class="{ active: paneData.getDataType === 1 }" @click="paneData.getDataType = 1">采集作品数据</el-button>
           </el-tooltip>
         </div>
-      </div>
-
-      <div class="section-block" v-show="paneData.getDataType !== 0">
-        <div class="field-label">获取方式</div>
-        <div class="toggle-wrapper">
-          <el-button type="info" class="toggle-btn" :class="{ active: paneData.getWorksType === 1 }" @click="paneData.getWorksType = 1">根据账号ID获取</el-button>
-          <el-button type="info" class="toggle-btn" :class="{ active: paneData.getWorksType === 0 }" @click="paneData.getWorksType = 0">根据账号表获取</el-button>
-        </div>
-      </div>
-
-      <div class="section-block" v-show="paneData.getDataType !== 0 && paneData.getWorksType === 0">
-        <div class="field-label">选择账号表</div>
-        <TableSelect v-model="paneData.userTableId" placeholder="请选择账号表" />
       </div>
 
       <div class="section-block" v-show="paneData.getDataType !== 0">
