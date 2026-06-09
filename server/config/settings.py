@@ -8,13 +8,27 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+<<<<<<< HEAD
 # python/config/settings.py -> python/（含 .env）
 _PY_ROOT = Path(__file__).resolve().parent.parent
+=======
+# server/config/settings.py -> 仓根（.env / .env.local）+ server/.env 兜底
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_SERVER_ROOT = Path(__file__).resolve().parent.parent
+>>>>>>> lyc
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
+<<<<<<< HEAD
         env_file=str(_PY_ROOT / ".env"),
+=======
+        env_file=(
+            str(_REPO_ROOT / ".env"),
+            str(_REPO_ROOT / ".env.local"),
+            str(_SERVER_ROOT / ".env"),
+        ),
+>>>>>>> lyc
         env_file_encoding="utf-8",
         extra="ignore",
     )
