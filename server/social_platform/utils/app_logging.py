@@ -61,6 +61,8 @@ class AppLogConfig:
         file_handler.setFormatter(formatter)
         root.addHandler(file_handler)
 
+        cls._quiet_noisy_loggers()
+
         _ROOT_CONFIGURED = True
         logging.getLogger(__name__).info(
             "logging configured service=%s dir=%s level=%s retention_days=%d",
@@ -69,6 +71,12 @@ class AppLogConfig:
             logging.getLevelName(root.level),
             retention,
         )
+
+    @staticmethod
+    def _quiet_noisy_loggers() -> None:
+        """热重载等第三方库 INFO 默认不刷屏（仍可通过 LOG_LEVEL=DEBUG 看细节）。"""
+        for logger_name in ("watchfiles", "watchfiles.main"):
+            logging.getLogger(logger_name).setLevel(logging.WARNING)
 
     @staticmethod
     def purge_old_files(log_dir: Path, *, retention_days: int) -> None:

@@ -8,13 +8,18 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# server/config/settings.py -> 仓根（.env / .env.local）
+# server/config/settings.py -> 仓根（.env / .env.local）+ server/.env 兜底
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_SERVER_ROOT = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(str(_REPO_ROOT / ".env"), str(_REPO_ROOT / ".env.local")),
+        env_file=(
+            str(_REPO_ROOT / ".env"),
+            str(_REPO_ROOT / ".env.local"),
+            str(_SERVER_ROOT / ".env"),
+        ),
         env_file_encoding="utf-8",
         extra="ignore",
     )
