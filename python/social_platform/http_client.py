@@ -44,6 +44,7 @@ class BaseHttpClient:
         last_exc: Optional[Exception] = None
         req_headers = dict(headers or {})
         for attempt in range(self.max_retries):
+            started = time.monotonic()
             try:
                 logger.debug("HTTP POST url=%s payload=%s", url, payload)
                 resp = requests.post(
@@ -56,6 +57,8 @@ class BaseHttpClient:
                 data = resp.json()
                 if not isinstance(data, dict):
                     raise HttpClientError(f"响应 JSON 非对象: {type(data)!s}")
+                elapsed_ms = int((time.monotonic() - started) * 1000)
+                logger.debug("HTTP POST ok url=%s elapsed_ms=%d", url, elapsed_ms)
                 return data
             except (RequestException, ValueError, TypeError) as e:
                 last_exc = e

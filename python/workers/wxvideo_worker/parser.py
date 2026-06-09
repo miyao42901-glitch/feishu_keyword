@@ -9,6 +9,10 @@ from typing import Any
 
 from social_platform.utils.duration import parse_duration, parse_htmlstr_to_clean
 from social_platform.utils.time_ms import to_ms_timestamp
+from social_platform.utils.coercion import (
+    extract_api_balance_cost,
+    extract_cookies_buffer,
+)
 from social_platform.utils.worker_runtime import (
     split_exclude_needles,
     text_contains_any_needle,
@@ -28,7 +32,7 @@ def _decode_report_extinfo_by_url(report_str: str) -> dict[str, Any]:
         # 解析 JSON
         data = json.loads(decoded)
     except Exception as e:
-        print(f"Exception: {e}")
+        logger.debug("decode report_extinfo failed: %s", e)
         try:
             # 兼容双重编码的情况
             decoded = urllib.parse.unquote(urllib.parse.unquote(report_str))
@@ -45,7 +49,9 @@ class WxVideoParser:
     def parse(self, raw: dict[str, Any], *, exclude_words: str = "") -> dict[str, Any]:
         needles = split_exclude_needles(exclude_words)
         data = raw.get("data") or {}
-        balance = float(data.get("balance", raw.get("balance", 0.0)))
+        if not isinstance(data, dict):
+            data = {}
+        balance, cost = extract_api_balance_cost(raw, data=data)
 
         # 目标结构：data.data[i].subBoxes[j].items[k]
         root_data = data.get("data") or []
@@ -71,8 +77,6 @@ class WxVideoParser:
 
                     # 提取指定字段
                     export_id = item.get("exportId") or ""
-                    if not export_id:
-                        continue
 
                     title = parse_htmlstr_to_clean(item.get("title")) or "无标题"
                     if text_contains_any_needle(title, needles):
@@ -113,12 +117,20 @@ class WxVideoParser:
                     }
                     rows.append(row)
 
+        cookies_buffer = extract_cookies_buffer(data)
+        if data.get("cookies") and not cookies_buffer:
+            logger.warning(
+                "wxvideo cookies field present but cookies_buffer empty offset=%s",
+                data.get("offset", ""),
+            )
+
         return {
             "data": rows,
             "balance": balance,
+            "cost": cost,
             "error": None,
             "insufficient_balance": False,
             "next_offset": data.get("offset", ""),
-            "cookies_buffer": data.get("cookies_buffer", ""),
+            "cookies_buffer": cookies_buffer,
             "total": len(rows),
         }

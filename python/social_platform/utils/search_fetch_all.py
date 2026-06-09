@@ -18,6 +18,8 @@ from datetime import time as dt_time
 from datetime import timedelta
 from typing import Any, Callable, Optional
 
+from social_platform.utils.coercion import as_api_int
+
 # 未启用严格止损时的兼容页数上限（与历史 DEFAULT_SAFETY_MAX_PAGES 一致）
 LEGACY_SAFETY_MAX_PAGES = 500
 
@@ -721,7 +723,8 @@ def fetch_douyin_search_all(
 
     all_data: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
-    balance = 0.0
+    balance = 0
+    cost = 0
     body = body_builder(params)
     insufficient_balance = False
     last_error = None
@@ -804,7 +807,8 @@ def fetch_douyin_search_all(
             result.get("has_more"),
             fallback=bool(next_cursor.strip() or next_logid.strip()),
         )
-        balance = result.get("balance", balance)
+        balance = as_api_int(result.get("balance"), balance)
+        cost = as_api_int(result.get("cost"), cost)
 
         if mode.use_date_window:
             (
@@ -919,6 +923,7 @@ def fetch_douyin_search_all(
     return {
         "records": all_data,
         "balance": balance,
+        "cost": cost,
         "insufficient_balance": insufficient_balance,
         "last_error": last_error,
         "meta": meta,
@@ -962,7 +967,8 @@ def fetch_xhs_search_all(
 
     all_data: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
-    balance = 0.0
+    balance = 0
+    cost = 0
     insufficient_balance = False
     last_error = None
     stopped_before_start = False
@@ -1044,7 +1050,8 @@ def fetch_xhs_search_all(
             result.get("has_more"),
             fallback=bool(raw_data),
         )
-        balance = result.get("balance", balance)
+        balance = as_api_int(result.get("balance"), balance)
+        cost = as_api_int(result.get("cost"), cost)
 
         if mode.use_date_window:
             (
@@ -1153,6 +1160,7 @@ def fetch_xhs_search_all(
     return {
         "records": all_data,
         "balance": balance,
+        "cost": cost,
         "insufficient_balance": insufficient_balance,
         "last_error": last_error,
         "meta": meta,
@@ -1229,7 +1237,8 @@ def fetch_offset_cookies_search_all(
 
     all_data: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
-    balance = 0.0
+    balance = 0
+    cost = 0
     body = body_builder(params)
     insufficient_balance = False
     last_error = None
@@ -1312,7 +1321,8 @@ def fetch_offset_cookies_search_all(
             result.get("has_more"),
             fallback=bool(next_offset.strip() or next_cookies.strip()),
         )
-        balance = result.get("balance", balance)
+        balance = as_api_int(result.get("balance"), balance)
+        cost = as_api_int(result.get("cost"), cost)
 
         if mode.use_date_window:
             (
@@ -1428,6 +1438,7 @@ def fetch_offset_cookies_search_all(
     return {
         "records": all_data,
         "balance": balance,
+        "cost": cost,
         "insufficient_balance": insufficient_balance,
         "last_error": last_error,
         "meta": meta,

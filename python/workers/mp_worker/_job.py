@@ -7,7 +7,7 @@ from typing import Any, Callable, Optional
 
 from mp_worker.spider import MpSpider
 
-from http_api.constants import SHIPINHAO_GENERAL_URL
+from http_api.constants import MP_GENERAL_URL
 from social_platform.search_api_params import merge_search_all_api_params_into_body
 from social_platform.services.search_persist import (
     persist_search_all_page_if_async,
@@ -46,11 +46,11 @@ def _mp_search_json_body(params: dict[str, Any]) -> dict[str, Any]:
         page_val = 1
 
     body: dict[str, Any] = {
-        "mode": 2,
+        # "mode": 2,
         "BusinessType": 2,
         "keyword": str(params.get("keyword") or ""),
-        "Sub_search_type": mapped_sub,
-        "note_time": params.get("note_time", 0),
+        # "note_time": params.get("note_time", 0),
+        "sort_type": mapped_sub,
         "currentPage": page_val,
         "offset": params.get("offset", 0),
         "cookies_buffer": params.get("cookies_buffer", ""),
@@ -116,9 +116,9 @@ def execute_mp_search_all(
     key, keyword = params.get("key"), params.get("keyword")
     if not key or not keyword:
         return {"ok": False, "error": "missing key or keyword", "meta": meta}
-    url = service_url(SHIPINHAO_GENERAL_URL)
+    url = service_url(MP_GENERAL_URL)
     if not url:
-        return {"ok": False, "error": "SHIPINHAO_GENERAL_URL 为空", "meta": meta}
+        return {"ok": False, "error": "MP_GENERAL_URL 为空", "meta": meta}
     max_pages = _optional_max_pages(params)
     list_st = coerce_optional_list_sort_type(params)
     # 统一使用 time 参数（日期+时间）；兼容历史 start_date / end_date。
@@ -170,9 +170,9 @@ def run_task(payload: dict[str, Any]) -> dict[str, Any]:
         key, keyword = params.get("key"), params.get("keyword")
         if not key or not keyword:
             return {"ok": False, "error": "missing key or keyword", "meta": meta}
-        url = service_url(SHIPINHAO_GENERAL_URL)
+        url = service_url(MP_GENERAL_URL)
         if not url:
-            return {"ok": False, "error": "SHIPINHAO_GENERAL_URL 为空", "meta": meta}
+            return {"ok": False, "error": "MP_GENERAL_URL 为空", "meta": meta}
         raw = call_mp_api(url, str(key).strip(), _mp_search_json_body(params))
         ok = not raw.get("insufficient_balance") and raw.get("error") is None
         return {"ok": ok, "data": raw, "meta": meta}

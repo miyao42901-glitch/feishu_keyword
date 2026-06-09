@@ -17,6 +17,17 @@ from social_platform.env_bootstrap import ensure_dotenv_loaded  # noqa: E402
 
 ensure_dotenv_loaded()
 
+from config.settings import get_settings as _load_settings  # noqa: E402
+from social_platform.utils.app_logging import AppLogConfig  # noqa: E402
+
+_log_settings = _load_settings()
+AppLogConfig.setup(
+    "http",
+    log_dir=_log_settings.log_dir or None,
+    level=_log_settings.log_level,
+    retention_days=_log_settings.log_retention_days,
+)
+
 from contextlib import asynccontextmanager  # noqa: E402
 
 from fastapi import FastAPI  # noqa: E402

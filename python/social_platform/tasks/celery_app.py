@@ -30,14 +30,21 @@ from celery.signals import worker_ready
 from config.settings import get_settings
 from social_platform.celery_broker import resolve_broker_and_backend
 from social_platform.celery_env import log_celery_broker_env
+from social_platform.utils.app_logging import AppLogConfig
 
 _settings = get_settings()
+AppLogConfig.setup(
+    "celery",
+    log_dir=_settings.log_dir or None,
+    level=_settings.log_level,
+    retention_days=_settings.log_retention_days,
+)
 logger = logging.getLogger(__name__)
 
 log_celery_broker_env(logger)
 _broker_url, _backend_url = resolve_broker_and_backend(_settings)
-logger.warning("Celery broker=%s", _broker_url)
-logger.warning("Celery backend=%s", _backend_url)
+logger.info("Celery broker=%s", _broker_url)
+logger.info("Celery backend=%s", _backend_url)
 
 celery_app = Celery(
     "feishu_keyword",

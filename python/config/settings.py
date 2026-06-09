@@ -121,6 +121,18 @@ class Settings(BaseSettings):
         default=True, validation_alias="ASYNC_SEARCH_GUARDS_ASYNC_ONLY"
     )
 
+    log_dir: str = Field(
+        default="",
+        validation_alias="LOG_DIR",
+        description="日志目录，空则使用 python/logs",
+    )
+    log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
+    log_retention_days: int = Field(
+        default=7,
+        validation_alias="LOG_RETENTION_DAYS",
+        description="日志文件保留天数（按天滚动 + 启动时清理过期文件）",
+    )
+
     def resolved_celery_broker(self) -> str:
         from social_platform.celery_broker import require_redis_celery_url
 

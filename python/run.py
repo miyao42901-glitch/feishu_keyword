@@ -12,7 +12,21 @@ if str(_ROOT) not in sys.path:
 
 import uvicorn  # noqa: E402
 
+from social_platform.env_bootstrap import ensure_dotenv_loaded  # noqa: E402
+
+ensure_dotenv_loaded()
+
+from config.settings import get_settings  # noqa: E402
+from social_platform.utils.app_logging import AppLogConfig  # noqa: E402
+
 if __name__ == "__main__":
+    _settings = get_settings()
+    AppLogConfig.setup(
+        "http",
+        log_dir=_settings.log_dir or None,
+        level=_settings.log_level,
+        retention_days=_settings.log_retention_days,
+    )
     host = os.environ.get("HTTP_HOST", "0.0.0.0")
     port = int(os.environ.get("HTTP_PORT", "8765"))
     reload = os.environ.get("HTTP_RELOAD", "").strip() in ("1", "true", "yes")
