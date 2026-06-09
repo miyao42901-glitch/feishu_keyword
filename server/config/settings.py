@@ -1,4 +1,4 @@
-"""集中配置：从环境变量与仓根 .env 读取。"""
+"""集中配置：从环境变量与 python 目录下 .env 读取。"""
 
 from __future__ import annotations
 
@@ -8,13 +8,13 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# server/config/settings.py -> 仓根（.env / .env.local）
-_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+# python/config/settings.py -> python/（含 .env）
+_PY_ROOT = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(str(_REPO_ROOT / ".env"), str(_REPO_ROOT / ".env.local")),
+        env_file=str(_PY_ROOT / ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -115,16 +115,23 @@ class Settings(BaseSettings):
         default=900.0, validation_alias="ASYNC_SEARCH_ALL_MAX_RUN_SECONDS"
     )
     async_search_duplicate_page_threshold: int = Field(
-        default=2, validation_alias="ASYNC_SEARCH_DUPLICATE_PAGE_THRESHOLD"
+        default=5, validation_alias="ASYNC_SEARCH_DUPLICATE_PAGE_THRESHOLD"
     )
     async_search_guards_async_only: bool = Field(
         default=True, validation_alias="ASYNC_SEARCH_GUARDS_ASYNC_ONLY"
     )
 
-    environment: str = Field(default="", validation_alias="ENVIRONMENT")
-
-    def is_test_environment(self) -> bool:
-        return self.environment.strip().lower() == "test"
+    log_dir: str = Field(
+        default="",
+        validation_alias="LOG_DIR",
+        description="日志目录，空则使用 python/logs",
+    )
+    log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
+    log_retention_days: int = Field(
+        default=7,
+        validation_alias="LOG_RETENTION_DAYS",
+        description="日志文件保留天数（按天滚动 + 启动时清理过期文件）",
+    )
 
     def resolved_celery_broker(self) -> str:
         from social_platform.celery_broker import require_redis_celery_url

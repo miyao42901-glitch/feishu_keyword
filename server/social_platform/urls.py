@@ -1,21 +1,12 @@
 """Deprecated: use ``http_api.constants`` for URL 常量。"""
 
 from http_api.constants import (
-    BILIBILI_GENERAL_URL,
     DOUYIN_GENERAL_URL,
-    GONGZHONGHAO_GENERAL_URL,
-    KUAISHOU_GENERAL_URL,
-    SHIPINHAO_GENERAL_URL,
-    WEIBO_GENERAL_URL,
+    
     XHS_GENERAL_URL,
 )
 
 __all__ = [
-    "BILIBILI_GENERAL_URL",
     "DOUYIN_GENERAL_URL",
-    "GONGZHONGHAO_GENERAL_URL",
-    "KUAISHOU_GENERAL_URL",
-    "SHIPINHAO_GENERAL_URL",
-    "WEIBO_GENERAL_URL",
     "XHS_GENERAL_URL",
 ]
