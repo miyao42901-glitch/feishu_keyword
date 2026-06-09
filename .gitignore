@@ -29,4 +29,5 @@ python/.coverage
 python/htmlcov/
 python/**/*.cover
 python/.hypothesis/
+python/logs/
 
