@@ -105,7 +105,8 @@ class BaseHttpClient:
                 data = resp.json()
                 if not isinstance(data, dict):
                     raise HttpClientError(f"响应 JSON 非对象: {type(data)!s}")
-<<<<<<<< HEAD:server/social_platform/http_client.py
+                elapsed_ms = int((time.monotonic() - started) * 1000)
+                logger.debug("HTTP POST ok url=%s elapsed_ms=%d", url, elapsed_ms)
                 latency = int((time.monotonic() - t0) * 1000)
                 _track_api_call(
                     request_id=request_id,
@@ -113,12 +114,9 @@ class BaseHttpClient:
                     result="成功",
                     error_code=None,
                     latency_ms=latency,
-                )
-========
-                elapsed_ms = int((time.monotonic() - started) * 1000)
-                logger.debug("HTTP POST ok url=%s elapsed_ms=%d", url, elapsed_ms)
->>>>>>>> lyc:python/social_platform/http_client.py
+                )                
                 return data
+            
             except (RequestException, ValueError, TypeError) as e:
                 last_exc = e
                 logger.warning(

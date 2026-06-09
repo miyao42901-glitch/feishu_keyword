@@ -10,7 +10,6 @@ Thumbs.db
 # --- IDE ---
 .idea/
 .vscode/
-<<<<<<< HEAD
 *.suo
 *.ntvs*
 *.njsproj
