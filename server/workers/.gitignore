@@ -1,0 +1,5 @@
+# Per-worker virtualenvs
+**/.venv/
+**/__pycache__/
+*.pyc
+.Python
