@@ -10,6 +10,7 @@ import {
   CN_MOBILE_RE,
   EMAIL_RE,
   normalizeCnMobileInput,
+  prefixRegisterEmail,
   validateLoginPhoneOrEmail,
   YDDM_PASSWORD_MAX_LEN,
 } from '@/lib/yddm-auth-validators'
@@ -270,7 +271,7 @@ function buildRegisterPayload(): YddmRegisterRequest {
     captcha: registerForm.captcha.trim(),
     password: registerForm.password,
     phone_num: normalizeCnMobileInput(registerForm.phone_num.trim()),
-    email: registerForm.email.trim(),
+    email: prefixRegisterEmail(registerForm.email),
   }
 }
 

@@ -60,6 +60,19 @@ export function validateRegisterPhoneOptional(
   callback()
 }
 
+/** 注册提交时给邮箱本地部分加 `fs_` 前缀（已有则不再重复添加） */
+export function prefixRegisterEmail(raw: string): string {
+  const email = raw.trim()
+  if (!email) return ''
+  const at = email.indexOf('@')
+  if (at <= 0) return email
+  const localPart = email.slice(0, at)
+  const domain = email.slice(at)
+  const prefix = 'fs_'
+  const normalizedLocal = localPart.startsWith(prefix) ? localPart : `${prefix}${localPart}`
+  return `${normalizedLocal}${domain}`
+}
+
 /** 选填邮箱：空则通过，否则校验格式 */
 export function validateOptionalEmail(_rule: unknown, value: unknown, callback: (e?: Error) => void) {
   const s = typeof value === 'string' ? value.trim() : ''
