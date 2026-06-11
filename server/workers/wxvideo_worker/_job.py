@@ -16,7 +16,7 @@ from wxvideo_worker.spider import WxVideoSpider
 
 
 
-from http_api.constants import SHIPINHAO_GENERAL_URL
+from http_api.constants import WXVIDEO_GENERAL_URL
 
 from social_platform.search_api_params import merge_search_all_api_params_into_body
 
@@ -101,14 +101,9 @@ def _wx_sousou_json_body(params: dict[str, Any]) -> dict[str, Any]:
 
 
     body: dict[str, Any] = {
-
-        "mode": 1,
-
         "keyword": str(params.get("keyword") or ""),
 
-        "search_type": 2,
-
-        "publish_time_type": mapped_note_time,
+        "note_time": mapped_note_time,
 
         "sort_type": mapped_sort,
 
@@ -240,11 +235,11 @@ def execute_wxvideo_search_all(
 
         return {"ok": False, "error": "missing key or keyword", "meta": meta}
 
-    url = service_url(SHIPINHAO_GENERAL_URL)
+    url = service_url(WXVIDEO_GENERAL_URL)
 
     if not url:
 
-        return {"ok": False, "error": "SHIPINHAO_GENERAL_URL 为空", "meta": meta}
+        return {"ok": False, "error": "WXVIDEO_GENERAL_URL 为空", "meta": meta}
 
     max_pages = _optional_max_pages(params)
 
@@ -341,11 +336,11 @@ def run_task(payload: dict[str, Any]) -> dict[str, Any]:
 
             return {"ok": False, "error": "missing key or keyword", "meta": meta}
 
-        url = service_url(SHIPINHAO_GENERAL_URL)
+        url = service_url(WXVIDEO_GENERAL_URL)
 
         if not url:
 
-            return {"ok": False, "error": "SHIPINHAO_GENERAL_URL 为空", "meta": meta}
+            return {"ok": False, "error": "WXVIDEO_GENERAL_URL 为空", "meta": meta}
 
         raw = call_wxvideo_api(url, str(key).strip(), _wx_sousou_json_body(params))
 

@@ -92,6 +92,7 @@ class BaseHttpClient:
         request_id = uuid4().hex
         t0 = time.monotonic()
         for attempt in range(self.max_retries):
+            started = time.monotonic()
             try:
                 logger.debug("HTTP POST url=%s payload=%s", url, payload)
                 resp = requests.post(
@@ -104,6 +105,8 @@ class BaseHttpClient:
                 data = resp.json()
                 if not isinstance(data, dict):
                     raise HttpClientError(f"响应 JSON 非对象: {type(data)!s}")
+                elapsed_ms = int((time.monotonic() - started) * 1000)
+                logger.debug("HTTP POST ok url=%s elapsed_ms=%d", url, elapsed_ms)
                 latency = int((time.monotonic() - t0) * 1000)
                 _track_api_call(
                     request_id=request_id,
@@ -111,8 +114,9 @@ class BaseHttpClient:
                     result="成功",
                     error_code=None,
                     latency_ms=latency,
-                )
+                )                
                 return data
+            
             except (RequestException, ValueError, TypeError) as e:
                 last_exc = e
                 logger.warning(

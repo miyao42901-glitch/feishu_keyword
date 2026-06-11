@@ -54,6 +54,10 @@ htmlcov/
 *.cover
 .hypothesis/
 
+# server 运行日志（勿提交）
+server/logs/
+server/**/__pycache__/
+
 # --- Docker / 本地数据卷 ---
 /data/
 

@@ -18,6 +18,8 @@ from datetime import time as dt_time
 from datetime import timedelta
 from typing import Any, Callable, Optional
 
+from social_platform.utils.coercion import as_api_int
+
 # 未启用严格止损时的兼容页数上限（与历史 DEFAULT_SAFETY_MAX_PAGES 一致）
 LEGACY_SAFETY_MAX_PAGES = 500
 
@@ -325,19 +327,6 @@ def _evaluate_post_page_stop(
         return STOP_EMPTY_PAGE, duplicate_pages_in_row
 
     if not new_chunk:
-        end_of_pages = no_more if no_more is not None else (not has_more)
-        if end_of_pages:
-            _log_fetch_structured(
-                platform=platform,
-                page=page_no,
-                pages_fetched=pages_fetched,
-                records_returned=current_run_inserted_count,
-                fetch_count_cap=fetch_count_cap,
-                has_more=has_more,
-                duration_sec=duration,
-                stop_reason=STOP_NO_MORE_DATA,
-            )
-            return STOP_NO_MORE_DATA, duplicate_pages_in_row
         duplicate_pages_in_row += 1
         if duplicate_pages_in_row >= dup_threshold:
             _log_fetch_structured(
@@ -488,12 +477,11 @@ def crawled_record_id(rec: dict[str, Any]) -> Optional[str]:
 def unique_new_records(
     chunk: list[dict[str, Any]],
     seen_ids: set[str],
+    *,
+    limit: Optional[int] = None,
 ) -> list[dict[str, Any]]:
     """
-    去掉本任务已见过的 ``note_id`` / ``aweme_id`` 等主键。
-
-    不按 ``fetch_count`` 截断单页：接口若一次返回多于选择条数，全部保留；
-    是否继续翻页由 ``fetch_count_cap`` 与 ``_evaluate_post_page_stop`` 决定。
+    去掉本任务已见过的 ``note_id`` / ``aweme_id``；``limit`` 为本次最多追加条数。
     无业务主键的记录仍会保留（无法跨页去重）。
     """
     out: list[dict[str, Any]] = []
@@ -506,6 +494,8 @@ def unique_new_records(
                 continue
             seen_ids.add(pid)
         out.append(rec)
+        if limit is not None and len(out) >= limit:
+            break
     return out
 
 
@@ -733,7 +723,8 @@ def fetch_douyin_search_all(
 
     all_data: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
-    balance = 0.0
+    balance = 0
+    cost = 0
     body = body_builder(params)
     insufficient_balance = False
     last_error = None
@@ -816,7 +807,8 @@ def fetch_douyin_search_all(
             result.get("has_more"),
             fallback=bool(next_cursor.strip() or next_logid.strip()),
         )
-        balance = result.get("balance", balance)
+        balance = as_api_int(result.get("balance"), balance)
+        cost = as_api_int(result.get("cost"), cost)
 
         if mode.use_date_window:
             (
@@ -832,7 +824,7 @@ def fetch_douyin_search_all(
         allow_before_start_stop = _allow_before_start_stop(
             platform=platform, list_sort_type=list_sort_type
         )
-        new_chunk = unique_new_records(chunk, seen_ids)
+        new_chunk = unique_new_records(chunk, seen_ids, limit=remaining_in_run)
         _log_date_filter_result(
             platform=platform,
             page=page_no,
@@ -931,6 +923,7 @@ def fetch_douyin_search_all(
     return {
         "records": all_data,
         "balance": balance,
+        "cost": cost,
         "insufficient_balance": insufficient_balance,
         "last_error": last_error,
         "meta": meta,
@@ -974,7 +967,8 @@ def fetch_xhs_search_all(
 
     all_data: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
-    balance = 0.0
+    balance = 0
+    cost = 0
     insufficient_balance = False
     last_error = None
     stopped_before_start = False
@@ -1056,7 +1050,8 @@ def fetch_xhs_search_all(
             result.get("has_more"),
             fallback=bool(raw_data),
         )
-        balance = result.get("balance", balance)
+        balance = as_api_int(result.get("balance"), balance)
+        cost = as_api_int(result.get("cost"), cost)
 
         if mode.use_date_window:
             (
@@ -1072,7 +1067,7 @@ def fetch_xhs_search_all(
         allow_before_start_stop = _allow_before_start_stop(
             platform=platform, list_sort_type=list_sort_type
         )
-        new_chunk = unique_new_records(chunk, seen_ids)
+        new_chunk = unique_new_records(chunk, seen_ids, limit=remaining_in_run)
         _log_date_filter_result(
             platform=platform,
             page=page_no,
@@ -1165,6 +1160,7 @@ def fetch_xhs_search_all(
     return {
         "records": all_data,
         "balance": balance,
+        "cost": cost,
         "insufficient_balance": insufficient_balance,
         "last_error": last_error,
         "meta": meta,
@@ -1241,7 +1237,8 @@ def fetch_offset_cookies_search_all(
 
     all_data: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
-    balance = 0.0
+    balance = 0
+    cost = 0
     body = body_builder(params)
     insufficient_balance = False
     last_error = None
@@ -1324,7 +1321,8 @@ def fetch_offset_cookies_search_all(
             result.get("has_more"),
             fallback=bool(next_offset.strip() or next_cookies.strip()),
         )
-        balance = result.get("balance", balance)
+        balance = as_api_int(result.get("balance"), balance)
+        cost = as_api_int(result.get("cost"), cost)
 
         if mode.use_date_window:
             (
@@ -1340,7 +1338,7 @@ def fetch_offset_cookies_search_all(
         allow_before_start_stop = _allow_before_start_stop(
             platform=platform, list_sort_type=list_sort_type
         )
-        new_chunk = unique_new_records(chunk, seen_ids)
+        new_chunk = unique_new_records(chunk, seen_ids, limit=remaining_in_run)
         _log_date_filter_result(
             platform=platform,
             page=page_no,
@@ -1440,6 +1438,7 @@ def fetch_offset_cookies_search_all(
     return {
         "records": all_data,
         "balance": balance,
+        "cost": cost,
         "insufficient_balance": insufficient_balance,
         "last_error": last_error,
         "meta": meta,

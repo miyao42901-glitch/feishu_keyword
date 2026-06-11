@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from social_platform.utils.coercion import extract_api_balance_cost
 from social_platform.utils.time_ms import to_ms_timestamp
 from social_platform.utils.worker_runtime import (
     split_exclude_needles,
@@ -18,8 +19,10 @@ class DouyinParser:
     def parse(self, raw: dict[str, Any], *, exclude_words: str = "") -> dict[str, Any]:
         needles = split_exclude_needles(exclude_words)
         data = raw.get("data") or {}
-        balance = float(data.get("balance", 0.0))
-        inner = raw.get("data") or {}
+        if not isinstance(data, dict):
+            data = {}
+        balance, cost = extract_api_balance_cost(raw, data=data)
+        inner = data
         items_list = inner.get("data") or []
 
         if not isinstance(items_list, list):
@@ -37,16 +40,10 @@ class DouyinParser:
 
             aweme = item.get("aweme_info")
             if not isinstance(aweme, dict):
-                continue
+                aweme = item
 
-            aweme_id = aweme.get("aweme_id")
-            if not aweme_id:
-                continue
-
+            aweme_id = aweme.get("aweme_id") or item.get("aweme_id") or ""
             desc = (aweme.get("desc") or "").strip()
-            if not desc:
-                continue
-
             title = desc or "无标题"
 
             if text_contains_any_needle(title, needles) or text_contains_any_needle(
@@ -98,7 +95,9 @@ class DouyinParser:
                     "title": title,
                     "aweme_id": aweme_id,
                     "desc": desc,
-                    "url": f"https://www.douyin.com/video/{aweme_id}",
+                    "url": (
+                        f"https://www.douyin.com/video/{aweme_id}" if aweme_id else ""
+                    ),
                     # 作者
                     "nickname": nickname,
                     "signature": signature,
@@ -124,6 +123,7 @@ class DouyinParser:
         return {
             "data": rows,
             "balance": balance,
+            "cost": cost,
             "error": None,
             "insufficient_balance": False,
             "next_cursor": cursor,

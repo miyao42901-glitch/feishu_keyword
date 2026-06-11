@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from social_platform.utils.coercion import extract_api_balance_cost
 from social_platform.utils.duration import parse_duration
 from social_platform.utils.time_ms import to_ms_timestamp
 from social_platform.utils.worker_runtime import (
@@ -19,13 +20,16 @@ class XhsParser:
     def parse(self, raw: dict[str, Any], *, exclude_words: str = "") -> dict[str, Any]:
         needles = split_exclude_needles(exclude_words)
         data = raw.get("data") or {}
-        balance = float(data.get("balance", 0.0))
+        if not isinstance(data, dict):
+            data = {}
+        balance, cost = extract_api_balance_cost(raw, data=data)
         items = data.get("items") if isinstance(data, dict) else None
         if not items or not isinstance(items, list):
             logger.info("小红书返回空列表")
             return {
                 "data": [],
                 "balance": balance,
+                "cost": cost,
                 "error": None,
                 "insufficient_balance": False,
             }
@@ -36,14 +40,12 @@ class XhsParser:
                 continue
             note = item.get("note")
             if not isinstance(note, dict):
-                continue
+                note = item
 
             title = note.get("title") or ""
             desc = note.get("desc") or ""
-            display_title = title if title else desc
+            display_title = title if title else desc or "无标题"
             display_desc = desc if desc else title
-            if not display_title and not display_desc:
-                continue
 
             if text_contains_any_needle(
                 display_title, needles
@@ -65,14 +67,10 @@ class XhsParser:
             )  # 视频时长（秒）：将 '0:36' 转换为 36
             has_music = note.get("has_music", False)
             images_list = [
-                item.get("url", item.get("original"))
-                for item in note.get("images_list") or []
-                if item.get("url", item.get("original"))
+                img.get("url", img.get("original"))
+                for img in note.get("images_list") or []
+                if isinstance(img, dict) and img.get("url", img.get("original"))
             ]
-            # video_url = note.get("video_info_v2", {}).get("media", {}).get("stream", {}).get("h264", [{}])[0].get("master_url")
-            # data.items[0].note['video_info_v2'].media.stream.h264[0]['master_url']
-            # data.items[0].note['video_info_v2'].media.stream.h265[0]['master_url']
-            # data.items[0].note['video_info_v2'].media.stream.h265[1]['master_url']
             stream = note.get("video_info_v2", {}).get("media", {}).get("stream", {})
 
             video_list = []
@@ -80,24 +78,26 @@ class XhsParser:
             # h264
             h264 = stream.get("h264", [])
             if len(h264) > 0 and isinstance(h264[0], dict):
-                url = h264[0].get("master_url")
-                if url:
-                    video_list.append(url)
+                h264_url = h264[0].get("master_url")
+                if h264_url:
+                    video_list.append(h264_url)
 
             # h265[0]
             h265 = stream.get("h265", [])
             if len(h265) > 0 and isinstance(h265[0], dict):
-                url = h265[0].get("master_url")
-                if url:
-                    video_list.append(url)
+                h265_url = h265[0].get("master_url")
+                if h265_url:
+                    video_list.append(h265_url)
 
             # h265[1]
             if len(h265) > 1 and isinstance(h265[1], dict):
-                url = h265[1].get("master_url")
-                if url:
-                    video_list.append(url)
+                h265_url = h265[1].get("master_url")
+                if h265_url:
+                    video_list.append(h265_url)
 
             user_info = note.get("user") or {}
+            if not isinstance(user_info, dict):
+                user_info = {}
             nickname = user_info.get("nickname") or ""
             userid = user_info.get("userid") or ""
             avatar = user_info.get("images") or ""
@@ -135,6 +135,7 @@ class XhsParser:
         return {
             "data": rows,
             "balance": balance,
+            "cost": cost,
             "error": None,
             "insufficient_balance": False,
         }

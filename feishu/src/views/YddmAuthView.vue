@@ -5,6 +5,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import {
   EMAIL_RE,
   normalizeCnMobileInput,
+  prefixRegisterEmail,
   validateLoginPhoneOrEmail,
   validateRegisterPhoneOptional,
   YDDM_PASSWORD_MAX_LEN,
@@ -176,7 +177,7 @@ async function onRegister() {
       captcha: registerForm.captcha.trim(),
       password: registerForm.password,
     }
-    if (email) payload.email = email
+    if (email) payload.email = prefixRegisterEmail(email)
     if (phone) payload.phone_num = normalizeCnMobileInput(phone)
     await yddmRegister(payload)
     ElMessage.success('注册成功')

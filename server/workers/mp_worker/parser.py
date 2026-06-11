@@ -8,6 +8,10 @@ from typing import Any
 
 from social_platform.utils.duration import parse_htmlstr_to_clean
 from social_platform.utils.time_ms import to_ms_timestamp
+from social_platform.utils.coercion import (
+    extract_api_balance_cost,
+    extract_cookies_buffer,
+)
 from social_platform.utils.worker_runtime import (
     split_exclude_needles,
     text_contains_any_needle,
@@ -34,7 +38,9 @@ class MpParser:
     def parse(self, raw: dict[str, Any], *, exclude_words: str = "") -> dict[str, Any]:
         needles = split_exclude_needles(exclude_words)
         data = raw.get("data") or {}
-        balance = float(data.get("balance", raw.get("balance", 0.0)))
+        if not isinstance(data, dict):
+            data = {}
+        balance, cost = extract_api_balance_cost(raw, data=data)
 
         # 更健壮的 items 提取，支持多种响应结构
         items_list: list[dict[str, Any]] = []
@@ -80,10 +86,7 @@ class MpParser:
                 elif "idx=" in url:
                     report_id = url.split("idx=")[-1].split("&")[0]
 
-            if not report_id:
-                continue
-
-            title = parse_htmlstr_to_clean(item.get("title") or "") or ""
+            title = parse_htmlstr_to_clean(item.get("title") or "") or "无标题"
             summary = (
                 parse_htmlstr_to_clean(item.get("desc") or item.get("summary") or "")
                 or ""
@@ -130,12 +133,20 @@ class MpParser:
             }
             rows.append(row)
 
+        cookies_buffer = extract_cookies_buffer(data)
+        if data.get("cookies") and not cookies_buffer:
+            logger.warning(
+                "mp cookies field present but cookies_buffer empty offset=%s",
+                data.get("offset", ""),
+            )
+
         return {
             "data": rows,
             "balance": balance,
+            "cost": cost,
             "error": None,
             "insufficient_balance": False,
             "next_offset": data.get("offset", ""),
-            "cookies_buffer": data.get("cookies_buffer", ""),
+            "cookies_buffer": cookies_buffer,
             "total": len(rows),
         }
