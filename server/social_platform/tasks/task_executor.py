@@ -273,3 +273,17 @@ def execute_async_social_task(db: Session, task_id: int, api_key: str) -> None:
         completed_at=task_service.utc_now_naive(),
         last_ok=ok,
     )
+    task = db.get(AsyncTask, task_id)
+    if task is not None:
+        logger.info(
+            "async_task_run_finished task_id=%s run_id=%s action=%s run_ok=%s "
+            "success_count=%s failed_count=%s fetch_count=%s error_message=%r",
+            int(task_id),
+            run_id,
+            str(task.action or ""),
+            bool(ok),
+            int(task.success_count or 0),
+            int(task.failed_count or 0),
+            int(task.fetch_count or 0),
+            task.error_message,
+        )

@@ -28,7 +28,10 @@ from social_platform.services.search_persist import (
 
 )
 
-from social_platform.utils.coercion import as_third_party_str
+from social_platform.utils.coercion import (
+    as_third_party_str,
+    optional_body_int,
+)
 
 from social_platform.utils.search_fetch_all import (
 
@@ -69,55 +72,44 @@ WX_NOTE_TIME_MAP: dict[int, int] = {0: 0, 1: 1, 7: 2, 180: 3}
 
 
 def _wx_sousou_json_body(params: dict[str, Any]) -> dict[str, Any]:
-
     """视频号 /wx/sousou search body 构造（含 sort_type 映射）。"""
-
-    st = params.get("sort_type")
-
-    try:
-
-        st_int = int(st) if st is not None else 0
-
-    except (TypeError, ValueError):
-
-        st_int = 0
-
-    mapped_sort = WX_SORT_TYPE_MAP.get(st_int, 0)
-
-
-
-    nt = params.get("note_time")
-
-    try:
-
-        nt_int = int(nt) if nt is not None else 0
-
-    except (TypeError, ValueError):
-
-        nt_int = 0
-
-    mapped_note_time = WX_NOTE_TIME_MAP.get(nt_int, 0)
-
-
-
     body: dict[str, Any] = {
         "keyword": str(params.get("keyword") or ""),
-
-        "note_time": mapped_note_time,
-
-        "sort_type": mapped_sort,
-
-        "currentPage": params.get("page") or params.get("currentPage", 1),
-
-        "offset": params.get("offset", 0),
-
-        "cookies_buffer": params.get("cookies_buffer", ""),
-
-        "exclude_words": as_third_party_str(params.get("exclude_words")),
-
     }
 
-    return {k: v for k, v in body.items() if v != "" or k in ("keyword", "offset")}
+    if params.get("note_time") is not None:
+        try:
+            nt_int = int(params.get("note_time"))
+        except (TypeError, ValueError):
+            nt_int = 0
+        body["note_time"] = WX_NOTE_TIME_MAP.get(nt_int, 0)
+
+    if params.get("sort_type") is not None:
+        try:
+            st_int = int(params.get("sort_type"))
+        except (TypeError, ValueError):
+            st_int = 0
+        body["sort_type"] = WX_SORT_TYPE_MAP.get(st_int, 0)
+
+    page_val = optional_body_int(params, "page", "currentPage")
+    if page_val is not None:
+        body["currentPage"] = max(1, page_val)
+
+    if params.get("offset") is not None:
+        offset = params.get("offset")
+        if not (isinstance(offset, str) and not str(offset).strip()):
+            body["offset"] = offset
+
+    if params.get("cookies_buffer") is not None:
+        cookies_buffer = as_third_party_str(params.get("cookies_buffer"))
+        if cookies_buffer:
+            body["cookies_buffer"] = cookies_buffer
+
+    exclude_words = as_third_party_str(params.get("exclude_words")).strip()
+    if exclude_words:
+        body["exclude_words"] = exclude_words
+
+    return body
 
 
 

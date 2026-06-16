@@ -92,6 +92,7 @@ class BaseHttpClient:
                     async with session.post(
                         url, json=payload, headers=headers
                     ) as resp:
+                        logger.warning(f"响应数据: {await resp.text()}")
                         resp.raise_for_status()
                         data = await resp.json(content_type=None)
                         if not isinstance(data, dict):

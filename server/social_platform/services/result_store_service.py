@@ -356,6 +356,27 @@ def _normalize_rows(
     return model, list(merged.values()), skipped
 
 
+def _existing_post_ids_in_task_scope(
+    session: Session,
+    model: Type[Base],
+    *,
+    task_id: Optional[int],
+    post_ids: list[str],
+) -> set[str]:
+    """同一 ``task_id`` 作用域内已存在的 ``post_id``（``task_id=None`` 仅查同步无任务行）。"""
+    if not post_ids:
+        return set()
+    post_id_col = getattr(model, "post_id")
+    task_id_col = getattr(model, "task_id")
+    filters = [post_id_col.in_(post_ids)]
+    if task_id is not None:
+        filters.append(task_id_col == task_id)
+    else:
+        filters.append(task_id_col.is_(None))
+    stmt = select(post_id_col).where(*filters)
+    return {str(x) for x in session.execute(stmt).scalars().all()}
+
+
 def _chunks(rows: list[dict[str, Any]], size: int) -> Iterable[list[dict[str, Any]]]:
     for i in range(0, len(rows), size):
         yield rows[i : i + size]
@@ -414,7 +435,7 @@ def save_search_results(
     task_id: Any = None,
 ) -> dict[str, Any]:
     """
-    将解析后的搜索结果批量写入对应平台结果表；按 post_id 全局去重（单表内唯一）。
+    将解析后的搜索结果批量写入对应平台结果表；按 (task_id, post_id) 任务内去重。
 
     :return: 统一统计字段 inserted_count/duplicated_count/failed_count + row_results
     """
@@ -423,6 +444,7 @@ def save_search_results(
     if not (user_id or "").strip():
         raise ValueError("user_id is required for save_search_results")
 
+    scoped_task_id = _coerce_task_id_optional(task_id)
     model, rows, skipped_total = _normalize_rows(
         platform, keyword, results, task_id, user_id.strip()
     )
@@ -444,13 +466,15 @@ def save_search_results(
             "row_results": [],
         }
 
-    post_id_col = getattr(model, "post_id")
-
     for chunk in _chunks(rows, _BATCH_SIZE):
         with session_scope() as session:
             pids = [str(r["post_id"]) for r in chunk]
-            stmt = select(post_id_col).where(post_id_col.in_(pids))
-            existing_ids = set(session.execute(stmt).scalars().all())
+            existing_ids = _existing_post_ids_in_task_scope(
+                session,
+                model,
+                task_id=scoped_task_id,
+                post_ids=pids,
+            )
 
             to_insert: list[dict[str, Any]] = []
             for r in chunk:
@@ -465,14 +489,16 @@ def save_search_results(
                         }
                     )
                     logger.info(
-                        "skip duplicate row post_id=%s model=%s",
+                        "skip duplicate row post_id=%s task_id=%s model=%s",
                         pid,
+                        scoped_task_id,
                         model.__name__,
                     )
                     logger.info(
                         "duplicate skipped",
                         extra={
                             "platform": (platform or "").strip().lower(),
+                            "task_id": scoped_task_id,
                             "duplicated_count": 1,
                             "post_id": pid,
                         },

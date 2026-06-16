@@ -51,13 +51,7 @@ class XhsSpider(BaseSpider):
                 }
 
             if ac == CODE_FAILED:
-                msg = self._business_error_summary(raw)
-                logger.warning(
-                    "%s business_error code=%s msg=%s",
-                    self.platform,
-                    api_code,
-                    msg,
-                )
+                self._log_yddm_failed_response(raw, api_code=api_code)
                 if attempt < 2:
                     continue
                 return {

@@ -54,7 +54,7 @@ def _resp(run_task_fn: Any, action: str, params: dict[str, Any]) -> JSONResponse
 
 def _sync_worker_params(x_api_key: str, body: Any) -> dict[str, Any]:
     """Worker 仍用 `key` 字段承载凭证；对外同步接口凭证来自 Header `X-API-Key`。"""
-    return {"key": x_api_key.strip(), **body.model_dump()}
+    return {"key": x_api_key.strip(), **body.model_dump(exclude_none=True)}
 
 
 def build_sync_routers() -> tuple[APIRouter, APIRouter, APIRouter]:

@@ -25,7 +25,7 @@ class XhsSearchResult(Base):
 
     __tablename__ = "feishu_xhs_results"
     __table_args__ = (
-        UniqueConstraint("post_id", name="uq_feishu_xhs_results_post_id"),
+        UniqueConstraint("task_id", "post_id", name="uq_feishu_xhs_results_task_post"),
         Index("ix_feishu_xhs_results_task_id", "task_id"),
         Index("ix_feishu_xhs_results_user_id", "user_id"),
         Index("ix_feishu_xhs_results_is_upload", "is_upload"),
