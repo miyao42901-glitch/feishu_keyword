@@ -8,12 +8,14 @@ from typing import Any, Callable, Optional
 from xhs_worker.spider import XhsSpider
 
 from http_api.constants import XHS_GENERAL_URL
-from social_platform.search_api_params import merge_search_all_api_params_into_body
 from social_platform.services.search_persist import (
     persist_search_all_page_if_async,
     search_all_async_ctx,
 )
-from social_platform.utils.coercion import as_third_party_str
+from social_platform.utils.coercion import (
+    as_third_party_str,
+    optional_body_int,
+)
 from social_platform.utils.search_fetch_all import (
     clamp_fetch_count_cap,
     coerce_optional_list_sort_type,
@@ -30,12 +32,16 @@ from social_platform.utils.worker_runtime import (
 WORKER_NAME = "xhs_worker"
 WORKER_VERSION = "1.0.0"
 
-# 对外 sort_type（0/1/2）→ YDDM sort
+# 对外 sort_type → YDDM sort
 XHS_SORT_TYPE_TO_YDDM: dict[str, str] = {
     "0": "general",
     "1": "popularity_descending",
     "2": "time_descending",
+    "3": "comment_descending",
+    "4": "collect_descending",
 }
+
+XHS_YDDM_SORT_VALUES = frozenset(XHS_SORT_TYPE_TO_YDDM.values())
 
 # 对外 note_time（0/1/7/180）→ YDDM note_time（空串=不限）
 XHS_NOTE_TIME_TO_YDDM: dict[str, str] = {
@@ -54,23 +60,33 @@ XHS_CONTENT_TYPE_TO_NOTE_TYPE: dict[str, str] = {
 }
 
 
-def _normalize_xhs_sort_type(params: dict[str, Any]) -> str:
+def _map_xhs_sort_to_yddm(sort_key: str) -> str:
+    """对外 sort_type 或 YDDM sort 字符串 → YDDM sort。"""
+    key = sort_key.strip()
+    if key in XHS_YDDM_SORT_VALUES:
+        return key
+    return XHS_SORT_TYPE_TO_YDDM.get(key, "")
+
+
+def _optional_xhs_sort_key(params: dict[str, Any]) -> str:
     st = params.get("sort_type")
     if st is None or (isinstance(st, str) and not str(st).strip()):
-        return "0"
+        return ""
     return str(st).strip()
 
 
-def _normalize_xhs_note_time(params: dict[str, Any]) -> str:
+def _optional_xhs_note_time_key(params: dict[str, Any]) -> str:
     nt = params.get("note_time")
     if nt is None or (isinstance(nt, str) and not str(nt).strip()):
         nt = params.get("publish_time")
     if nt is None or (isinstance(nt, str) and not str(nt).strip()):
-        return "0"
+        return ""
     return str(nt).strip()
 
 
 def _normalize_xhs_content_type(params: dict[str, Any]) -> str:
+    if "content_type" not in params:
+        return ""
     ct = as_third_party_str(params.get("content_type"))
     return ct.strip().lower()
 
@@ -93,42 +109,52 @@ def map_xhs_params_to_yddm_body(
         {"keyword": "穿搭博主", "page": 1, "sort": "time_descending",
          "note_type": "video", "note_time": "week", "exclude_words": "测试"}
     """
-    if page is None:
+    body: dict[str, Any] = {"keyword": str(params.get("keyword") or "")}
+
+    if page is not None:
+        body["page"] = max(1, int(page))
+    elif params.get("page") is not None:
         try:
-            page_n = max(1, int(params.get("page") or 1))
+            body["page"] = max(1, int(params.get("page")))
         except (TypeError, ValueError):
-            page_n = 1
-    else:
-        page_n = max(1, int(page))
+            pass
 
-    sort_key = _normalize_xhs_sort_type(params)
-    note_time_key = _normalize_xhs_note_time(params)
+    sort_key = _optional_xhs_sort_key(params)
+    sort_val = _map_xhs_sort_to_yddm(sort_key) if sort_key else ""
+    if sort_val:
+        body["sort"] = sort_val
+
+    note_time_key = _optional_xhs_note_time_key(params)
+    if note_time_key:
+        note_time_val = XHS_NOTE_TIME_TO_YDDM.get(note_time_key, "")
+        if note_time_val:
+            body["note_time"] = note_time_val
+
     content_key = _normalize_xhs_content_type(params)
+    if content_key:
+        note_type = XHS_CONTENT_TYPE_TO_NOTE_TYPE.get(content_key, "")
+        if note_type:
+            body["note_type"] = note_type
 
-    body: dict[str, Any] = {
-        "keyword": str(params.get("keyword") or ""),
-        "page": page_n,
-        "sort": XHS_SORT_TYPE_TO_YDDM.get(sort_key, "general"),
-        "note_type": XHS_CONTENT_TYPE_TO_NOTE_TYPE.get(content_key, ""),
-        "note_time": XHS_NOTE_TIME_TO_YDDM.get(note_time_key, ""),
-    }
-    exclude_words = as_third_party_str(params.get("exclude_words"))
+    exclude_words = as_third_party_str(params.get("exclude_words")).strip()
     if exclude_words:
         body["exclude_words"] = exclude_words
+
     return body
 
 
 def _third_party_json_body(params: dict[str, Any]) -> dict[str, Any]:
     """小红书 search-all：由 fetch 循环按页覆盖 ``page``。"""
-    try:
-        page = max(1, int(params.get("page") or params.get("cursor") or 1))
-    except (TypeError, ValueError):
-        page = 1
-    return map_xhs_params_to_yddm_body(params, page=page)
+    page_arg: Optional[int] = None
+    page_raw = optional_body_int(params, "page", "cursor")
+    if page_raw is not None:
+        page_arg = max(1, page_raw)
+    return map_xhs_params_to_yddm_body(params, page=page_arg)
 
 
 def _third_party_json_body_search_all(params: dict[str, Any]) -> dict[str, Any]:
-    return merge_search_all_api_params_into_body(_third_party_json_body(params), params)
+    """search-all 与 page 共用同一套 YDDM 字段映射（仅翻页 page 由 fetch 循环覆盖）。"""
+    return _third_party_json_body(params)
 
 
 def _xhs_page_json_body(params: dict[str, Any]) -> dict[str, Any]:

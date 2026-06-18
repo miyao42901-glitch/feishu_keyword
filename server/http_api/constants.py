@@ -7,10 +7,17 @@ DOUYIN_GENERAL_URL = "https://api.yddm.com/fs/douyin_search"
 XHS_GENERAL_URL = "https://api.yddm.com/fs/xhs_search"
 MP_GENERAL_URL = "https://api.yddm.com/fs/mp_search"
 WXVIDEO_GENERAL_URL = "https://api.yddm.com/fs/wxvideo_search"
+<<<<<<< HEAD
 WX_GENERAL_URL = "https://api.yddm.com/wx/sousou"
+=======
+>>>>>>> lyc
 
 # DOUYIN_GENERAL_URL = "http://127.0.0.1:8001/fs/douyin_search"
 # XHS_GENERAL_URL = "http://127.0.0.1:8001/fs/xhs_search"
 # MP_GENERAL_URL = "http://127.0.0.1:8001/fs/mp_search"
 # WXVIDEO_GENERAL_URL = "http://127.0.0.1:8001/fs/wxvideo_search"
+<<<<<<< HEAD
 # WX_GENERAL_URL = "http://127.0.0.1:8001/wx/sousou"
+=======
+# WX_GENERAL_URL = "http://127.0.0.1:8001/fs/mp_search"
+>>>>>>> lyc
