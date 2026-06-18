@@ -177,7 +177,7 @@ def _stat_int(stats: dict[str, Any], *keys: str) -> int:
     return 0
 
 
-def persist_stats_for_task_row(stats: dict[str, Any]) -> tuple[int, int, int, int, int]:
+def persist_stats_for_task_row(stats: dict[str, Any]) -> tuple[int, int, int, int, int, int]:
     """将 save 统计映射为异步任务表上的 success_count / failed_count 增量。"""
     inserted = _stat_int(stats, "inserted_count", "inserted")
     duplicated = _stat_int(stats, "duplicated_count", "duplicated")
@@ -186,7 +186,7 @@ def persist_stats_for_task_row(stats: dict[str, Any]) -> tuple[int, int, int, in
     # success_count 仅统计真实成功入库数量，避免 duplicated 拉高抓取进度。
     success_delta = inserted
     failed_delta = duplicated + skipped + persist_errors
-    return success_delta, failed_delta, inserted, duplicated, persist_errors
+    return success_delta, failed_delta, inserted, duplicated, skipped, persist_errors
 
 
 def apply_search_persist_stats_to_async_task(
@@ -205,10 +205,13 @@ def apply_search_persist_stats_to_async_task(
         f_delta,
         inserted_count,
         duplicated_count,
-        failed_count,
+        skipped_count,
+        persist_errors,
     ) = persist_stats_for_task_row(stats)
-    task.success_count = int(task.success_count or 0) + s_delta
-    task.failed_count = int(task.failed_count or 0) + f_delta
+    prev_success = int(task.success_count or 0)
+    prev_failed = int(task.failed_count or 0)
+    task.success_count = prev_success + s_delta
+    task.failed_count = prev_failed + f_delta
 
     platform = platform_from_action(str(task.action or "")) or "unknown"
     if duplicated_count > 0:
@@ -229,11 +232,33 @@ def apply_search_persist_stats_to_async_task(
             "platform": platform,
             "inserted_count": int(inserted_count),
             "duplicated_count": int(duplicated_count),
-            "failed_count": int(failed_count),
+            "skipped_count": int(skipped_count),
+            "persist_errors": int(persist_errors),
+            "failed_delta": int(f_delta),
             "success_count": int(task.success_count or 0),
+            "failed_count": int(task.failed_count or 0),
             "fetch_count": int(getattr(task, "fetch_count", 0) or 0),
         },
     )
+    if f_delta > 0:
+        logger.warning(
+            "async_task_failed_count_increment task_id=%s run_id=%s action=%s platform=%s "
+            "failed_delta=%s (duplicated=%s skipped=%s persist_errors=%s) "
+            "totals success_count=%s->%s failed_count=%s->%s fetch_count=%s",
+            int(task_id),
+            str(getattr(task, "current_run_id", "") or ""),
+            str(task.action or ""),
+            platform,
+            int(f_delta),
+            int(duplicated_count),
+            int(skipped_count),
+            int(persist_errors),
+            prev_success,
+            int(task.success_count or 0),
+            prev_failed,
+            int(task.failed_count or 0),
+            int(getattr(task, "fetch_count", 0) or 0),
+        )
     db.add(task)
 
 
@@ -268,9 +293,10 @@ def persist_search_all_page_if_async(chunk: list[Any]) -> int:
         ctx.db.commit()
         return int(_stat_int(stats, "inserted_count", "inserted"))
     logger.warning(
-        "search-all chunk persist skipped/failed task_id=%s run_id=%s action=%s",
+        "search-all chunk persist skipped/failed task_id=%s run_id=%s action=%s chunk_size=%s",
         int(ctx.task_id),
         str(ctx.run_id or ""),
         ctx.public_action,
+        len(chunk),
     )
     return 0

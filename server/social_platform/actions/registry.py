@@ -158,7 +158,7 @@ def validate_body_for_action(action: str, body: Any) -> BaseModel:
 
 def body_dict_for_db(validated: BaseModel) -> dict[str, Any]:
     """入库 `body_json`：与 Worker 入参一致（不含 key），扁平/别名规范化，并去掉值为 `""` 的字段。"""
-    raw = to_worker_params(validated.model_dump(mode="python"))
+    raw = to_worker_params(validated.model_dump(mode="python", exclude_none=True))
     return prune_empty_string_fields(raw)
 
 

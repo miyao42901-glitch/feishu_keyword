@@ -41,10 +41,14 @@ def build_search_all_api_params(
 def merge_search_all_api_params_into_body(
     body: dict[str, Any], params: dict[str, Any]
 ) -> dict[str, Any]:
-    """将占位映射合并进下游 body；值为 ``None`` 的键不写入。"""
-    fetch_count = int(params.get("fetch_count") or 100)
-    time_range = int(params.get("time_range") or 7)
+    """将占位映射合并进下游 body；仅合并调用方显式传入的 search-all 控制字段。"""
+    raw_fc = params.get("fetch_count")
+    raw_tr = params.get("time_range")
     raw_st = params.get("sort_type")
+    if raw_fc is None and raw_tr is None and raw_st is None:
+        return dict(body)
+    fetch_count = int(raw_fc) if raw_fc is not None else 100
+    time_range = int(raw_tr) if raw_tr is not None else 7
     if raw_st is None or (isinstance(raw_st, str) and not str(raw_st).strip()):
         sort_type = 1
     else:
@@ -55,7 +59,10 @@ def merge_search_all_api_params_into_body(
         sort_type=sort_type,
     )
     out = dict(body)
-    for k, v in extra.items():
-        if v is not None:
-            out[k] = v
+    if raw_fc is not None:
+        out["count"] = extra["count"]
+    if raw_st is not None and str(raw_st).strip() != "":
+        out["sort"] = extra["sort"]
+        if sort_type == 2 and raw_tr is not None:
+            out["days"] = extra["days"]
     return out
