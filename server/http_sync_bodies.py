@@ -22,12 +22,12 @@ class PublicSearchAllBody(BaseModel):
         ge=1,
         description="时间范围（天）；仅 sort_type=2 时参与时间窗与第三方 days 映射",
     )
-    sort_type: Optional[int] = Field(
-        default=None,
-        ge=0,
-        le=2,
-        description="0 占位/默认排序；1 按相关性；2 按时间（为 2 时 time_range 才生效）",
-    )
+    # sort_type: Optional[int] = Field(
+    #     default=None,
+    #     ge=0,
+    #     le=2,
+    #     description="0 占位/默认排序；1 按相关性；2 按时间（为 2 时 time_range 才生效）",
+    # )
 
 
 class DouyinSearchPageBody(BaseModel):
@@ -71,6 +71,10 @@ class DouyinSearchAllBody(PublicSearchAllBody):
     publish_time: Optional[str] = None
     filter_duration: Optional[str] = None
     content_type: Optional[str] = None
+    sort_type: Optional[str] = Field(
+        default=None,
+        description="排序：0=综合，1=最多点赞，2=最新发布",
+    )
 
 
 class XhsSearchPageBody(BaseModel):
@@ -78,8 +82,10 @@ class XhsSearchPageBody(BaseModel):
 
     keyword: str = Field(..., min_length=1, description="搜索关键词")
     page: Optional[int] = Field(default=None, ge=1, description="页码")
-    sort_type: Optional[str] = Field(
+    sort_type: Optional[int] = Field(
         default=None,
+        ge=0,
+        le=4,
         description="0=综合，1=最多点赞，2=最新，3=最多评论，4=最多收藏",
     )
     content_type: Optional[str] = Field(
@@ -95,8 +101,10 @@ class XhsSearchPageBody(BaseModel):
 
 class XhsSearchAllBody(PublicSearchAllBody):
     keyword: str = Field(..., min_length=1)
-    sort_type: Optional[str] = Field(
+    sort_type: Optional[int] = Field(
         default=None,
+        ge=0,
+        le=4,
         description="0=综合，1=最多点赞，2=最新，3=最多评论，4=最多收藏",
     )
     cursor: Optional[str] = None
