@@ -2,9 +2,39 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Annotated, Any, Optional
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, BaseModel, BeforeValidator, Field
+
+
+def _coerce_optional_sort_type_str(v: Any) -> Optional[str]:
+    """sort_type 兼容 str / int；空串视为未填；抖音下游使用字符串。"""
+    if v is None:
+        return None
+    if isinstance(v, str):
+        s = v.strip()
+        return s if s else None
+    if isinstance(v, (int, float, bool)):
+        return str(int(v))
+    raise ValueError("sort_type must be a string or integer")
+
+
+def _coerce_optional_sort_type_int(v: Any) -> Optional[int]:
+    """sort_type 兼容 str / int；空串视为未填。"""
+    if v is None:
+        return None
+    if isinstance(v, str):
+        s = v.strip()
+        if not s:
+            return None
+        return int(s)
+    if isinstance(v, (int, float, bool)):
+        return int(v)
+    raise ValueError("sort_type must be a string or integer")
+
+
+SortTypeStr = Annotated[Optional[str], BeforeValidator(_coerce_optional_sort_type_str)]
+SortTypeInt = Annotated[Optional[int], BeforeValidator(_coerce_optional_sort_type_int)]
 
 
 class PublicSearchAllBody(BaseModel):
@@ -45,9 +75,9 @@ class DouyinSearchPageBody(BaseModel):
         validation_alias=AliasChoices("log_id", "logid"),
         description="翻页参数",
     )
-    sort_type: Optional[str] = Field(
+    sort_type: SortTypeStr = Field(
         default=None,
-        description="排序：0=综合，1=最多点赞，2=最新发布",
+        description="排序：0=综合，1=最多点赞，2=最新发布（支持字符串或整数）",
     )
     publish_time: Optional[str] = Field(
         default=None,
@@ -71,9 +101,9 @@ class DouyinSearchAllBody(PublicSearchAllBody):
     publish_time: Optional[str] = None
     filter_duration: Optional[str] = None
     content_type: Optional[str] = None
-    sort_type: Optional[str] = Field(
+    sort_type: SortTypeStr = Field(
         default=None,
-        description="排序：0=综合，1=最多点赞，2=最新发布",
+        description="排序：0=综合，1=最多点赞，2=最新发布（支持字符串或整数）",
     )
 
 
@@ -82,11 +112,11 @@ class XhsSearchPageBody(BaseModel):
 
     keyword: str = Field(..., min_length=1, description="搜索关键词")
     page: Optional[int] = Field(default=None, ge=1, description="页码")
-    sort_type: Optional[int] = Field(
+    sort_type: SortTypeInt = Field(
         default=None,
         ge=0,
         le=4,
-        description="0=综合，1=最多点赞，2=最新，3=最多评论，4=最多收藏",
+        description="0=综合，1=最多点赞，2=最新，3=最多评论，4=最多收藏（支持字符串或整数）",
     )
     content_type: Optional[str] = Field(
         default=None,
@@ -101,11 +131,11 @@ class XhsSearchPageBody(BaseModel):
 
 class XhsSearchAllBody(PublicSearchAllBody):
     keyword: str = Field(..., min_length=1)
-    sort_type: Optional[int] = Field(
+    sort_type: SortTypeInt = Field(
         default=None,
         ge=0,
         le=4,
-        description="0=综合，1=最多点赞，2=最新，3=最多评论，4=最多收藏",
+        description="0=综合，1=最多点赞，2=最新，3=最多评论，4=最多收藏（支持字符串或整数）",
     )
     cursor: Optional[str] = None
     log_id: Optional[str] = Field(default=None, validation_alias=AliasChoices("log_id", "logid"))
@@ -125,7 +155,10 @@ class WxSosoSearchPageBody(BaseModel):
     mode: Optional[int] = Field(default=None, description="模式")
     search_type: Optional[int] = Field(default=None, description="搜索类型")
     note_time: Optional[int] = Field(default=None, description="0不限 1最近1天 2最近7天 3最近半年")
-    sort_type: Optional[int] = Field(default=None, description="0综合 1最新 2最热")
+    sort_type: SortTypeInt = Field(
+        default=None,
+        description="0综合 1最新 2最热（支持字符串或整数）",
+    )
     page: Optional[int] = Field(default=None, ge=1, description="页码（与 currentPage 等效）")
     currentPage: Optional[int] = Field(default=None, ge=1, description="页码")
     offset: Optional[int] = Field(default=None, description="翻页 offset")
@@ -141,7 +174,7 @@ class WxSosoSearchAllBody(PublicSearchAllBody):
     mode: Optional[int] = None
     search_type: Optional[int] = None
     note_time: Optional[int] = Field(default=None, description="0不限 1最近1天 2最近7天 3最近半年")
-    sort_type: Optional[int] = None
+    sort_type: SortTypeInt = None
     page: Optional[int] = Field(default=None, ge=1)
     currentPage: Optional[int] = Field(default=None, ge=1)
     offset: Optional[int] = None
@@ -153,7 +186,10 @@ class MpSearchPageBody(BaseModel):
     """公众号单页搜索（复用视频号逻辑，mode=2, BusinessType=2）。"""
 
     keyword: str = Field(..., min_length=1, description="搜索关键词")
-    sort_type: Optional[int] = Field(default=None, description="0->Sub_search_type=0, 1->4, 2->2")
+    sort_type: SortTypeInt = Field(
+        default=None,
+        description="0->Sub_search_type=0, 1->4, 2->2（支持字符串或整数）",
+    )
     note_time: Optional[int] = Field(default=None, description="时间范围")
     page: Optional[int] = Field(default=None, ge=1, description="页码（内部映射为 currentPage）")
     currentPage: Optional[int] = Field(default=None, ge=1, description="页码")
@@ -166,7 +202,7 @@ class MpSearchAllBody(PublicSearchAllBody):
     """公众号多页搜索。"""
 
     keyword: str = Field(..., min_length=1)
-    sort_type: Optional[int] = None
+    sort_type: SortTypeInt = None
     note_time: Optional[int] = None
     page: Optional[int] = Field(default=None, ge=1)
     currentPage: Optional[int] = Field(default=None, ge=1)
