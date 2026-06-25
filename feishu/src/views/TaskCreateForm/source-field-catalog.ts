@@ -227,6 +227,10 @@ export function ensureSourceFieldSelectionForPlatform(form: TaskCreateFormModel,
     prev = prev.map((k) => (isSourceFieldKey(k) ? (shipinhaoLegacyFieldMap[k] ?? k) : k))
   }
   const kept = prev.filter((k): k is SourceFieldKey => isSourceFieldKey(k) && allowed.has(k))
+  if (!kept.length) {
+    form.sourceFieldSelection[platform] = opts.map((o) => o.value)
+    return
+  }
   const merged = new Set<SourceFieldKey>([...required, ...kept])
   if (allowed.has('collectedAt')) merged.add('collectedAt')
   form.sourceFieldSelection[platform] = opts.map((o) => o.value).filter((v) => merged.has(v))

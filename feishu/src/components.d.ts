@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    CollectionSuccessDialog: typeof import('./components/CollectionSuccessDialog.vue')['default']
     CustomerServiceQrDialog: typeof import('./components/CustomerServiceQrDialog.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
     ElButton: typeof import('element-plus/es')['ElButton']

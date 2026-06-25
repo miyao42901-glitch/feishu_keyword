@@ -18,7 +18,7 @@ defineOptions({ name: 'FilterSettingsSection' })
 const props = defineProps<{
   form: TaskCreateFormModel
   excludeKeywordDraft: string
-  /** 非 pending 编辑态：选择条数不可改 */
+  /** 非 pending 编辑态：作品数据范围不可改 */
   scheduleLocked?: boolean
 }>()
 const emit = defineEmits<{ 'update:excludeKeywordDraft': [value: string] }>()
@@ -74,14 +74,14 @@ function onRemoveExclude(i: number) {
         <el-option v-for="opt in videoDurationOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
       </el-select>
     </el-form-item>
-    <el-form-item label="选择条数">
+    <el-form-item label="作品数据范围">
       <el-select
         v-model="form.dataRange"
-        placeholder="请选择单次拉取条数"
+        placeholder="请选择采集页数"
         class="w-full"
         :disabled="scheduleLocked"
       >
-        <el-option v-for="n in dataRangeOptions" :key="n" :label="`${n}条`" :value="n" />
+        <el-option v-for="n in dataRangeOptions" :key="n" :label="`${n}页`" :value="n" />
       </el-select>
     </el-form-item>
   </div>

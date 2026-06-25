@@ -51,7 +51,7 @@ export const SYNC_SEARCH_PAGE_BY_PLATFORM: Record<
   douyin: { path: '/api/v1/sync/douyin/search-page', label: '抖音' },
   xiaohongshu: { path: '/api/v1/sync/xhs/search-page', label: '小红书' },
   shipinhao: { path: '/api/v1/sync/wxvideo/search-page', label: '视频号' },
-  gzh: { path: '/api/v1/sync/wxvideo/search-page', label: '公众号' },
+  gzh: { path: '/api/v1/sync/mp/search-page', label: '公众号' },
 }
 
 /** 各平台 `POST/GET /api/v1/sync/.../search-page` 客户端超时（毫秒） */
@@ -72,6 +72,7 @@ export function resolveSyncCollectionRequestTimeoutMs(path: string): number | un
   if (segment === 'douyin') return SYNC_PLATFORM_REQUEST_TIMEOUT_MS.douyin
   if (segment === 'xhs') return SYNC_PLATFORM_REQUEST_TIMEOUT_MS.xiaohongshu
   if (segment === 'wxvideo') return SYNC_PLATFORM_REQUEST_TIMEOUT_MS.shipinhao
+  if (segment === 'mp') return SYNC_PLATFORM_REQUEST_TIMEOUT_MS.gzh
   return undefined
 }
 

@@ -54,8 +54,11 @@ export const videoDurationOptions = [
   { label: '5分钟以上', value: 'gt5m' },
 ] as const
 
-/** 单次拉取/展示条数候选 */
-export const dataRangeOptions = [10, 20, 30, 50, 70, 100] as const
+/** 作品数据范围：各平台 search-page 请求页数 */
+export const dataRangeOptions = [1, 2, 5, 10, 20, 50] as const
+
+/** 作品数据范围默认页数 */
+export const DEFAULT_DATA_PAGE_COUNT = 1
 
 /** 信源勾选区固定顺序与展示文案（已接入 search-page 的平台） */
 export const sourcePlatforms: { id: PlatformKey; label: string }[] = [

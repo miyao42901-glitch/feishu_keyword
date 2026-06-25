@@ -29,3 +29,45 @@ export function estimatedApiPagesNeeded(requestedRows: number, platform: Platfor
   if (perPage <= 0) return 1
   return Math.max(1, Math.ceil(Math.max(0, requestedRows) / perPage))
 }
+
+/** 表单 `dataRange` 合法页数（与 {@link dataRangeOptions} 一致） */
+export function normalizeDataPageCount(raw: unknown): number {
+  const n = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isFinite(n) || n < 1) return 10
+  const pages = Math.floor(n)
+  const allowed = [1, 2, 5, 10, 20, 50] as const
+  if ((allowed as readonly number[]).includes(pages)) return pages
+  const legacyRowCounts = [10, 20, 30, 50, 70, 100]
+  if (legacyRowCounts.includes(pages)) {
+    const est = Math.max(1, Math.ceil(pages / 10))
+    let best: number = allowed[0]
+    let diff = Math.abs(est - best)
+    for (const p of allowed) {
+      const d = Math.abs(est - p)
+      if (d < diff) {
+        best = p
+        diff = d
+      }
+    }
+    return best
+  }
+  return Math.min(50, Math.max(1, pages))
+}
+
+/** 页数 × 平台单次典型条数 → 定时任务 `fetch_count` 上限 */
+export function fetchCountFromDataPages(pageCount: number, platform: PlatformKey): number {
+  const pages = normalizeDataPageCount(pageCount)
+  return Math.min(500, Math.max(1, estimatedRowsFromPages(pages, platform)))
+}
+
+export function estimatedRowsFromPages(pageCount: number, platform: PlatformKey): number {
+  const pages = normalizeDataPageCount(pageCount)
+  return pages * expectedApiPageRows(platform)
+}
+
+/** 从服务端 `fetch_count` 反推表单页数 */
+export function dataPagesFromFetchCount(fetchCount: number, platform: PlatformKey): number {
+  const perPage = expectedApiPageRows(platform)
+  if (perPage <= 0) return normalizeDataPageCount(1)
+  return normalizeDataPageCount(Math.ceil(Math.max(1, fetchCount) / perPage))
+}

@@ -35,6 +35,8 @@ import { fetchXhsSearchItems } from '@/lib/xhs-sync-api'
 import { platformDisplayNames } from '@/views/TaskCreateForm/constants'
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
 import type { TaskCardModel } from '@/views/tasks/types'
+import { estimatedRowsFromPages } from '@/lib/sync-platform-page-size'
+import { readConfiguredSearchPageCount, readDataPageCount } from '@/lib/sync-search-shared'
 import { mapItemToColumnValues, readXhsPublishTimeMs } from '@/lib/test-data-field-map'
 
 /** @deprecated 使用 `SYNC_COLLECTION_PLATFORM_IDS` */
@@ -89,11 +91,11 @@ function readSelectedSources(config: Record<string, unknown>): PlatformKey[] {
   return readSyncCollectionPlatforms(config)
 }
 
-function readDataRange(config: Record<string, unknown>): number {
-  const v = config.dataRange ?? config.data_range
-  const n = typeof v === 'number' ? v : Number(v)
-  if (!Number.isFinite(n) || n < 1) return 20
-  return Math.min(100, Math.floor(n))
+function readMaxItemsCap(config: Record<string, unknown>): number {
+  const pages = readDataPageCount(config)
+  const platforms = readSyncCollectionPlatforms(config)
+  if (!platforms.length) return estimatedRowsFromPages(pages, 'douyin')
+  return Math.max(...platforms.map((p) => estimatedRowsFromPages(pages, p)))
 }
 
 function formatPublish(ms: number): string {
@@ -109,6 +111,9 @@ function mapDouyinItem(
   config: Record<string, unknown>,
   collectedAtMs: number,
 ): TestFeedRow | null {
+  const stableId = readItemStableId(item, 'douyin')
+  if (!stableId) return null
+
   const title = typeof item.title === 'string' ? item.title : ''
   const desc =
     typeof item.desc === 'string'
@@ -136,7 +141,7 @@ function mapDouyinItem(
     publishMs: ms,
     fieldColumns: mapItemToColumnValues(item, 'douyin', config, { collectedAtMs }),
     collectedAtMs,
-    itemStableId: readItemStableId(item, 'douyin'),
+    itemStableId: stableId,
   }
 }
 
@@ -484,7 +489,7 @@ async function buildTestDataFeedFromAsyncResults(params: {
   const taskIds = refs.length ? refs.map((r) => r.taskId) : subTaskIds
   if (!taskIds.length) return { rows: [], statusMap: new Map(), resultPlatforms: [] }
 
-  const limit = readDataRange(config)
+  const pageCount = readConfiguredSearchPageCount(config)
   const douyinRows: TestFeedRow[] = []
   const xhsRows: TestFeedRow[] = []
   const shipinhaoRows: TestFeedRow[] = []
@@ -494,7 +499,7 @@ async function buildTestDataFeedFromAsyncResults(params: {
     refs,
     skipAcceptance: true,
     skipStatusFetchForIds: params.skipStatusFetchForTaskIds,
-    maxItemsPerTask: limit,
+    maxPagesPerTask: pageCount,
     pendingResultsDue: params.pendingResultsDue,
   })
 
@@ -561,7 +566,7 @@ async function buildTestDataFeedFromAsyncResults(params: {
   if (import.meta.env.DEV) {
     console.log('[feed-build-async]', {
       taskId,
-      limit,
+      pageCount,
       refs: refs.map((r) => ({ platform: r.platform, taskId: r.taskId, keyword: r.keyword })),
       rowCounts: {
         douyin: douyinRows.length,
@@ -586,7 +591,7 @@ export type BuildTestDataFeedResult = {
 
 /**
  * 从任务配置拉取采集数据。
- * `dataRange` 为各平台独立上限：选 20 条时抖音、小红书、视频号、公众号各最多 20 条。
+ * `dataRange` 为各平台 search-page 请求页数（1/2/5/10/20/50 页）。
  */
 export async function buildTestDataFeedFromConfig(params: {
   taskId: number
@@ -662,7 +667,8 @@ export async function buildTestDataFeedFromConfig(params: {
     ? { ...sync, skipSetDiscount: isRealtimeTaskConfig(config) || sync.skipSetDiscount === true }
     : undefined
 
-  const limit = readDataRange(config)
+  const limit = readMaxItemsCap(config)
+  const pageCount = readConfiguredSearchPageCount(config)
 
   const douyinRows: TestFeedRow[] = []
   const xhsRows: TestFeedRow[] = []
@@ -728,7 +734,7 @@ export async function buildTestDataFeedFromConfig(params: {
   if (import.meta.env.DEV) {
     console.log('[feed-build]', {
       taskId,
-      limit,
+      pageCount,
       preloadedCounts: {
         douyin: preloaded?.douyin?.length ?? null,
         xiaohongshu: preloaded?.xiaohongshu?.length ?? null,

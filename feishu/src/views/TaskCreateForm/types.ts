@@ -120,6 +120,7 @@ export interface TaskCreateFormModel {
   publishTime: PublishTime
   videoDuration: VideoDuration
   /** 列表条数上限 */
+  /** 作品数据范围（search-page 请求页数：1/2/5/10/20/50） */
   dataRange: number
   selectedSources: PlatformKey[]
   /** 各平台已选采集字段 */

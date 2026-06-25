@@ -6,6 +6,7 @@ import { storeToRefs } from 'pinia'
 import TaskCreateForm from '@/views/TaskCreateForm/index.vue'
 import TaskDetailDialog from '@/views/tasks/components/TaskDetailDialog.vue'
 import TaskListCard from '@/views/tasks/components/TaskListCard.vue'
+import CollectionSuccessDialog from '@/components/CollectionSuccessDialog.vue'
 import type { TaskCardModel, TaskStoppedKind } from '@/views/tasks/types'
 import type { TaskRunStatus } from '@/views/TaskCreateForm/types'
 import {
@@ -62,6 +63,11 @@ import {
 } from '@/lib/feishu-task-list-api'
 import type { AsyncTaskListSummary } from '@/lib/async-task-api'
 import { refreshYddmUserBalance } from '@/lib/refresh-yddm-balance'
+import {
+  buildCollectionSuccessSummary,
+  type CollectionSuccessSummary,
+} from '@/lib/task-estimate-points'
+import { useAccountPointsStore } from '@/stores/accountPoints'
 import { buildTestDataFeedFromConfig, taskUsesOnlyTestDataPlatforms, type TestFeedRow } from '@/lib/test-data-feed'
 import { useGlobalSettingsStore } from '@/stores/globalSettings'
 
@@ -82,6 +88,19 @@ const taskDetail = ref<FeishuTaskConfigDetail | null>(null)
 
 const globalSettings = useGlobalSettingsStore()
 const { authCode } = storeToRefs(globalSettings)
+const accountPoints = useAccountPointsStore()
+
+const collectionSuccessVisible = ref(false)
+const collectionSuccessSummary = ref<CollectionSuccessSummary | null>(null)
+
+function openCollectionSuccessDialog(summary: CollectionSuccessSummary) {
+  collectionSuccessSummary.value = summary
+  collectionSuccessVisible.value = true
+}
+
+function onViewCollectionFromSuccess() {
+  showListTip('请在左侧多维表格中打开对应数据表查看采集结果')
+}
 
 /** 运行中且仅抖音/小红书：按 test_data 与任务配置写入飞书表并更新条数统计 */
 let testFeedDebounce: ReturnType<typeof setTimeout> | null = null
@@ -1049,7 +1068,6 @@ async function onSaved(id: number, isEdit = false, isRealtime = false) {
   taskDetail.value = null
   if (isRealtime) {
     clearTestFeedAppendStateForTask(id)
-    showListTip(isEdit ? '单次任务已更新并执行' : '单次任务已执行完成')
     return
   }
   if (isEdit) {
@@ -1143,6 +1161,7 @@ function showExecutionResultTip(
   cfg: Record<string, unknown>,
   collection: Awaited<ReturnType<typeof submitCollectionFromConfig>>,
 ) {
+  if (isRealtimeTaskConfig(cfg)) return
   if (collection.mode === 'sync' && collection.emptyPlatformHints?.length) {
     const hint = collection.emptyPlatformHints.join('；')
     if (collection.itemCount === 0) {
@@ -1233,7 +1252,14 @@ async function runTaskExecutionFromList(row: TaskCardModel) {
     clearTestFeedAppendStateForTask(row.id)
     clearTestFeedAppendStateForTask(storeId)
     scheduleRefreshTestDataFeed()
-    showExecutionResultTip(wr, cfg, collection)
+    if (isRealtimeTaskConfig(cfgForBitable) && collection.mode === 'sync') {
+      await refreshYddmUserBalance()
+      openCollectionSuccessDialog(
+        buildCollectionSuccessSummary(collection.itemCount, accountPoints.currentBalancePoints),
+      )
+    } else {
+      showExecutionResultTip(wr, cfg, collection)
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : '执行失败'
     ElMessage.error(msg)
@@ -1344,6 +1370,12 @@ async function confirmDeleteTask() {
       @edit="openEdit"
     />
 
+    <CollectionSuccessDialog
+      v-model="collectionSuccessVisible"
+      :summary="collectionSuccessSummary"
+      @view-collection="onViewCollectionFromSuccess"
+    />
+
     <el-dialog
       v-model="deleteDialogVisible"
       title="删除任务"
@@ -1389,6 +1421,7 @@ async function confirmDeleteTask() {
         :edit-task-status="editingTaskStatus"
         @back="onBackFromCreate"
         @saved="onSaved"
+        @realtime-completed="openCollectionSuccessDialog"
       />
     </template>
 

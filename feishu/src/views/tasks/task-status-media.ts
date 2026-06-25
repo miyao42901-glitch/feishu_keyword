@@ -38,3 +38,6 @@ export function taskStatusRasterImgAttrs(status: TaskRunStatus): { src: string; 
   const { '1x': one, '2x': two } = taskStatusRaster[status]
   return { src: one, srcset: `${two} 2x` }
 }
+
+/** 单次采集成功弹窗角标（仅 2x 资源） */
+export const collectionSuccessIconSrc = `${TASK_STATUS_RASTER_BASE}/collect-success-icon@2x.png`

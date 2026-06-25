@@ -43,6 +43,9 @@ class DouyinParser:
                 aweme = item
 
             aweme_id = aweme.get("aweme_id") or item.get("aweme_id") or ""
+            if not aweme_id:
+                continue
+
             desc = (aweme.get("desc") or "").strip()
             title = desc or "无标题"
 

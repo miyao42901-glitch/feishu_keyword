@@ -11,7 +11,7 @@ import {
 } from '@/lib/feishu-async-task-config'
 import { clearGlobalBitableAppendDedup } from '@/lib/feishu-bitable-append-feed'
 import { syncSinglePlatformCollectionToBitable } from '@/lib/feishu-bitable-task-sync'
-import { isLocalDraftTaskId } from '@/lib/feishu-task-config-local'
+import { isLocalDraftTaskId, loadLocalTaskConfig } from '@/lib/feishu-task-config-local'
 import { buildCollectionFetchContext } from '@/lib/collection-context'
 import {
   applyCollectionResultToConfig,
@@ -19,14 +19,21 @@ import {
   canEditAsyncScheduleFields,
   editAsyncTask,
   isRealtimeTaskConfig,
+  mergeAsyncTaskIds,
+  mergeAsyncTaskRefs,
+  readAsyncTaskIds,
+  readAsyncTaskRefs,
   runRealtimeSyncSearchFromConfig,
   submitCollectionFromConfig,
 } from '@/lib/async-task-api'
 import type { FeishuTaskConfigDetail } from '@/lib/task-config-types'
-import { useGlobalSettingsStore } from '@/stores/globalSettings'
+import { readGlobalNotifyWebhook, useGlobalSettingsStore } from '@/stores/globalSettings'
+import { syncGlobalNotifyWebhookFromConfig } from '@/lib/feishu-webhook-notify'
 import { useAccountPointsStore } from '@/stores/accountPoints'
 import { refreshYddmUserBalance } from '@/lib/refresh-yddm-balance'
+import type { CollectionSuccessSummary } from '@/lib/task-estimate-points'
 import {
+  buildCollectionSuccessSummary,
   estimatePointsFromItemsByPlatform,
   estimateTaskPointsBreakdown,
 } from '@/lib/task-estimate-points'
@@ -58,7 +65,7 @@ import {
   expireAtFormItemRules,
 } from '@/lib/datetime-task-window'
 import {
-  dataRangeOptions,
+  DEFAULT_DATA_PAGE_COUNT,
   DEFAULT_CRAWL_FREQUENCY,
   platformDisplayNames,
   sourcePlatforms,
@@ -90,6 +97,8 @@ const emit = defineEmits<{
   back: []
   /** 第三参 `isRealtime`：单次任务已在弹框内 search-page 执行，列表页勿再调任务列表接口 */
   saved: [id: number, isEdit: boolean, isRealtime?: boolean]
+  /** 单次采集完成：由父级弹出「采集成功」 */
+  realtimeCompleted: [summary: CollectionSuccessSummary]
 }>()
 
 /** 各平台采集字段多选初始化为空数组，避免 undefined */
@@ -120,8 +129,8 @@ function initialForm(): TaskCreateFormModel {
   return {
     planName: '',
     feishuNotifyEnabled: false,
-    feishuWebhookUrl: '',
-    taskType: 'scheduled',
+    feishuWebhookUrl: readGlobalNotifyWebhook() ?? '',
+    taskType: 'realtime',
     crawlFrequency: DEFAULT_CRAWL_FREQUENCY,
     effectiveAt: '',
     expireAt: '',
@@ -134,7 +143,7 @@ function initialForm(): TaskCreateFormModel {
     sortOrder: 'latest',
     publishTime: 'unlimited',
     videoDuration: 'all',
-    dataRange: dataRangeOptions[1],
+    dataRange: DEFAULT_DATA_PAGE_COUNT,
     selectedSources: [],
     sourceFieldSelection: emptySourceFieldSelection(),
     tableMode: 'new',
@@ -463,6 +472,10 @@ function mergeConfigIntoForm(raw: Record<string, unknown>) {
       .toLowerCase() === 'true'
   form.feishuWebhookUrl =
     typeof raw.feishuWebhookUrl === 'string' ? raw.feishuWebhookUrl.trim() : ''
+  if (!form.feishuWebhookUrl.trim()) {
+    const saved = readGlobalNotifyWebhook()
+    if (saved) form.feishuWebhookUrl = saved
+  }
   form.platformNewTableNames = normalizePlatformStringMap(
     raw.platformNewTableNames,
     form.platformNewTableNames,
@@ -488,10 +501,14 @@ watch(
       form.effectiveAt = ''
       form.expireAt = ''
       form.feishuNotifyEnabled = false
-      form.feishuWebhookUrl = ''
       void nextTick(() => {
         formRef.value?.clearValidate(['effectiveAt', 'expireAt', 'feishuWebhookUrl'])
       })
+      return
+    }
+    if (!form.feishuWebhookUrl.trim()) {
+      const saved = readGlobalNotifyWebhook()
+      if (saved) form.feishuWebhookUrl = saved
     }
   },
 )
@@ -591,14 +608,13 @@ async function executeRealtimeFromConfirm(
   taskId: number,
   payload: Record<string, unknown>,
   ctx: Awaited<ReturnType<typeof buildCollectionFetchContext>>,
-): Promise<void> {
+): Promise<{ showSuccessDialog: boolean; articleCount: number }> {
   const taskName =
     String(payload.planName ?? payload.plan_name ?? '').trim() || '未命名任务'
   clearGlobalBitableAppendDedup()
 
   const createdTableNames = new Set<string>()
   let totalWritten = 0
-  let totalRowCount = 0
   const platformWriteErrors: string[] = []
 
   const collection = await runRealtimeSyncSearchFromConfig(payload, ctx, {
@@ -616,10 +632,11 @@ async function executeRealtimeFromConfirm(
           items,
         })
         totalWritten += bitable.written
-        totalRowCount += bitable.rowCount
         for (const name of bitable.createdTables) createdTableNames.add(name)
         if (bitable.written > 0) {
-          ElMessage.success(`${label}：已写入 ${bitable.written} 条 → ${bitable.createdTables.join('、')}`)
+          if (import.meta.env.DEV) {
+            console.log(`${label}：已写入 ${bitable.written} 条 → ${bitable.createdTables.join('、')}`)
+          }
         } else if (items.length > 0) {
           ElMessage.warning(
             `${label}：采集 ${items.length} 条，写入 0 条（请在飞书多维表格内打开插件，并检查采集字段配置）`,
@@ -646,27 +663,16 @@ async function executeRealtimeFromConfirm(
 
   if (collection.emptyPlatformHints?.length && collection.itemCount === 0) {
     ElMessage.warning(collection.emptyPlatformHints.join('；'))
-    return
+    return { showSuccessDialog: false, articleCount: 0 }
   }
   if (collection.emptyPlatformHints?.length) {
     ElMessage.warning(`部分平台无数据：${collection.emptyPlatformHints.join('；')}`)
   }
 
-  const tableHint = createdTableNames.size
-    ? `左侧数据表：${[...createdTableNames].join('、')}`
-    : ''
   if (platformWriteErrors.length && totalWritten === 0) {
-    return
+    return { showSuccessDialog: false, articleCount: collection.itemCount }
   }
-  if (createdTableNames.size && totalWritten > 0) {
-    ElMessage.success(`全部完成，共写入 ${totalWritten} 条。${tableHint}`)
-  } else if (createdTableNames.size) {
-    ElMessage.warning(
-      `已新建 ${[...createdTableNames].join('、')}，但共写入 0 条（解析 ${totalRowCount} 条）。请在左侧点击表名查看。`,
-    )
-  } else if (collection.itemCount === 0) {
-    ElMessage.warning('采集结果为空，未写入多维表格')
-  }
+  return { showSuccessDialog: true, articleCount: collection.itemCount }
 }
 
 async function persistFromConfirmDialog() {
@@ -726,15 +732,48 @@ async function persistFromConfirmDialog() {
       saveTaskConfigSnapshot(draftId, payload)
       internalConfigId.value = draftId
       targetId = draftId
-      await executeRealtimeFromConfirm(draftId, payload, ctx)
+      const realtimeResult = await executeRealtimeFromConfirm(draftId, payload, ctx)
       savedAsRealtime = true
+      if (realtimeResult.showSuccessDialog) {
+        await refreshYddmUserBalance()
+        emit(
+          'realtimeCompleted',
+          buildCollectionSuccessSummary(
+            realtimeResult.articleCount,
+            accountPoints.currentBalancePoints,
+          ),
+        )
+      }
     } else if (existingId != null && !isLocalDraftTaskId(existingId)) {
       const editBody = buildAsyncTaskEditRequest(existingId, payload, {
         allowScheduleFields:
           form.taskType === 'scheduled' && canEditAsyncScheduleFields(props.editTaskStatus),
       })
       await editAsyncTask(ctx, editBody)
-      saveTaskConfigSnapshot(existingId, payload)
+
+      const existingLocal = loadLocalTaskConfig(existingId)
+      if (existingLocal) {
+        payload.asyncTaskRefs = mergeAsyncTaskRefs(payload, readAsyncTaskRefs(existingLocal))
+        payload.asyncTaskIds = mergeAsyncTaskIds(payload, readAsyncTaskIds(existingLocal))
+      } else if (!readAsyncTaskRefs(payload).length && form.selectedSources.length) {
+        payload.asyncTaskRefs = [
+          {
+            taskId: String(existingId),
+            platform: form.selectedSources[0]!,
+            keyword: form.keywords[0]?.trim() ?? '',
+          },
+        ]
+        payload.asyncTaskIds = [String(existingId)]
+      }
+
+      const collection = await submitCollectionFromConfig(payload, ctx, { taskId: existingId })
+      if (collection.mode === 'async' && collection.refs.length) {
+        applyCollectionResultToConfig(payload, collection)
+        persistCollectionRefsToLocal(existingId, payload)
+      } else {
+        saveTaskConfigSnapshot(existingId, payload)
+      }
+      syncGlobalNotifyWebhookFromConfig(payload)
       targetId = existingId
     } else {
       const collection = await submitCollectionFromConfig(payload, ctx)
@@ -752,6 +791,8 @@ async function persistFromConfirmDialog() {
       internalConfigId.value = primaryId
       targetId = primaryId
     }
+
+    syncGlobalNotifyWebhookFromConfig(payload)
 
     trackTaskCreate({
       taskId: targetId,
@@ -796,15 +837,9 @@ async function persistFromConfirmDialog() {
     <TaskConfigConfirmDialog
       v-model="confirmVisible"
       :rows="confirmDisplayRows"
-      :estimated-points="pointsEstimate.total"
-      :scheduled-execution-rounds="
-        form.taskType === 'scheduled' ? pointsEstimate.scheduledExecutionRounds : undefined
-      "
-      :balance-points="accountPoints.currentBalancePoints"
       :confirming="saving"
       :is-realtime-task="form.taskType === 'realtime'"
       @confirm="persistFromConfirmDialog"
-      @recharge="handleInsufficientBalance"
     />
 
     <div

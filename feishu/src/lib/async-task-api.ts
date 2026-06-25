@@ -19,12 +19,12 @@ import {
   type AsyncTaskResultsMeta,
   type SyncFetchContext,
 } from '@/lib/sync-api-common'
-import { expectedApiPageRows } from '@/lib/sync-platform-page-size'
+import { fetchCountFromDataPages, dataPagesFromFetchCount } from '@/lib/sync-platform-page-size'
 import { buildDouyinSearchPageBody } from '@/lib/sync-search-page'
 import {
   getSyncApiJson,
   postSyncApiJson,
-  readDataRange,
+  readDataPageCount,
   readSearchKeywords,
 } from '@/lib/sync-search-shared'
 import { fetchDouyinSearchItems } from '@/lib/douyin-sync-api'
@@ -96,7 +96,7 @@ export type AsyncTaskBody = {
 /**
  * 定时任务 `POST /api/v1/async/tasks` 入参。
  * `task_start_time` / `task_end_time` 对应表单「开始/结束时间」；
- * `interval_minutes` 对应「采集频率」；`fetch_count` 对应「选择条数」；
+ * `interval_minutes` 对应「采集频率」；`fetch_count` 对应「作品数据范围」（按页折算条数上限）；
  * `task_name` 对应表单「任务名称」（1～30 字符）。
  *
  * 采集节奏由 YDDM 按上述窗口与频率调度：首轮在 `task_start_time`，之后每隔 `interval_minutes`；
@@ -291,7 +291,7 @@ export function readAsyncTaskSchedule(config: Record<string, unknown>): {
   const fallbackMins = Number(DEFAULT_CRAWL_FREQUENCY)
   const interval_minutes =
     Number.isFinite(interval) && interval > 0 ? Math.floor(interval) : fallbackMins
-  const fetch_count = readDataRange(config)
+  const fetch_count = fetchCountFromDataPages(readDataPageCount(config), 'douyin')
 
   if (!task_start_time) {
     throw new Error('请填写监控开始时间')
@@ -323,7 +323,13 @@ export function buildAsyncTaskSubmitRequest(
   const schedule = readAsyncTaskSchedule(config)
   const body = buildAsyncTaskBodyForPlatform(platform, config, keyword)
   const task_name = readAsyncTaskName(config)
-  return { action, body, task_name, ...schedule }
+  return {
+    action,
+    body,
+    task_name,
+    ...schedule,
+    fetch_count: fetchCountFromDataPages(readDataPageCount(config), platform),
+  }
 }
 
 function buildAsyncTaskBodyForPlatform(
@@ -873,7 +879,21 @@ export function buildAsyncTaskEditRequest(
     body.interval_minutes = mins
   }
 
-  const fetch = readDataRange(input)
+  const pages = readDataPageCount(input)
+  const platformRaw = String(input.platform ?? '').trim().toLowerCase()
+  const syncId =
+    platformRaw === 'xhs'
+      ? 'xiaohongshu'
+      : platformRaw === 'mp'
+        ? 'gzh'
+        : platformRaw === 'wxvideo'
+          ? 'shipinhao'
+          : platformRaw === 'douyin'
+            ? 'douyin'
+            : null
+  const fetch = syncId
+    ? fetchCountFromDataPages(pages, syncId)
+    : fetchCountFromDataPages(pages, 'douyin')
   if (fetch >= 1 && fetch <= 500) {
     body.fetch_count = fetch
   }
@@ -924,7 +944,19 @@ export function configPatchFromAsyncTaskRecord(rec: Record<string, unknown>): Re
   }
   if (fetch != null && String(fetch).trim() !== '') {
     const n = Math.floor(Number(fetch))
-    if (Number.isFinite(n) && n >= 1) patch.dataRange = Math.min(500, n)
+    if (Number.isFinite(n) && n >= 1) {
+      const syncId =
+        platform === 'xhs'
+          ? 'xiaohongshu'
+          : platform === 'mp'
+            ? 'gzh'
+            : platform === 'wxvideo'
+              ? 'shipinhao'
+              : platform === 'douyin'
+                ? 'douyin'
+                : 'douyin'
+      patch.dataRange = dataPagesFromFetchCount(n, syncId)
+    }
   }
   const platformNorm =
     platform === 'xhs'
@@ -1076,19 +1108,17 @@ function resolvePlatformFromResultsMeta(meta: AsyncTaskResultsMeta): SyncCollect
   return mapYddmPlatformToSyncId(meta.platform ?? meta.source)
 }
 
-/** 拉取单任务全部结果页（`GET .../results?page=`）；达到选择条数后不再翻页，末页超出条数不截断 */
+/** 拉取单任务结果页（`GET .../results?page=`）：固定请求 {@link maxPages} 页 */
 export async function fetchAllAsyncTaskResults(
   ctx: SyncFetchContext,
   taskId: string,
-  options?: { maxItems?: number },
+  options?: { maxPages?: number },
 ): Promise<AsyncTaskResultsBatch> {
   const collected: Record<string, unknown>[] = []
   let meta: AsyncTaskResultsMeta = {}
-  const maxPages = 50
-  const maxItems =
-    options?.maxItems != null && options.maxItems > 0 ? Math.floor(options.maxItems) : undefined
+  const pageCount = Math.max(1, Math.min(options?.maxPages ?? 50, 50))
 
-  for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+  for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
     const parsed = await fetchAsyncTaskResultsPageWithRetry(
       ctx,
       taskId,
@@ -1104,33 +1134,9 @@ export async function fetchAllAsyncTaskResults(
     if (pageMeta.insufficientBalance) {
       throw new Error('账户积分不足，无法继续采集')
     }
-    if (maxItems != null && collected.length >= maxItems) break
-    if (!batch.length) break
-
-    const platform = resolvePlatformFromResultsMeta(meta)
-    const rowsPerPage = expectedApiPageRows(platform ?? 'douyin')
-
-    /*
-     * 结果接口用 `?page=` 翻页（非 cursor）。抖音约 10 条/页：
-     * 本页满页则继续请求下一页，直至凑满 maxItems 或遇到不足一页的末页。
-     * 不依赖 `has_more`（首屏常误报 false，导致只写入 10 条）。
-     */
-    const needMore = maxItems == null || collected.length < maxItems
-    if (needMore && batch.length >= rowsPerPage) continue
-    if (batch.length < rowsPerPage) break
-  }
-
-  if (import.meta.env.DEV && maxItems != null && collected.length > 0 && collected.length < maxItems) {
-    console.warn('[async-task] results 未凑满选择条数', {
-      taskId,
-      collected: collected.length,
-      maxItems,
-      platform: resolvePlatformFromResultsMeta(meta),
-    })
   }
 
   const platform = resolvePlatformFromResultsMeta(meta)
-  /* 不按选择条数截断：末页若多于上限则全部保留；翻页仅在 collected.length < maxItems 时继续 */
   return { items: collected, meta, platform }
 }
 
@@ -1148,7 +1154,7 @@ export async function fetchAsyncTaskResultsMap(
   ctx: SyncFetchContext,
   taskIds: string[],
   statusMap?: Map<string, AsyncTaskStatusResult>,
-  options?: { maxItemsPerTask?: number; pendingResultsDue?: boolean },
+  options?: { maxPagesPerTask?: number; pendingResultsDue?: boolean },
 ): Promise<Map<string, AsyncTaskResultsBatch>> {
   const wanted = [...new Set(taskIds.map((x) => x.trim()).filter(Boolean))]
   const map = new Map<string, AsyncTaskResultsBatch>()
@@ -1168,7 +1174,7 @@ export async function fetchAsyncTaskResultsMap(
         return
       }
       try {
-        map.set(id, await fetchAllAsyncTaskResults(ctx, id, { maxItems: options?.maxItemsPerTask }))
+        map.set(id, await fetchAllAsyncTaskResults(ctx, id, { maxPages: options?.maxPagesPerTask }))
       } catch {
         map.set(id, emptyBatch())
       }
@@ -1263,8 +1269,8 @@ export async function fetchAsyncTaskStatusAndResultsMaps(
     skipAcceptance?: boolean
     /** 列表已确认为 running 的子任务 id，跳过 `GET .../tasks/{id}` */
     skipStatusFetchForIds?: Iterable<string>
-    /** 对应表单「选择条数」，拉 results 时翻页上限 */
-    maxItemsPerTask?: number
+    /** 对应表单「作品数据范围」页数，拉 results 时固定请求页数 */
+    maxPagesPerTask?: number
     /** `pending` 且已过 next_run_at+3min 时拉 results（各平台子任务共用） */
     pendingResultsDue?: boolean
   },
@@ -1290,7 +1296,7 @@ export async function fetchAsyncTaskStatusAndResultsMaps(
     for (const [id, st] of fetched) statusMap.set(id, st)
   }
   const resultsMap = await fetchAsyncTaskResultsMap(ctx, taskIds, statusMap, {
-    maxItemsPerTask: options?.maxItemsPerTask,
+    maxPagesPerTask: options?.maxPagesPerTask,
     pendingResultsDue: options?.pendingResultsDue,
   })
   if (!options?.skipAcceptance && options?.refs?.length) {

@@ -32,6 +32,7 @@ class XhsParser:
                 "cost": cost,
                 "error": None,
                 "insufficient_balance": False,
+                "has_more": False,
             }
 
         rows: list[dict[str, Any]] = []
@@ -138,4 +139,5 @@ class XhsParser:
             "cost": cost,
             "error": None,
             "insufficient_balance": False,
+            "has_more": len(rows) > 0,
         }

@@ -184,7 +184,7 @@ export async function loadTaskConfigDetail(
       task_start_time: card.effectiveAtRaw,
       task_end_time: card.expireAtRaw,
     })
-    config = local ? { ...local, ...yddmPatch } : yddmPatch
+    config = local ? { ...yddmPatch, ...local } : yddmPatch
   } catch {
     config = local ?? buildFeedConfigFromListCard(card)
   }

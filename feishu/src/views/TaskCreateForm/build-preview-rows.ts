@@ -2,6 +2,7 @@
  * 将保存后的 `config_json` 快照转为预览表格行（不含敏感字段原文）。
  */
 import dayjs from 'dayjs'
+import { normalizeDataPageCount } from '@/lib/sync-platform-page-size'
 import customParseFormat from 'dayjs/plugin/customParseFormat'
 import type { PlatformKey } from '@/components/PlatformIcon.vue'
 
@@ -65,8 +66,8 @@ export function buildTaskConfigPreviewRows(cfg: Record<string, unknown>): { labe
   rows.push({ label: '发布时间', value: optLabel(publishTimeOptions, cfg.publishTime) })
   rows.push({ label: '视频时长', value: optLabel(videoDurationOptions, cfg.videoDuration) })
   rows.push({
-    label: '选择条数',
-    value: typeof cfg.dataRange === 'number' ? String(cfg.dataRange) : '—',
+    label: '作品数据范围',
+    value: formatDataRangeLabel(cfg),
   })
 
   const src = cfg.selectedSources
@@ -139,9 +140,8 @@ function formatTaskWindowDuration(effectiveAt: string, expireAt: string): string
 }
 
 function formatDataRangeLabel(cfg: Record<string, unknown>): string {
-  const dr = cfg.dataRange
-  const n = typeof dr === 'number' ? dr : Number(dr)
-  return Number.isFinite(n) && n > 0 ? `${Math.floor(n)}条` : '—'
+  const pages = normalizeDataPageCount(cfg.dataRange ?? cfg.data_range)
+  return `${pages}页`
 }
 
 /** 确认弹框：标签 + 展示值 */
@@ -200,19 +200,20 @@ export function buildTaskConfigConfirmRows(cfg: Record<string, unknown>): TaskCo
 
   const eff = typeof cfg.effectiveAt === 'string' ? cfg.effectiveAt.trim() : ''
   const exp = typeof cfg.expireAt === 'string' ? cfg.expireAt.trim() : ''
-  rows.push({
-    label: '任务开始时间',
-    value: !isRealtime && eff ? eff : '—',
-  })
-  rows.push({
-    label: '任务结束时间',
-    value: !isRealtime && exp ? exp : '—',
-  })
-  rows.push({
-    label: '任务时长',
-    value: !isRealtime && eff && exp ? formatTaskWindowDuration(eff, exp) : '—',
-  })
-  if (!isRealtime && eff && exp) {
+
+  if (!isRealtime) {
+    rows.push({
+      label: '任务开始时间',
+      value: eff || '—',
+    })
+    rows.push({
+      label: '任务结束时间',
+      value: exp || '—',
+    })
+    rows.push({
+      label: '任务时长',
+      value: eff && exp ? formatTaskWindowDuration(eff, exp) : '—',
+    })
     const rounds = countScheduledExecutionRounds(eff, exp, cfg.crawlFrequency)
     rows.push({
       label: '预计采集轮次',
@@ -229,7 +230,7 @@ export function buildTaskConfigConfirmRows(cfg: Record<string, unknown>): TaskCo
   rows.push({ label: '排序方式', value: optLabel(sortOrderOptions, cfg.sortOrder) })
   rows.push({ label: '发布时间', value: optLabel(publishTimeOptions, cfg.publishTime) })
   rows.push({ label: '视频时长', value: optLabel(videoDurationOptions, cfg.videoDuration) })
-  rows.push({ label: '选择条数', value: formatDataRangeLabel(cfg) })
+  rows.push({ label: '作品数据范围', value: formatDataRangeLabel(cfg) })
 
   const src = cfg.selectedSources
   if (Array.isArray(src) && src.length) {

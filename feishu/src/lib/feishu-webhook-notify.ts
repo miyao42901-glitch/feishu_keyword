@@ -6,7 +6,9 @@
 import type { AsyncTaskRef } from '@/lib/async-task-api'
 import { isRealtimeTaskConfig } from '@/lib/async-task-api'
 import { parseTaskDateTimeString } from '@/lib/datetime-task-window'
-import { platformDisplayNames } from '@/views/TaskCreateForm/constants'
+import { readSearchKeywords } from '@/lib/sync-search-shared'
+import { readSyncCollectionPlatforms } from '@/lib/sync-collection-platforms'
+import { frequencyOptions, platformDisplayNames } from '@/views/TaskCreateForm/constants'
 
 import { rememberGlobalNotifyWebhook, readGlobalNotifyWebhook } from '@/stores/globalSettings'
 
@@ -80,7 +82,8 @@ export function readFeishuWebhookUrl(config: Record<string, unknown>): string | 
 
 /** 保存任务时同步全局 Webhook（供积分不足等账户级通知使用） */
 export function syncGlobalNotifyWebhookFromConfig(config: Record<string, unknown>): void {
-  const url = readFeishuWebhookUrl(config)
+  const raw = config.feishuWebhookUrl ?? config.feishu_webhook_url
+  const url = typeof raw === 'string' ? raw.trim() : ''
   if (url) rememberGlobalNotifyWebhook(url)
 }
 
@@ -157,6 +160,46 @@ function buildFailedNotifyKey(roundKey: string | null, failedRefs: AsyncTaskRef[
     .sort()
     .join(',')
   return `${roundKey ?? 'na'}:${ids}`
+}
+
+export function formatCrawlFrequencyLabel(minutes: number): string {
+  const mins = Math.max(1, Math.floor(minutes))
+  const hit = frequencyOptions.find((o) => Number(o.value) === mins)
+  if (hit) return hit.label
+  if (mins < 60) return `每${mins}分钟`
+  if (mins % 60 === 0) return `每${mins / 60}小时`
+  return `每${mins}分钟`
+}
+
+/** 定时任务每轮 Webhook 正文（默认推送格式） */
+export function buildScheduledRoundWebhookMessage(input: {
+  taskName: string
+  config: Record<string, unknown>
+  newRowCount: number
+  modifiedRowCount: number
+  collectedAt?: Date
+}): string {
+  const taskName = input.taskName.trim() || '未命名任务'
+  const time = (input.collectedAt ?? new Date()).toLocaleString('zh-CN', { hour12: false })
+  const freqLabel = formatCrawlFrequencyLabel(readCrawlIntervalMinutes(input.config))
+  const keywords = readSearchKeywords(input.config).join('、') || '—'
+  const platforms =
+    readSyncCollectionPlatforms(input.config)
+      .map((p) => platformDisplayNames[p] ?? p)
+      .join('、') || '—'
+  const newCount = Math.max(0, Math.floor(input.newRowCount))
+  const modifiedCount = Math.max(0, Math.floor(input.modifiedRowCount))
+
+  return [
+    '关键词监控提醒',
+    `任务：${taskName}`,
+    `时间：${time}`,
+    `采集频率：${freqLabel}`,
+    `新增数据：${newCount}条`,
+    `修改数据：${modifiedCount}条`,
+    `关键词：${keywords}`,
+    `平台：${platforms}`,
+  ].join('\n')
 }
 
 export function buildTaskWebhookMessage(input: {
@@ -252,27 +295,23 @@ export async function maybeNotifyScheduledRoundByFrequency(input: {
   if (state.lastRoundNotifyKey === roundKey) return
   patchTaskWebhookState(input.taskId, { lastRoundNotifyKey: roundKey })
 
-  const intervalMin = readCrawlIntervalMinutes(input.config)
   const written = Math.max(0, Math.floor(input.writtenRowCount))
   const total = Math.max(0, Math.floor(input.totalRowCount))
-
-  const detailLines: string[] = [`采集频率：每 ${intervalMin} 分钟`]
-  if (written > 0) {
-    detailLines.push(`本轮写入飞书表格：${written} 条`)
-  } else {
-    detailLines.push('本轮无新数据写入飞书表格')
-  }
-  if (total > 0) {
-    detailLines.push(`采集结果累计：${total} 条`)
-  }
-
-  await notifyTaskWebhookIfEnabled({
-    taskId: input.taskId,
+  const modified = Math.max(0, total - written)
+  const text = buildScheduledRoundWebhookMessage({
     taskName: input.taskName,
     config: input.config,
-    event: 'scheduled_round',
-    detailLines,
+    newRowCount: written,
+    modifiedRowCount: modified,
   })
+
+  try {
+    await sendFeishuWebhookText(url, text)
+  } catch (e) {
+    if (import.meta.env.DEV) {
+      console.warn('[feishu-webhook] scheduled_round', e)
+    }
+  }
 }
 
 /** 异步子任务或本地执行失败时推送（同一轮次内相同失败集只推一次） */

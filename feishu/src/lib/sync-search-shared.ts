@@ -2,6 +2,7 @@
  * 抖音 / 小红书 search-page 共用：HTTP、任务配置解析、去重收集。
  */
 
+import { normalizeDataPageCount } from '@/lib/sync-platform-page-size'
 import { resolveSyncCollectionRequestTimeoutMs } from '@/lib/sync-collection-platforms'
 import {
   assertSyncEnvelopeOk,
@@ -102,11 +103,21 @@ export function readSearchKeywords(config: Record<string, unknown>): string[] {
   return keywords.length ? keywords : ['']
 }
 
+export function readDataPageCount(config: Record<string, unknown>): number {
+  return normalizeDataPageCount(config.dataRange ?? config.data_range)
+}
+
+/** 各平台 search-page / results 翻页：每个关键词固定请求的页数（上限 50） */
+export function readConfiguredSearchPageCount(
+  config: Record<string, unknown>,
+  cap = 50,
+): number {
+  return Math.min(readDataPageCount(config), cap)
+}
+
+/** @deprecated 语义为作品数据范围（页数），请使用 {@link readDataPageCount} */
 export function readDataRange(config: Record<string, unknown>): number {
-  const v = config.dataRange ?? config.data_range
-  const n = typeof v === 'number' ? v : Number(v)
-  if (!Number.isFinite(n) || n < 1) return 20
-  return Math.min(100, Math.floor(n))
+  return readDataPageCount(config)
 }
 
 export function buildExcludeWords(config: Record<string, unknown>): string {
@@ -367,18 +378,18 @@ export function mergeResultItems(input: {
   collected: Record<string, unknown>[]
   seenIds: Set<string>
   itemIdKeys: string[]
-  limit: number
+  limit?: number
   /** 与 `buildPlatformItemDedupKey` 一致，如 `douyin` */
   platformKey?: string
 }): boolean {
   for (const item of input.batch) {
     const id = pickItemId(item, input.itemIdKeys)
-    if (id) {
-      const dedupKey = input.platformKey ? `${input.platformKey}:${id}` : id
-      if (input.seenIds.has(dedupKey)) continue
-      input.seenIds.add(dedupKey)
-    }
+    if (!id) continue
+    const dedupKey = input.platformKey ? `${input.platformKey}:${id}` : id
+    if (input.seenIds.has(dedupKey)) continue
+    input.seenIds.add(dedupKey)
     input.collected.push(item)
   }
-  return input.collected.length >= input.limit
+  if (input.limit != null && input.collected.length >= input.limit) return true
+  return false
 }
