@@ -18,7 +18,7 @@ from datetime import time as dt_time
 from datetime import timedelta
 from typing import Any, Callable, Optional
 
-from social_platform.utils.coercion import as_api_int
+from social_platform.utils.coercion import accumulate_search_all_balance_cost
 
 # 未启用严格止损时的兼容页数上限（与历史 DEFAULT_SAFETY_MAX_PAGES 一致）
 LEGACY_SAFETY_MAX_PAGES = 500
@@ -769,6 +769,11 @@ def fetch_douyin_search_all(
             break
 
         result = api_call(api_url, key, body)
+        cost, balance = accumulate_search_all_balance_cost(
+            total_cost=cost,
+            last_balance=balance,
+            page_result=result,
+        )
         if result.get("insufficient_balance"):
             insufficient_balance = True
             stop_reason = STOP_INSUFFICIENT_BALANCE
@@ -807,9 +812,6 @@ def fetch_douyin_search_all(
             result.get("has_more"),
             fallback=bool(next_cursor.strip() or next_logid.strip()),
         )
-        balance = as_api_int(result.get("balance"), balance)
-        cost = as_api_int(result.get("cost"), cost)
-
         if mode.use_date_window:
             (
                 chunk,
@@ -1014,6 +1016,11 @@ def fetch_xhs_search_all(
         body["page"] = start + pages
         body.pop("cursor", None)  # xhs: page-based pagination
         result = api_call(api_url, key, body)
+        cost, balance = accumulate_search_all_balance_cost(
+            total_cost=cost,
+            last_balance=balance,
+            page_result=result,
+        )
         if result.get("insufficient_balance"):
             insufficient_balance = True
             stop_reason = STOP_INSUFFICIENT_BALANCE
@@ -1050,9 +1057,6 @@ def fetch_xhs_search_all(
             result.get("has_more"),
             fallback=bool(raw_data),
         )
-        balance = as_api_int(result.get("balance"), balance)
-        cost = as_api_int(result.get("cost"), cost)
-
         if mode.use_date_window:
             (
                 chunk,
@@ -1283,6 +1287,11 @@ def fetch_offset_cookies_search_all(
             break
 
         result = api_call(api_url, key, body)
+        cost, balance = accumulate_search_all_balance_cost(
+            total_cost=cost,
+            last_balance=balance,
+            page_result=result,
+        )
         if result.get("insufficient_balance"):
             insufficient_balance = True
             stop_reason = STOP_INSUFFICIENT_BALANCE
@@ -1321,9 +1330,6 @@ def fetch_offset_cookies_search_all(
             result.get("has_more"),
             fallback=bool(next_offset.strip() or next_cookies.strip()),
         )
-        balance = as_api_int(result.get("balance"), balance)
-        cost = as_api_int(result.get("cost"), cost)
-
         if mode.use_date_window:
             (
                 chunk,

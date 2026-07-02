@@ -8,8 +8,13 @@ from typing import Any
 from config.settings import get_settings
 
 
+def _resolved_environment() -> str:
+    """ENVIRONMENT 未配置时视为生产，不暴露调试信息。"""
+    return (getattr(get_settings(), "environment", None) or "").strip()
+
+
 def expose_debug_details() -> bool:
-    return get_settings().is_test_environment()
+    return _resolved_environment().lower() == "test"
 
 
 def format_exception_debug(exc: BaseException, *, traceback_limit: int = 12) -> dict[str, Any]:
@@ -41,7 +46,7 @@ def enrich_error_payload(
 ) -> Any:
     if not expose_debug_details():
         return data
-    debug: dict[str, Any] = {"environment": get_settings().environment or "test"}
+    debug: dict[str, Any] = {"environment": _resolved_environment() or "production"}
     if exc is not None:
         debug.update(format_exception_debug(exc))
     debug.update(extra)

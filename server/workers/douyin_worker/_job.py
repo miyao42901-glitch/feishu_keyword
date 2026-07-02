@@ -13,7 +13,7 @@ from social_platform.services.search_persist import (
     persist_search_all_page_if_async,
     search_all_async_ctx,
 )
-from social_platform.utils.coercion import as_third_party_str
+from social_platform.utils.coercion import as_third_party_str, optional_body_str
 from social_platform.utils.search_fetch_all import (
     clamp_fetch_count_cap,
     coerce_optional_list_sort_type,
@@ -31,45 +31,40 @@ WORKER_NAME = "douyin_worker"
 WORKER_VERSION = "1.0.0"
 
 
+def _douyin_json_body(
+    params: dict[str, Any], *, include_cursor_from_page: bool
+) -> dict[str, Any]:
+    """抖音搜索 POST body；未传字段不写入。"""
+    body: dict[str, Any] = {"keyword": str(params.get("keyword") or "")}
+    cursor = optional_body_str(params, "cursor")
+    if include_cursor_from_page and not cursor:
+        cursor = optional_body_str(params, "page")
+    if cursor:
+        body["cursor"] = cursor
+    log_id = optional_body_str(params, "log_id", "logid")
+    if log_id:
+        body["log_id"] = log_id
+    sort_type = optional_body_str(params, "sort_type")
+    if sort_type:
+        body["sort_type"] = sort_type
+    for key in ("publish_time", "filter_duration", "content_type"):
+        value = optional_body_str(params, key)
+        if value:
+            body[key] = value
+    exclude_words = as_third_party_str(params.get("exclude_words")).strip()
+    if exclude_words:
+        body["exclude_words"] = exclude_words
+    return body
+
+
 def _third_party_json_body(params: dict[str, Any]) -> dict[str, Any]:
-    """抖音 / 小红书 search-all 等多页场景（cursor 翻页）。"""
-    cursor = str(params.get("cursor") or "")
-    if not cursor.strip():
-        cursor = str(params.get("page") or "")
-    st = params.get("sort_type")
-    if st is None or (isinstance(st, str) and not str(st).strip()):
-        sort_type = "0"
-    else:
-        sort_type = str(st)
-    return {
-        "keyword": str(params.get("keyword") or ""),
-        "cursor": cursor,
-        "log_id": str(params.get("log_id") or params.get("logid") or ""),
-        "sort_type": sort_type,
-        "publish_time": as_third_party_str(params.get("publish_time")) or "0",
-        "filter_duration": as_third_party_str(params.get("filter_duration")) or "0",
-        "content_type": as_third_party_str(params.get("content_type")) or "0",
-        "exclude_words": as_third_party_str(params.get("exclude_words")),
-    }
+    """抖音 search-all 等多页场景（cursor 翻页）。"""
+    return _douyin_json_body(params, include_cursor_from_page=True)
 
 
 def _douyin_page_json_body(params: dict[str, Any]) -> dict[str, Any]:
     """抖音单页搜索 POST body。"""
-    st = params.get("sort_type")
-    if st is None or (isinstance(st, str) and not str(st).strip()):
-        sort_type = "0"
-    else:
-        sort_type = str(st)
-    return {
-        "keyword": str(params.get("keyword") or ""),
-        "cursor": str(params.get("cursor") or ""),
-        "log_id": str(params.get("log_id") or params.get("logid") or ""),
-        "sort_type": sort_type,
-        "publish_time": as_third_party_str(params.get("publish_time")) or "0",
-        "filter_duration": as_third_party_str(params.get("filter_duration")) or "0",
-        "content_type": as_third_party_str(params.get("content_type")) or "0",
-        "exclude_words": as_third_party_str(params.get("exclude_words")),
-    }
+    return _douyin_json_body(params, include_cursor_from_page=False)
 
 
 def _third_party_json_body_search_all(params: dict[str, Any]) -> dict[str, Any]:

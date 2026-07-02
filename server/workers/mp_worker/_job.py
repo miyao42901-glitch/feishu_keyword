@@ -13,7 +13,10 @@ from social_platform.services.search_persist import (
     persist_search_all_page_if_async,
     search_all_async_ctx,
 )
-from social_platform.utils.coercion import as_third_party_str
+from social_platform.utils.coercion import (
+    as_third_party_str,
+    optional_body_int,
+)
 from social_platform.utils.search_fetch_all import (
     clamp_fetch_count_cap,
     coerce_optional_list_sort_type,
@@ -32,31 +35,37 @@ MP_SORT_TYPE_MAP: dict[int, int] = {0: 0, 1: 4, 2: 2}
 
 def _mp_search_json_body(params: dict[str, Any]) -> dict[str, Any]:
     """公众号搜索 body 构造（mode=2, BusinessType=2, sort 映射为 Sub_search_type）。"""
-    st = params.get("sort_type")
-    try:
-        st_int = int(st) if st is not None else 0
-    except (TypeError, ValueError):
-        st_int = 0
-    mapped_sub = MP_SORT_TYPE_MAP.get(st_int, 0)
-
-    page_val = params.get("page") or params.get("currentPage", 1)
-    try:
-        page_val = max(1, int(page_val))
-    except (TypeError, ValueError):
-        page_val = 1
-
     body: dict[str, Any] = {
-        # "mode": 2,
         "BusinessType": 2,
         "keyword": str(params.get("keyword") or ""),
-        # "note_time": params.get("note_time", 0),
-        "sort_type": mapped_sub,
-        "currentPage": page_val,
-        "offset": params.get("offset", 0),
-        "cookies_buffer": params.get("cookies_buffer", ""),
-        "exclude_words": as_third_party_str(params.get("exclude_words")),
     }
-    return {k: v for k, v in body.items() if v != "" or k in ("keyword", "offset")}
+
+    if params.get("sort_type") is not None:
+        try:
+            st_int = int(params.get("sort_type"))
+        except (TypeError, ValueError):
+            st_int = 0
+        body["sort_type"] = MP_SORT_TYPE_MAP.get(st_int, 0)
+
+    page_val = optional_body_int(params, "page", "currentPage")
+    if page_val is not None:
+        body["currentPage"] = max(1, page_val)
+
+    if params.get("offset") is not None:
+        offset = params.get("offset")
+        if not (isinstance(offset, str) and not str(offset).strip()):
+            body["offset"] = offset
+
+    if params.get("cookies_buffer") is not None:
+        cookies_buffer = as_third_party_str(params.get("cookies_buffer"))
+        if cookies_buffer:
+            body["cookies_buffer"] = cookies_buffer
+
+    exclude_words = as_third_party_str(params.get("exclude_words")).strip()
+    if exclude_words:
+        body["exclude_words"] = exclude_words
+
+    return body
 
 
 def _mp_search_json_body_search_all(params: dict[str, Any]) -> dict[str, Any]:

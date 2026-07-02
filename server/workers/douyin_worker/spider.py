@@ -54,12 +54,7 @@ class DouyinSpider(BaseSpider):
                     "next_logid": payload.get("log_id", ""),
                 }
             if ac == CODE_FAILED:
-                logger.warning(
-                    "%s business_error code=%s msg=%s",
-                    self.platform,
-                    api_code,
-                    self._business_error_summary(raw),
-                )
+                self._log_yddm_failed_response(raw, api_code=api_code)
                 if attempt < 2:
                     continue
                 break

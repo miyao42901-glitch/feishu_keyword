@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any, Optional, Protocol
 
@@ -67,6 +68,24 @@ class BaseSpider:
     def _business_error_summary(raw: dict[str, Any]) -> str:
         msg = raw.get("msg") or raw.get("message") or ""
         return str(msg)[:200]
+
+    def _log_yddm_failed_response(
+        self, raw: dict[str, Any], *, api_code: Any = None
+    ) -> None:
+        """YDDM 业务失败时打印完整响应（超长截断）。"""
+        try:
+            text = json.dumps(raw, ensure_ascii=False, default=str)
+        except (TypeError, ValueError):
+            text = str(raw)
+        if len(text) > 4000:
+            text = f"{text[:4000]}...(truncated, total={len(text)})"
+        logger.warning(
+            "%s yddm_failed code=%s msg=%s response=%s",
+            self.platform,
+            api_code if api_code is not None else raw.get("code"),
+            self._business_error_summary(raw),
+            text,
+        )
 
     def _network_error(self, exc: HttpClientError) -> dict[str, Any]:
         logger.warning("%s network_error: %s", self.platform, exc)

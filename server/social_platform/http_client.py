@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from typing import Any, Optional
@@ -13,6 +14,53 @@ import requests
 from requests import RequestException
 
 logger = logging.getLogger(__name__)
+
+_LOG_BODY_MAX = 4000
+
+# constants.py 中四个 YDDM 搜索接口路径后缀（兼容生产/本地不同 host）
+_YDDM_FS_SEARCH_SUFFIXES = (
+    "/fs/douyin_search",
+    "/fs/xhs_search",
+    "/fs/mp_search",
+    "/fs/wxvideo_search",
+)
+
+
+def _truncate_log_text(text: str, *, max_len: int = _LOG_BODY_MAX) -> str:
+    s = text or ""
+    if len(s) <= max_len:
+        return s
+    return f"{s[:max_len]}...(truncated, total={len(s)})"
+
+
+def _is_yddm_fs_search_url(url: str) -> bool:
+    path = (url or "").split("?", 1)[0].rstrip("/").lower()
+    return any(path.endswith(suffix) for suffix in _YDDM_FS_SEARCH_SUFFIXES)
+
+
+def _format_payload_for_log(payload: dict[str, Any]) -> str:
+    try:
+        text = json.dumps(payload, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        text = str(payload)
+    return _truncate_log_text(text)
+
+
+def _log_yddm_fs_search_request(
+    url: str,
+    payload: dict[str, Any],
+    *,
+    attempt: int,
+    max_retries: int,
+) -> None:
+    """打印实际发往 YDDM 四个搜索接口的 POST body。"""
+    logger.info(
+        "YDDM search request url=%s attempt=%s/%s payload=%s",
+        url,
+        attempt,
+        max_retries,
+        _format_payload_for_log(payload),
+    )
 
 
 class HttpClientError(Exception):
@@ -94,16 +142,46 @@ class BaseHttpClient:
         for attempt in range(self.max_retries):
             started = time.monotonic()
             try:
-                logger.debug("HTTP POST url=%s payload=%s", url, payload)
+                if _is_yddm_fs_search_url(url):
+                    _log_yddm_fs_search_request(
+                        url,
+                        payload,
+                        attempt=attempt + 1,
+                        max_retries=self.max_retries,
+                    )
+                else:
+                    logger.debug("HTTP POST url=%s payload=%s", url, payload)
                 resp = requests.post(
                     url,
                     json=payload,
                     headers=req_headers,
                     timeout=self.timeout,
                 )
+                if not resp.ok:
+                    logger.warning(
+                        "YDDM HTTP 非 2xx url=%s status=%s body=%s",
+                        url,
+                        resp.status_code,
+                        _truncate_log_text(resp.text),
+                    )
                 resp.raise_for_status()
-                data = resp.json()
+                try:
+                    data = resp.json()
+                except ValueError:
+                    logger.warning(
+                        "YDDM 响应非 JSON url=%s status=%s body=%s",
+                        url,
+                        resp.status_code,
+                        _truncate_log_text(resp.text),
+                    )
+                    raise
                 if not isinstance(data, dict):
+                    logger.warning(
+                        "YDDM 响应 JSON 非对象 url=%s status=%s body=%s",
+                        url,
+                        resp.status_code,
+                        _truncate_log_text(resp.text),
+                    )
                     raise HttpClientError(f"响应 JSON 非对象: {type(data)!s}")
                 elapsed_ms = int((time.monotonic() - started) * 1000)
                 logger.debug("HTTP POST ok url=%s elapsed_ms=%d", url, elapsed_ms)
@@ -153,13 +231,44 @@ class BaseHttpClient:
         async with aiohttp.ClientSession(timeout=client_timeout) as session:
             for attempt in range(self.max_retries):
                 try:
-                    logger.debug("HTTP POST url=%s payload=%s", url, payload)
+                    if _is_yddm_fs_search_url(url):
+                        _log_yddm_fs_search_request(
+                            url,
+                            payload,
+                            attempt=attempt + 1,
+                            max_retries=self.max_retries,
+                        )
+                    else:
+                        logger.debug("HTTP POST url=%s payload=%s", url, payload)
                     async with session.post(
                         url, json=payload, headers=headers
                     ) as resp:
+                        body_text = await resp.text()
+                        if resp.status >= 400:
+                            logger.warning(
+                                "YDDM HTTP 非 2xx url=%s status=%s body=%s",
+                                url,
+                                resp.status,
+                                _truncate_log_text(body_text),
+                            )
                         resp.raise_for_status()
-                        data = await resp.json(content_type=None)
+                        try:
+                            data = json.loads(body_text)
+                        except ValueError:
+                            logger.warning(
+                                "YDDM 响应非 JSON url=%s status=%s body=%s",
+                                url,
+                                resp.status,
+                                _truncate_log_text(body_text),
+                            )
+                            raise
                         if not isinstance(data, dict):
+                            logger.warning(
+                                "YDDM 响应 JSON 非对象 url=%s status=%s body=%s",
+                                url,
+                                resp.status,
+                                _truncate_log_text(body_text),
+                            )
                             raise HttpClientError(f"响应 JSON 非对象: {type(data)!s}")
                         return data
                 except (
