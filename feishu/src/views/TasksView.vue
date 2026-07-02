@@ -1253,9 +1253,14 @@ async function runTaskExecutionFromList(row: TaskCardModel) {
     clearTestFeedAppendStateForTask(storeId)
     scheduleRefreshTestDataFeed()
     if (isRealtimeTaskConfig(cfgForBitable) && collection.mode === 'sync') {
-      await refreshYddmUserBalance()
+      await refreshYddmUserBalance({ force: true })
+      const balanceAfterCollection = accountPoints.currentBalancePoints
       openCollectionSuccessDialog(
-        buildCollectionSuccessSummary(collection.itemCount, accountPoints.currentBalancePoints),
+        buildCollectionSuccessSummary(
+          collection.itemCount, 
+          balanceAfterCollection, 
+          collection.totalCost
+        ),
       )
     } else {
       showExecutionResultTip(wr, cfg, collection)

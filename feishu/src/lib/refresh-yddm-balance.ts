@@ -13,14 +13,14 @@ let inflight: Promise<void> | null = null
 let lastSuccessAt = 0
 
 /** `GET /users/me` 并同步顶部积分展示；未登录或节流窗口内则跳过 */
-export function refreshYddmUserBalance(): Promise<void> {
+export function refreshYddmUserBalance(options?: { force?: boolean }): Promise<void> {
   if (inflight) return inflight
 
   const yddmAuth = useYddmAuthStore()
   if (!yddmAuth.isLoggedIn) return Promise.resolve()
 
   const now = Date.now()
-  if (now - lastSuccessAt < MIN_REFRESH_INTERVAL_MS) return Promise.resolve()
+  if (!options?.force && now - lastSuccessAt < MIN_REFRESH_INTERVAL_MS) return Promise.resolve()
 
   inflight = (async () => {
     try {

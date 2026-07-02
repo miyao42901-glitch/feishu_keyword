@@ -22,6 +22,8 @@ export type SyncFetchContext = {
    * 同一平台翻页复用；切换平台时由 `resetPlatformSyncBillingSession` 重置。
    */
   platformDiscountPrimed?: boolean
+  /** 最后一次 API 响应中的 cost 字段（用于累加单次任务总消耗） */
+  lastResponseCost?: number
 }
 
 /** search-page / 同步 HTTP 失败（含 status，供 500 重试判断） */
@@ -259,6 +261,17 @@ export function extractSyncResultBalance(payload: unknown): number | null {
   if (!result || typeof result !== 'object') return null
   const bal = (result as Record<string, unknown>).balance
   return typeof bal === 'number' && Number.isFinite(bal) ? bal : null
+}
+
+/** 解析 `data.result` 上的本次消耗积分（若接口返回） */
+export function extractSyncResultCost(payload: unknown): number | null {
+  if (!payload || typeof payload !== 'object') return null
+  const data = (payload as Record<string, unknown>).data
+  if (!data || typeof data !== 'object') return null
+  const result = (data as Record<string, unknown>).result
+  if (!result || typeof result !== 'object') return null
+  const cost = (result as Record<string, unknown>).cost
+  return typeof cost === 'number' && Number.isFinite(cost) ? cost : null
 }
 
 /** 翻页 token（`cursor` / `log_id` 等）统一转为请求用字符串 */

@@ -23,11 +23,20 @@ export type CollectionSuccessSummary = {
 export function buildCollectionSuccessSummary(
   articleCount: number,
   balancePoints: number,
+  actualCost?: number | null,
 ): CollectionSuccessSummary {
   const count = Math.max(0, Math.floor(articleCount))
+  let consumption: number
+  
+  if (actualCost != null && typeof actualCost === 'number' && Number.isFinite(actualCost)) {
+    consumption = Math.max(0, Math.floor(actualCost))
+  } else {
+    consumption = estimateConsumptionCapPointsForRows(count)
+  }
+  
   return {
     articleCount: count,
-    consumptionPoints: estimateConsumptionCapPointsForRows(count),
+    consumptionPoints: consumption,
     balancePoints: Math.max(0, Math.floor(balancePoints)),
   }
 }

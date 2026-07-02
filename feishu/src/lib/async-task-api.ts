@@ -1336,6 +1336,8 @@ export type CollectionSubmitResult =
       pointsConsumed: number
       /** 某平台接口 200 但列表为空时的提示 */
       emptyPlatformHints?: string[]
+      /** API 返回的实际消耗积分总和 */
+      totalCost?: number
     }
 
 export type { SyncItemsByPlatform } from '@/lib/sync-collection-cache'
@@ -1371,14 +1373,14 @@ export async function submitCollectionFromConfig(
   options?: { taskId?: number },
 ): Promise<CollectionSubmitResult> {
   if (isRealtimeTaskConfig(config)) {
-    const { itemCount, itemsByPlatform, emptyPlatformHints } = await runRealtimeSyncSearchFromConfig(
+    const { itemCount, itemsByPlatform, emptyPlatformHints, totalCost } = await runRealtimeSyncSearchFromConfig(
       config,
       ctx,
       { taskId: options?.taskId },
     )
     void refreshYddmUserBalance()
     const pointsConsumed = estimatePointsFromItemsByPlatform(itemsByPlatform)
-    return { mode: 'sync', itemCount, itemsByPlatform, pointsConsumed, emptyPlatformHints }
+    return { mode: 'sync', itemCount, itemsByPlatform, pointsConsumed, emptyPlatformHints, totalCost }
   }
   const refs = await submitAsyncTasksFromConfig(config, ctx, {
     feishuTaskConfigId: options?.taskId,
@@ -1415,6 +1417,7 @@ export async function runRealtimeSyncSearchFromConfig(
   itemCount: number
   itemsByPlatform: SyncItemsByPlatform
   emptyPlatformHints: string[]
+  totalCost: number
 }> {
   const sources = readSelectedSources(config)
   if (!sources.length) {
@@ -1424,6 +1427,7 @@ export async function runRealtimeSyncSearchFromConfig(
   const itemsByPlatform: SyncItemsByPlatform = {}
   const emptyPlatformHints: string[] = []
   let itemCount = 0
+  let totalCost = 0
 
   const trackPlatform = (platform: PlatformKey, items: Record<string, unknown>[]) => {
     if (items.length) return
@@ -1447,9 +1451,14 @@ export async function runRealtimeSyncSearchFromConfig(
     }
 
     let items: Record<string, unknown>[] = []
+    let platformCost = 0
     const platformCtx = resetPlatformSyncBillingSession(ctx)
     try {
       items = await fetchRealtimePlatformSearchItems(platform, config, platformCtx)
+      // 从最后一次请求的响应中提取 cost（存储在 context 中）
+      if (platformCtx.lastResponseCost != null) {
+        platformCost = platformCtx.lastResponseCost
+      }
     } catch (e) {
       const label = platformDisplayNames[platform] ?? platform
       let msg = e instanceof Error ? e.message : String(e)
@@ -1466,12 +1475,14 @@ export async function runRealtimeSyncSearchFromConfig(
     itemsByPlatform[platform] = items
     trackPlatform(platform, items)
     itemCount += items.length
+    totalCost += platformCost
 
     if (import.meta.env.DEV) {
       console.log('[sync-collect] search-page 完成', {
         platform,
         path: pathInfo.path,
         count: items.length,
+        cost: platformCost,
       })
     }
 
@@ -1506,7 +1517,7 @@ export async function runRealtimeSyncSearchFromConfig(
   if (options?.taskId != null) {
     setSyncCollectionCache(options.taskId, itemsByPlatform)
   }
-  return { itemCount, itemsByPlatform, emptyPlatformHints }
+  return { itemCount, itemsByPlatform, emptyPlatformHints, totalCost }
 }
 
 /** 定时任务：按已选平台 × 关键词各提交一条异步任务 */

@@ -40,12 +40,23 @@ watch(
   },
 )
 
+function formatTableNameWithTimestamp(platformLabel: string): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const hour = String(now.getHours()).padStart(2, '0')
+  const minute = String(now.getMinutes()).padStart(2, '0')
+  const second = String(now.getSeconds()).padStart(2, '0')
+  return `${platformLabel}表_${year}-${month}-${day}_${hour}-${minute}-${second}`
+}
+
 watch(
   () => props.orderedPlatforms.map((p) => p.id),
   (ids) => {
     for (const p of props.orderedPlatforms) {
       if (!props.form.platformNewTableNames[p.id]?.trim()) {
-        props.form.platformNewTableNames[p.id] = `${p.label}数据表`
+        props.form.platformNewTableNames[p.id] = formatTableNameWithTimestamp(p.label)
       }
     }
     for (const key of Object.keys(props.form.platformNewTableNames) as PlatformKey[]) {

@@ -608,7 +608,7 @@ async function executeRealtimeFromConfirm(
   taskId: number,
   payload: Record<string, unknown>,
   ctx: Awaited<ReturnType<typeof buildCollectionFetchContext>>,
-): Promise<{ showSuccessDialog: boolean; articleCount: number }> {
+): Promise<{ showSuccessDialog: boolean; articleCount: number; totalCost?: number }> {
   const taskName =
     String(payload.planName ?? payload.plan_name ?? '').trim() || '未命名任务'
   clearGlobalBitableAppendDedup()
@@ -658,21 +658,22 @@ async function executeRealtimeFromConfirm(
     itemsByPlatform: collection.itemsByPlatform,
     pointsConsumed: estimatePointsFromItemsByPlatform(collection.itemsByPlatform),
     emptyPlatformHints: collection.emptyPlatformHints,
+    totalCost: collection.totalCost,
   })
   saveTaskConfigSnapshot(taskId, payload)
 
   if (collection.emptyPlatformHints?.length && collection.itemCount === 0) {
     ElMessage.warning(collection.emptyPlatformHints.join('；'))
-    return { showSuccessDialog: false, articleCount: 0 }
+    return { showSuccessDialog: false, articleCount: 0, totalCost: collection.totalCost }
   }
   if (collection.emptyPlatformHints?.length) {
     ElMessage.warning(`部分平台无数据：${collection.emptyPlatformHints.join('；')}`)
   }
 
   if (platformWriteErrors.length && totalWritten === 0) {
-    return { showSuccessDialog: false, articleCount: collection.itemCount }
+    return { showSuccessDialog: false, articleCount: collection.itemCount, totalCost: collection.totalCost }
   }
-  return { showSuccessDialog: true, articleCount: collection.itemCount }
+  return { showSuccessDialog: true, articleCount: collection.itemCount, totalCost: collection.totalCost }
 }
 
 async function persistFromConfirmDialog() {
@@ -735,12 +736,13 @@ async function persistFromConfirmDialog() {
       const realtimeResult = await executeRealtimeFromConfirm(draftId, payload, ctx)
       savedAsRealtime = true
       if (realtimeResult.showSuccessDialog) {
-        await refreshYddmUserBalance()
+        await refreshYddmUserBalance({ force: true })
         emit(
           'realtimeCompleted',
           buildCollectionSuccessSummary(
             realtimeResult.articleCount,
             accountPoints.currentBalancePoints,
+            realtimeResult.totalCost,
           ),
         )
       }

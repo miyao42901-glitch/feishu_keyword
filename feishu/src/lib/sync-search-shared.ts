@@ -7,6 +7,7 @@ import { resolveSyncCollectionRequestTimeoutMs } from '@/lib/sync-collection-pla
 import {
   assertSyncEnvelopeOk,
   buildSyncApiHeaders,
+  extractSyncResultCost,
   extractSyncResultDiagnostics,
   extractSyncResultPageMeta,
   getSyncApiBase,
@@ -337,6 +338,13 @@ export async function postSyncSearchPage(input: {
       if (pageMeta.insufficientBalance) {
         throw new Error('账户积分不足，无法继续采集')
       }
+      
+      // 提取并保存 cost 到 context（用于单次任务累加显示）
+      const cost = extractSyncResultCost(parsed)
+      if (cost != null && input.ctx) {
+        input.ctx.lastResponseCost = (input.ctx.lastResponseCost ?? 0) + cost
+      }
+      
       void refreshYddmUserBalance()
       if (attempt > 1 && import.meta.env.DEV) {
         console.log('[sync-api] search-page 重试成功', {
